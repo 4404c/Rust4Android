@@ -132,6 +132,7 @@ fun EditorScreen(
     val problems by vm.problems.collectAsState()
     val lastResult by vm.lastResult.collectAsState()
     val bottomTab by vm.bottomTab.collectAsState()
+    val panelCollapsed by vm.panelCollapsed.collectAsState()
     val jump by vm.jump.collectAsState()
     val showCloseConfirm by vm.showCloseConfirm.collectAsState()
     val allFiles by vm.treeAllFiles.collectAsState()
@@ -502,7 +503,7 @@ fun EditorScreen(
                         TabRow(selectedTabIndex = if (bottomTab == EditorViewModel.BottomTab.CONSOLE) 0 else 1) {
                             Tab(
                                 selected = bottomTab == EditorViewModel.BottomTab.CONSOLE,
-                                onClick = { vm.selectBottomTab(EditorViewModel.BottomTab.CONSOLE) },
+                                onClick = { vm.onBottomTabClicked(EditorViewModel.BottomTab.CONSOLE) },
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(RdIcons.Terminal, null, Modifier.height(14.dp).width(14.dp))
@@ -521,7 +522,7 @@ fun EditorScreen(
                             )
                             Tab(
                                 selected = bottomTab == EditorViewModel.BottomTab.PROBLEMS,
-                                onClick = { vm.selectBottomTab(EditorViewModel.BottomTab.PROBLEMS) },
+                                onClick = { vm.onBottomTabClicked(EditorViewModel.BottomTab.PROBLEMS) },
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Warning, null, Modifier.height(14.dp).width(14.dp))
@@ -535,7 +536,8 @@ fun EditorScreen(
                                 },
                             )
                         }
-                        Box(
+                        // R4A: folded panel keeps only the tab buttons
+                        if (!panelCollapsed) Box(
                             Modifier
                                 .fillMaxWidth()
                                 .height(if (imeVisible) 88.dp else 220.dp)

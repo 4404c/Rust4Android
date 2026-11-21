@@ -132,6 +132,14 @@ class EditorViewModel(
 
     enum class BottomTab { CONSOLE, PROBLEMS }
 
+    /**
+     * R4A: Console/Problems content folded away (only the two tab buttons
+     * stay, at the bottom). Tapping the selected tab folds/unfolds; tapping
+     * the other tab, Run, or jumping to a problem unfolds it.
+     */
+    private val _panelCollapsed = MutableStateFlow(false)
+    val panelCollapsed: StateFlow<Boolean> = _panelCollapsed.asStateFlow()
+
     init {
         refreshTree()
         // deep-linked file ("open with" import) wins; otherwise open the
@@ -406,6 +414,7 @@ class EditorViewModel(
 
     private fun startCargo(command: List<String>) {
         if (_running.value) return
+        _panelCollapsed.value = false // R4A: show the output of the run
         runJob = viewModelScope.launch {
             // persist unsaved edits BEFORE the toolchain reads them
             saveAllChanged()
@@ -526,6 +535,7 @@ class EditorViewModel(
             (diagnostic.col ?: 1),
         )
         _bottomTab.value = BottomTab.PROBLEMS
+        _panelCollapsed.value = false
     }
 
     fun clearJump() {
@@ -534,6 +544,16 @@ class EditorViewModel(
 
     fun selectBottomTab(tab: BottomTab) {
         _bottomTab.value = tab
+        _panelCollapsed.value = false
+    }
+
+    /** R4A: tab button tapped — the selected one toggles the fold. */
+    fun onBottomTabClicked(tab: BottomTab) {
+        if (tab == _bottomTab.value) {
+            _panelCollapsed.value = !_panelCollapsed.value
+        } else {
+            selectBottomTab(tab)
+        }
     }
 
     companion object {
