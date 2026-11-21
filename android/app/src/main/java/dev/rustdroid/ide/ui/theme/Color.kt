@@ -2,15 +2,15 @@ package dev.rustdroid.ide.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand: Rust orange on warm charcoal, Material 3 tonal.
-val RustOrange = Color(0xFFF7770F)
-val RustOrangeDim = Color(0xFF8A4308)
+// Brand R4A: violeta (antes naranja Rust), Material 3 tonal.
+val RustOrange = Color(0xFF9C6BFF) // R4A: violeta (antes 0xFFF7770F)
+val RustOrangeDim = Color(0xFF5B2DB8) // R4A: violeta oscuro (antes 0xFF8A4308)
 val Charcoal = Color(0xFF1C1B1F)
 
 val md_dark_primary = RustOrange
 val md_dark_onPrimary = Color(0xFFFFFFFF)
-val md_dark_primaryContainer = Color(0xFF7A3A00)
-val md_dark_onPrimaryContainer = Color(0xFFFFDCC2)
+val md_dark_primaryContainer = Color(0xFF4A2A8A)
+val md_dark_onPrimaryContainer = Color(0xFFEADDFF)
 val md_dark_secondary = Color(0xFFE2BFA8)
 val md_dark_onSecondary = Color(0xFF3E2C1E)
 val md_dark_secondaryContainer = Color(0xFF57402F)
@@ -31,8 +31,8 @@ val md_dark_outline = Color(0xFF998F7F)
 
 val md_light_primary = RustOrangeDim
 val md_light_onPrimary = Color(0xFFFFFFFF)
-val md_light_primaryContainer = Color(0xFFFFDBC8)
-val md_light_onPrimaryContainer = Color(0xFF2C1500)
+val md_light_primaryContainer = Color(0xFFEADDFF)
+val md_light_onPrimaryContainer = Color(0xFF21005D)
 val md_light_secondary = Color(0xFF77574A)
 val md_light_onSecondary = Color(0xFFFFFFFF)
 val md_light_secondaryContainer = Color(0xFFFFDBC8)

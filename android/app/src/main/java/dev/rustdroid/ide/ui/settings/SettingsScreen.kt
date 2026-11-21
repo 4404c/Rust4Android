@@ -140,7 +140,7 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("About", style = MaterialTheme.typography.titleMedium)
-                    Text("RustDroid 0.1.0 — an on-device Rust IDE.", style = MaterialTheme.typography.bodySmall)
+                    Text("R4A 0.2.0 — Rust 4 Android. Basado en RustDroid (MIT).", style = MaterialTheme.typography.bodySmall)
                     Text(
                         "Toolchain: rust ${ToolchainDistro.RUST_VERSION} (aarch64-linux-android), built from source " +
                             "by GitHub Actions; bundled via the rustdroid-link kit (crt objects, bionic stubs, " +

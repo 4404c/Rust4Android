@@ -116,7 +116,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("RustDroid") },
+                title = { Text("R4A") },
                 actions = {
                     IconButton(onClick = openFolderPicker) {
                         Icon(RdIcons.FolderOpen, contentDescription = "Open folder as project")

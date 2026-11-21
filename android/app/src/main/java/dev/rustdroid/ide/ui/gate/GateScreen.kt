@@ -85,7 +85,7 @@ fun GateScreen(
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "RustDroid",
+                "R4A",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
             )
