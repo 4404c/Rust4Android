@@ -219,37 +219,57 @@ private fun LanguageCard() {
     }
 }
 
-/** R4A: appearance toggles. Changes apply right away (AppSettings flows). */
+/** R4A: appearance / editor toggles. Changes apply right away (AppSettings flows). */
 @Composable
 private fun AppearanceCard() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
+    val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = fileIcons,
-                        role = androidx.compose.ui.semantics.Role.Switch,
-                    ) {
-                        dev.rustdroid.ide.util.AppSettings.setFileIcons(context, it)
-                    }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_file_icons), style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        stringResource(R.string.settings_file_icons_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.width(12.dp))
-                androidx.compose.material3.Switch(checked = fileIcons, onCheckedChange = null)
-            }
+            SwitchRow(
+                title = stringResource(R.string.settings_file_icons),
+                description = stringResource(R.string.settings_file_icons_desc),
+                checked = fileIcons,
+            ) { dev.rustdroid.ide.util.AppSettings.setFileIcons(context, it) }
+            SwitchRow(
+                title = stringResource(R.string.settings_live_check),
+                description = stringResource(R.string.settings_live_check_desc),
+                checked = liveCheck,
+            ) { dev.rustdroid.ide.util.AppSettings.setLiveCheck(context, it) }
         }
+    }
+}
+
+/** One setting: title + description + switch; the whole row toggles. */
+@Composable
+private fun SwitchRow(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                role = androidx.compose.ui.semantics.Role.Switch,
+                onValueChange = onChange,
+            )
+            .padding(vertical = 6.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = null)
     }
 }

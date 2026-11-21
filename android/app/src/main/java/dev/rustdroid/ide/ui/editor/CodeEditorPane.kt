@@ -77,8 +77,26 @@ object RustEditor {
             "textmate/rust-language-configuration.json",
             "rust", "source.rust",
         )
-        TextMateLanguage.create(def, true)
+        TextMateLanguage.create(def, true).apply { setCompleterKeywords(RUST_WORDS) }
     }
+
+    /**
+     * R4A: extra words for the basic (non-semantic) completion, besides the
+     * identifiers already in the file: Rust keywords and the std names a
+     * beginner types most. Real member completion would need rust-analyzer.
+     */
+    private val RUST_WORDS = arrayOf(
+        "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
+        "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod",
+        "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct", "super",
+        "trait", "true", "type", "unsafe", "use", "where", "while",
+        "String", "Vec", "Option", "Some", "None", "Result", "Ok", "Err", "Box", "HashMap",
+        "HashSet", "BTreeMap", "println!", "print!", "eprintln!", "format!", "vec!", "panic!",
+        "assert!", "assert_eq!", "dbg!", "todo!", "unwrap", "expect", "clone", "to_string",
+        "len", "push", "iter", "into_iter", "collect", "map", "filter", "std", "io", "stdin",
+        "read_line", "trim", "parse", "i32", "i64", "u8", "u32", "u64", "usize", "f32", "f64",
+        "bool", "char", "str",
+    )
 
     private fun grammarSourceFor(assets: android.content.res.AssetManager, path: String): IGrammarSource =
         IGrammarSource.fromInputStream(assets.open(path), path, null)
@@ -88,6 +106,12 @@ object RustEditor {
         val editor = CodeEditor(context)
         editor.setEditorLanguage(createLanguage(context))
         editor.setColorScheme(colorScheme(dark))
+        applyProblemColors(editor, dark)
+        // R4A: our error card (margins from the screen edges, more padding)
+        editor.replaceComponent(
+            io.github.rosemoe.sora.widget.component.EditorDiagnosticTooltipWindow::class.java,
+            R4ADiagnosticTooltip(editor),
+        )
         editor.typefaceText = android.graphics.Typeface.MONOSPACE
         editor.setTextSize(14f)
         editor.setWordwrap(false)
@@ -98,7 +122,37 @@ object RustEditor {
         editor.setDividerMargin(6 * dp, 6 * dp)
         editor.getProps().autoIndent = true
         editor.getProps().symbolPairAutoCompletion = true
+        // R4A: suggest while the keyboard is still composing the word (Gboard
+        // composes almost always; with this off, suggestions never showed)
+        editor.getProps().autoCompletionOnComposing = true
         return editor
+    }
+
+    /**
+     * R4A: squiggle colors for live errors. Not themable through the
+     * TextMate JSON, and the scheme re-applies its theme when attached —
+     * so this must run AFTER editor.setColorScheme(...).
+     */
+    fun applyProblemColors(editor: CodeEditor, dark: Boolean) {
+        val scheme = editor.colorScheme
+        if (dark) {
+            scheme.setColor(EditorColorScheme.PROBLEM_ERROR, 0xFFFF5C5C.toInt())
+            scheme.setColor(EditorColorScheme.PROBLEM_WARNING, 0xFFFFC857.toInt())
+            // suggestion list in R4A colors (it was white on the dark theme)
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_BACKGROUND, 0xFF2B2930.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_CORNER, 0xFF4A4458.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_PRIMARY, 0xFFEDE0D4.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_SECONDARY, 0xFF9E96A8.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_ITEM_CURRENT, 0xFF3D3550.toInt())
+        } else {
+            scheme.setColor(EditorColorScheme.PROBLEM_ERROR, 0xFFD32F2F.toInt())
+            scheme.setColor(EditorColorScheme.PROBLEM_WARNING, 0xFFB7791F.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_BACKGROUND, 0xFFF3EDF7.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_CORNER, 0xFFCAC4D0.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_PRIMARY, 0xFF201A16.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_SECONDARY, 0xFF6B6375.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_ITEM_CURRENT, 0xFFE4DAF5.toInt())
+        }
     }
 
     fun colorScheme(dark: Boolean): EditorColorScheme {
@@ -110,6 +164,137 @@ object RustEditor {
         // ("highlightedDelimitersForeground"). Setting it here does not stick:
         // the scheme re-applies its theme when attached to the editor.
         return TextMateColorScheme.create(registry, registry.currentThemeModel)
+    }
+}
+
+/**
+ * R4A: sora's error card, kept off the screen edges. The stock window
+ * centres itself on the error but only clamps at x = 0 and may be as wide
+ * as the editor, so near the left edge it touched the border. Here it keeps
+ * a margin on both sides and its panels get more inner padding.
+ */
+private class R4ADiagnosticTooltip(
+    editor: CodeEditor,
+) : io.github.rosemoe.sora.widget.component.EditorDiagnosticTooltipWindow(editor) {
+
+    private val margin = (12 * editor.resources.displayMetrics.density).toInt()
+
+    init {
+        val pad = (14 * editor.resources.displayMetrics.density).toInt()
+        (popup.contentView as? android.view.ViewGroup)?.let { root ->
+            for (i in 0 until root.childCount) {
+                val child = root.getChildAt(i)
+                child.setPadding(pad, child.paddingTop + pad / 3, pad, child.paddingBottom + pad / 3)
+            }
+        }
+    }
+
+    /** All text views of the card (brief, detail, quick-fix buttons). */
+    private val texts: List<android.widget.TextView> = buildList {
+        fun walk(v: android.view.View) {
+            if (v is android.widget.TextView) add(v)
+            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+        }
+        popup.contentView?.let { walk(it) }
+    }
+
+    override fun updateWindowSize() {
+        // Wrap instead of overflowing: cap every text at the card's inner
+        // width (the quick-fix row is a HorizontalScrollView, so without a
+        // max width its button text never wraps), allow multi-line buttons,
+        // and let the card grow up to 60% of the editor's height.
+        val inner = editor.width - 2 * margin - (48 * editor.resources.displayMetrics.density).toInt()
+        texts.forEach { tv ->
+            tv.maxWidth = inner
+            if (tv is android.widget.Button) {
+                tv.isSingleLine = false
+                tv.maxLines = 4
+                tv.gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            }
+        }
+        maxHeight = (editor.height * 0.6f).toInt()
+        super.updateWindowSize()
+    }
+
+    override fun setSize(width: Int, height: Int) {
+        super.setSize(width.coerceAtMost(editor.width - 2 * margin), height)
+    }
+
+    override fun setLocationAbsolutely(x: Int, y: Int) {
+        val loc = IntArray(2).also { editor.getLocationInWindow(it) }
+        val minX = loc[0] + margin
+        val maxX = loc[0] + editor.width - width - margin
+        super.setLocationAbsolutely(x.coerceIn(minX, maxOf(minX, maxX)), y)
+    }
+}
+
+/**
+ * R4A: turns live cargo-check diagnostics into sora squiggles + tooltip
+ * details. Tapping a squiggle opens sora's diagnostic window with the
+ * message and one "Quick fix" button per rustc suggestion.
+ */
+private object LiveSquiggles {
+
+    fun build(
+        editor: CodeEditor,
+        diagnostics: List<dev.rustdroid.ide.runtime.LiveDiagnostic>,
+    ): io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer {
+        val container = io.github.rosemoe.sora.lang.diagnostic.DiagnosticsContainer()
+        val text = editor.text
+        val version = text.documentVersion
+        diagnostics.forEachIndexed { i, d ->
+            val start = index(text, d.lineStart, d.colStart)
+            var end = index(text, d.lineEnd, d.colEnd)
+            if (end <= start) end = minOf(start + 1, text.length) // never zero-width
+            val detailed = buildString {
+                d.label?.let { appendLine(it) }
+                d.notes.forEach { appendLine(it) }
+                d.code?.let { append("[").append(it).append("]") }
+            }.trim()
+            val fixes = d.fixes
+                .filter { fix -> fix.edits.all { it.file == d.file } }
+                .map { fix ->
+                    io.github.rosemoe.sora.lang.diagnostic.Quickfix(
+                        fix.title, version, Runnable { apply(editor, fix) },
+                    )
+                }
+            container.addDiagnostic(
+                io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion(
+                    start, end,
+                    if (d.isError) io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_ERROR
+                    else io.github.rosemoe.sora.lang.diagnostic.DiagnosticRegion.SEVERITY_WARNING,
+                    i.toLong(),
+                    io.github.rosemoe.sora.lang.diagnostic.DiagnosticDetail(d.message, detailed, fixes, null),
+                ),
+            )
+        }
+        return container
+    }
+
+    /** rustc line/column (1-based) -> char index, clamped to the text. */
+    private fun index(text: io.github.rosemoe.sora.text.Content, line1: Int, col1: Int): Int {
+        val line = (line1 - 1).coerceIn(0, text.lineCount - 1)
+        val col = (col1 - 1).coerceIn(0, text.getColumnCount(line))
+        return text.getCharIndex(line, col)
+    }
+
+    /** Applies a fix's edits back-to-front, as one undo step. */
+    private fun apply(editor: CodeEditor, fix: dev.rustdroid.ide.runtime.LiveFix) {
+        val text = editor.text
+        text.beginBatchEdit()
+        try {
+            fix.edits
+                .sortedWith(compareByDescending<dev.rustdroid.ide.runtime.TextEdit> { it.lineStart }.thenByDescending { it.colStart })
+                .forEach { e ->
+                    val sl = (e.lineStart - 1).coerceIn(0, text.lineCount - 1)
+                    val el = (e.lineEnd - 1).coerceIn(0, text.lineCount - 1)
+                    val sc = (e.colStart - 1).coerceIn(0, text.getColumnCount(sl))
+                    val ec = (e.colEnd - 1).coerceIn(0, text.getColumnCount(el))
+                    text.replace(sl, sc, el, ec, e.replacement)
+                }
+        } finally {
+            text.endBatchEdit()
+        }
     }
 }
 
@@ -177,12 +362,26 @@ fun CodeEditorPane(
     jumpRequest: JumpRequest?,
     onFocusChanged: (Boolean) -> Unit = {},
     onEditorReady: (CodeEditor) -> Unit = {},
+    /** R4A: live `cargo check` diagnostics for THIS file. */
+    liveDiagnostics: List<dev.rustdroid.ide.runtime.LiveDiagnostic> = emptyList(),
+    /** R4A: the text those diagnostics were computed for (null = from disk, unknown). */
+    checkedText: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val editor = remember { RustEditor.createEditor(context, dark) }
     // R4A: hand the view to the screen (symbol bar types into it)
     LaunchedEffect(editor) { onEditorReady(editor) }
+
+    // R4A: errors while typing. Draw squiggles only when the editor still
+    // shows exactly the text that was checked — otherwise positions could be
+    // off; the next check (already scheduled by the edit) will redraw, and
+    // meanwhile sora shifts the previous squiggles along with the edits.
+    LaunchedEffect(liveDiagnostics, checkedText) {
+        val current = editor.text.toString()
+        if (liveDiagnostics.isNotEmpty() && checkedText != current) return@LaunchedEffect
+        editor.diagnostics = LiveSquiggles.build(editor, liveDiagnostics)
+    }
     val programmaticSet = remember { AtomicBoolean(false) }
 
     // text sync: only when the incoming text differs (tab switch / external load)
@@ -213,6 +412,7 @@ fun CodeEditorPane(
     // theme flip: recreate the color scheme in place
     LaunchedEffect(dark) {
         editor.setColorScheme(RustEditor.colorScheme(dark))
+        RustEditor.applyProblemColors(editor, dark)
     }
 
     DisposableEffect(Unit) {

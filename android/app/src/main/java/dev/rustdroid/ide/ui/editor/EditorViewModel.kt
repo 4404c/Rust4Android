@@ -60,6 +60,36 @@ class EditorViewModel(
 
     private val repo = container.projectRepository
     private val runner = container.cargoRunner
+
+    // ---------------- live errors (R4A) ----------------
+
+    private val liveChecker = dev.rustdroid.ide.runtime.LiveChecker(runner, container.context.filesDir)
+    private val _live = MutableStateFlow<dev.rustdroid.ide.runtime.LiveResult?>(null)
+    /** Latest "errors while you type" result (null = none / disabled). */
+    val live: StateFlow<dev.rustdroid.ide.runtime.LiveResult?> = _live.asStateFlow()
+    private var liveJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Runs a live `cargo check` [delayMs] after the last call (each edit
+     * restarts the wait; an in-flight check is cancelled and its process
+     * killed). Unsaved tab text is checked from a shadow copy, never saved.
+     */
+    fun scheduleLiveCheck(delayMs: Long = 1000) {
+        liveJob?.cancel()
+        if (!dev.rustdroid.ide.util.AppSettings.liveCheck.value) {
+            _live.value = null
+            return
+        }
+        liveJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(delayMs)
+            if (!container.toolchainPaths.isInstalled()) return@launch
+            activeTab?.let { it.cachedText = _activeText.value }
+            val unsaved = _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
+            val env = withContext(Dispatchers.IO) { buildEnv() }
+            runCatching { liveChecker.check(projectDir, unsaved, cargoPath, env) }
+                .onSuccess { _live.value = it }
+        }
+    }
     /**
      * Built per invocation (not cached): cheap after first run (stat
      * fast-path bundle ensure), and rebuilt envs pick up the last-resort
@@ -176,6 +206,7 @@ class EditorViewModel(
         activeTab?.let { it.cachedText = _activeText.value }
         _activeIndex.value = index
         _activeText.value = _tabs.value[index].cachedText
+        scheduleLiveCheck(300) // R4A: show this file's errors soon
     }
 
     /** Called by the editor view on every keystroke. */
@@ -185,6 +216,7 @@ class EditorViewModel(
             it.cachedText = text
             it.dirty = true
         }
+        scheduleLiveCheck()
     }
 
     fun closeTab(index: Int, force: Boolean) {

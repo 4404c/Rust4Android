@@ -177,4 +177,8 @@
     <string name="settings_file_icons_desc">Shows an icon for each file type in Files and the editor tabs.</string>
     <string name="editor_undo">Undo</string>
     <string name="editor_redo">Redo</string>
+    <string name="settings_live_check">Check errors while typing</string>
+    <string name="settings_live_check_desc">Underlines errors without building (cargo check in the background). Turn off to save battery.</string>
+    <string name="editor_suggestions_on">Suggestions on</string>
+    <string name="editor_suggestions_off">Suggestions off</string>
 </resources>

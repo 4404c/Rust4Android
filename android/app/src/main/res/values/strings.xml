@@ -181,4 +181,8 @@
     <string name="settings_file_icons_desc">Muestra un dibujito según el tipo de archivo en Files y en las pestañas.</string>
     <string name="editor_undo">Deshacer</string>
     <string name="editor_redo">Rehacer</string>
+    <string name="settings_live_check">Revisar errores mientras escribo</string>
+    <string name="settings_live_check_desc">Subraya los errores sin compilar (cargo check en segundo plano). Apagalo para ahorrar batería.</string>
+    <string name="editor_suggestions_on">Sugerencias activadas</string>
+    <string name="editor_suggestions_off">Sugerencias desactivadas</string>
 </resources>

@@ -39,6 +39,24 @@ object RdIcons {
         )
     }
 
+    /** R4A: Material "info" (filled) — suggestions ON. */
+    val Info: ImageVector by lazy {
+        fromPathData(
+            "RdInfo",
+            "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" +
+                "M13,17h-2v-6h2v6zM13,9h-2V7h2v2z",
+        )
+    }
+
+    /** R4A: Material "info_outline" — suggestions OFF. */
+    val InfoOutline: ImageVector by lazy {
+        fromPathData(
+            "RdInfoOutline",
+            "M11,7h2v2h-2zM11,11h2v6h-2zM12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10" +
+                "S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z",
+        )
+    }
+
     /** R4A: Material "undo". */
     val Undo: ImageVector by lazy {
         fromPathData(

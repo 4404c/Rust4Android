@@ -135,6 +135,12 @@ fun EditorScreen(
     val lastResult by vm.lastResult.collectAsState()
     val bottomTab by vm.bottomTab.collectAsState()
     val panelCollapsed by vm.panelCollapsed.collectAsState()
+    // R4A: errors while typing, for the active file
+    val live by vm.live.collectAsState()
+    val activeRel = tabs.getOrNull(activeIndex)?.relativePath
+    val liveForFile = remember(live, activeRel) {
+        live?.diagnostics?.filter { it.file == activeRel }.orEmpty()
+    }
     // R4A: Settings > Appearance > file type icons (on by default)
     val showFileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
     val jump by vm.jump.collectAsState()
@@ -185,6 +191,17 @@ fun EditorScreen(
     // R4A: undo/redo buttons in the top bar, greyed out when there is nothing
     // to undo/redo (refreshed on every content change of the editor)
     var canUndo by remember { mutableStateOf(false) }
+    // R4A: ⓘ toggle — code suggestions while typing
+    val autoComplete by dev.rustdroid.ide.util.AppSettings.autoComplete.collectAsState()
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(autoComplete, codeEditor) {
+        codeEditor?.getComponent(
+            io.github.rosemoe.sora.widget.component.EditorAutoCompletion::class.java
+        )?.let { completion ->
+            completion.isEnabled = autoComplete
+            if (!autoComplete) completion.hide()
+        }
+    }
     var canRedo by remember { mutableStateOf(false) }
     DisposableEffect(codeEditor) {
         val ed = codeEditor
@@ -220,9 +237,23 @@ fun EditorScreen(
     val drawerState = rememberEdgeDrawerState()
     // fresh tree every time the drawer starts opening (button or swipe): the
     // folder may have changed on disk (opened-in-place projects are shared)
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(drawerState) {
         androidx.compose.runtime.snapshotFlow { drawerState.isOpen }
-            .collect { open -> if (open) vm.refreshTree() }
+            .collect { open ->
+                if (open) {
+                    vm.refreshTree()
+                    // R4A: opening Files closes the keyboard and any editor
+                    // popup (error card, completion) so they don't sit on top
+                    codeEditor?.hideEditorWindows()
+                    // hideEditorWindows() does not include the error card
+                    codeEditor?.getComponent(
+                        io.github.rosemoe.sora.widget.component.EditorDiagnosticTooltipWindow::class.java
+                    )?.dismiss()
+                    codeEditor?.hideSoftInput()
+                    keyboard?.hide()
+                }
+            }
     }
     val drawerScope = androidx.compose.runtime.rememberCoroutineScope()
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -234,6 +265,10 @@ fun EditorScreen(
         val unsaved = vm.unsavedFiles()
         if (unsaved.isEmpty()) onExit() else exitUnsaved = unsaved
     }
+    // R4A: first live check when the project opens, and again whenever the
+    // setting is switched back on (switching it off clears the squiggles)
+    val liveCheckEnabled by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
+    LaunchedEffect(liveCheckEnabled) { vm.scheduleLiveCheck(500) }
     androidx.activity.compose.BackHandler {
         if (drawerState.isOpen) {
             drawerScope.launch { drawerState.close() }
@@ -400,6 +435,18 @@ fun EditorScreen(
                     actions = {
                         // R4A: Deps and Terminal moved to the Files drawer
                         if (tabs.isNotEmpty()) {
+                            IconButton(onClick = {
+                                dev.rustdroid.ide.util.AppSettings.setAutoComplete(appContext, !autoComplete)
+                            }) {
+                                Icon(
+                                    if (autoComplete) RdIcons.Info else RdIcons.InfoOutline,
+                                    contentDescription = stringResource(
+                                        if (autoComplete) R.string.editor_suggestions_on else R.string.editor_suggestions_off
+                                    ),
+                                    tint = if (autoComplete) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             IconButton(onClick = { codeEditor?.undo() }, enabled = canUndo) {
                                 Icon(RdIcons.Undo, contentDescription = stringResource(R.string.editor_undo))
                             }
@@ -512,6 +559,8 @@ fun EditorScreen(
                             onTextChange = { vm.onTextChange(it) },
                             jumpRequest = jump,
                             onEditorReady = { codeEditor = it },
+                            liveDiagnostics = liveForFile,
+                            checkedText = live?.checkedText?.get(activeRel),
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
