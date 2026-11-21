@@ -157,10 +157,13 @@ fun CodeEditorPane(
     onTextChange: (String) -> Unit,
     jumpRequest: JumpRequest?,
     onFocusChanged: (Boolean) -> Unit = {},
+    onEditorReady: (CodeEditor) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val editor = remember { RustEditor.createEditor(context, dark) }
+    // R4A: hand the view to the screen (symbol bar types into it)
+    LaunchedEffect(editor) { onEditorReady(editor) }
     val programmaticSet = remember { AtomicBoolean(false) }
 
     // text sync: only when the incoming text differs (tab switch / external load)

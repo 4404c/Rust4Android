@@ -9,6 +9,9 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBars
@@ -88,6 +91,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
@@ -168,6 +172,8 @@ fun EditorScreen(
     // panel so the script gets the whole space above the IME (see bottom
     // panel below). Track View-level focus from sora-editor.
     var editorFocused by remember { mutableStateOf(false) }
+    // R4A: the sora editor view, so the symbol bar can type into it
+    var codeEditor by remember { mutableStateOf<io.github.rosemoe.sora.widget.CodeEditor?>(null) }
 
     // v0.2.1 (review P2): the console panel's visibility is decided by the IME
     // inset's DIRECTION, not by a fixed fraction of the screen. The v0.2 rule
@@ -285,8 +291,8 @@ fun EditorScreen(
                     // R4A: project actions pinned to the bottom of the drawer
                     androidx.compose.material3.HorizontalDivider()
                     androidx.compose.material3.NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.common_settings)) },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                        label = { Text(stringResource(R.string.common_settings), fontSize = 12.sp) },
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp)) },
                         selected = false,
                         onClick = {
                             drawerScope.launch { drawerState.close() }
@@ -295,11 +301,12 @@ fun EditorScreen(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                     )
                     androidx.compose.material3.NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.editor_exit_project)) },
+                        label = { Text(stringResource(R.string.editor_exit_project), fontSize = 12.sp) },
                         icon = {
                             Icon(
                                 Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = null,
+                                modifier = Modifier.size(18.dp),
                             )
                         },
                         selected = false,
@@ -354,7 +361,9 @@ fun EditorScreen(
             // insets flow through WindowInsets and must be applied manually.
             // Children (editor / bottom panel) then always sit above the
             // keyboard, whichever of them owns the input focus.
-            Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
+            // R4A: consume the scaffold insets first, otherwise imePadding adds the
+            // navigation-bar height again (empty strip above the keyboard)
+            Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
                 // ---- tabs row (compact 30dp strip — M3 Tab's 48dp minimum
                 // + padding ate a quarter of the screen; every dp counts on a
                 // phone with the keyboard open) ----
@@ -435,9 +444,21 @@ fun EditorScreen(
                             onTextChange = { vm.onTextChange(it) },
                             jumpRequest = jump,
                             onFocusChanged = { editorFocused = it },
+                            onEditorReady = { codeEditor = it },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
+                }
+
+                // ---- symbol bar (R4A) ----
+                // Sits between the editor and the bottom panel: with the
+                // keyboard open the panel hides, so the bar ends up right above
+                // the keyboard; without it, the bar is above Console/Problems.
+                if (tabs.isNotEmpty()) {
+                    SymbolBar(
+                        onTab = { codeEditor?.indentOrCommitTab() },
+                        onSymbol = { codeEditor?.commitText(it) },
+                    )
                 }
 
                 // ---- bottom panel ----
@@ -938,6 +959,64 @@ private fun ProblemsPanel(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+/** R4A: symbols that are awkward to reach on a phone keyboard, Rust-first. */
+private val BarSymbols = listOf(
+    ";", ":", "{", "}", "(", ")", "[", "]", "\"", "'", "&", "*", "<", ">",
+    "=", "!", "?", "|", "_", ".", ",", "#", "-", "+", "/", "%", "@", "$",
+    "^", "~", "\\", "`",
+)
+
+/**
+ * R4A: one-tap symbol row. Taps go through detectTapGestures rather than
+ * clickable/Button so the row never takes focus away from the editor — the
+ * keyboard stays open while typing symbols.
+ */
+@Composable
+private fun SymbolBar(onTab: () -> Unit, onSymbol: (String) -> Unit) {
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val keys = listOf("Tab") + BarSymbols
+        keys.forEachIndexed { i, key ->
+            if (i > 0) {
+                Box(
+                    Modifier
+                        .width(1.dp)
+                        .height(18.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                )
+            }
+            Box(
+                Modifier
+                    .fillMaxHeight()
+                    .widthIn(min = if (key == "Tab") 52.dp else 38.dp)
+                    .pointerInput(key) {
+                        detectTapGestures {
+                            haptics.performHapticFeedback(
+                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+                            )
+                            if (key == "Tab") onTab() else onSymbol(key)
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    key,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }

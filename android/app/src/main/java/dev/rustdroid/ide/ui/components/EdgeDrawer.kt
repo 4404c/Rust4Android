@@ -40,7 +40,10 @@ import kotlinx.coroutines.launch
  */
 @Stable
 class EdgeDrawerState {
-    internal val progress = Animatable(0f)
+    // Bounded to [0, 1]: a fling released while already open used to carry
+    // the spring past 1, sliding the sheet right and opening a gap at the
+    // left edge. With bounds the animation stops at the edge instead.
+    internal val progress = Animatable(0f).apply { updateBounds(0f, 1f) }
 
     /** True while the drawer is visible at all (also mid-drag). */
     val isOpen: Boolean get() = progress.value > 0f || progress.targetValue > 0f
@@ -94,7 +97,9 @@ fun EdgeDrawer(
 ) {
     val scope = rememberCoroutineScope()
     BoxWithConstraints(modifier.fillMaxSize()) {
-        val sheetWidth = min(maxWidth - 56.dp, 360.dp)
+        // R4A: narrower than Material's default (up to 360dp, nearly the
+        // whole phone): file names and the bottom actions fit in ~70%.
+        val sheetWidth = min(maxWidth * 0.7f, 300.dp)
         val widthPx = with(LocalDensity.current) { sheetWidth.toPx() }
 
         content()

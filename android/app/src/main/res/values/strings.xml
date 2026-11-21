@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- R4A: Spanish is the primary language, so it lives in the default
-     resources (values/). English is in values-en/. -->
+     resources (values/). English is in values-en/.
+     Key names of the app's parts (Files, Console, Problems, Deps, ...) stay
+     in English on purpose; messages, dialogs and settings are in Spanish. -->
 <resources>
     <string name="app_name">R4A</string>
     <string name="notif_channel_toolchain">Instalación del toolchain</string>
@@ -102,20 +104,20 @@
     <string name="openrs_importing">importando…</string>
     <string name="openrs_create_project">Crear proyecto</string>
     <string name="openrs_in_projects">en los proyectos de R4A</string>
-    <string name="editor_files">Archivos</string>
-    <string name="editor_new_file">Archivo nuevo</string>
-    <string name="editor_sources">Fuentes</string>
-    <string name="editor_all_files">Todos</string>
+    <string name="editor_files">Files</string>
+    <string name="editor_new_file">New file</string>
+    <string name="editor_sources">Sources</string>
+    <string name="editor_all_files">All files</string>
     <string name="editor_exit_project">Salir del proyecto</string>
-    <string name="editor_deps">Dependencias</string>
+    <string name="editor_deps">Deps</string>
     <string name="editor_open_terminal_cd">Abrir terminal en este proyecto</string>
     <string name="editor_stop">Detener</string>
     <string name="editor_run">Ejecutar</string>
     <string name="editor_close_tab">cerrar</string>
     <string name="editor_open_from_drawer">Abrí un archivo desde el panel de archivos</string>
-    <string name="editor_console">Consola</string>
-    <string name="editor_exit_code">· salida %1$d</string>
-    <string name="editor_problems">Problemas</string>
+    <string name="editor_console">Console</string>
+    <string name="editor_exit_code">· exit %1$d</string>
+    <string name="editor_problems">Problems</string>
     <string name="editor_unsaved_title">Cambios sin guardar</string>
     <string name="editor_close_tab_body">¿Guardar antes de cerrar esta pestaña?</string>
     <string name="editor_save_close">Guardar y cerrar</string>
@@ -134,9 +136,9 @@
     <string name="editor_clear_console">Limpiar consola</string>
     <string name="editor_send_stdin">Enviar al programa</string>
     <string name="editor_no_problems">sin problemas — compilación limpia</string>
-    <string name="editor_lines">%1$d líneas</string>
-    <string name="deps_title">Dependencias — %1$s</string>
-    <string name="deps_fetch">Descargar</string>
+    <string name="editor_lines">%1$d lines</string>
+    <string name="deps_title">Dependencies — %1$s</string>
+    <string name="deps_fetch">Fetch</string>
     <string name="deps_search">Buscar en crates.io</string>
     <string name="deps_clear_search">Borrar búsqueda</string>
     <string name="deps_in_manifest">En Cargo.toml · %1$d</string>
