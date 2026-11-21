@@ -292,7 +292,7 @@ static void test_sigpipe_reset(void)
     /* Mimic ART: parent ignores SIGPIPE; SIG_IGN survives execve. */
     struct sigaction ign = { .sa_handler = SIG_IGN };
     struct sigaction old;
-    sigaction(SIGPIPE, &ign, NULL);
+    sigaction(SIGPIPE, &ign, &old); /* save the original so it can be restored */
 
     mock_call c;
     const char* args[] = { "sigprobe" };
