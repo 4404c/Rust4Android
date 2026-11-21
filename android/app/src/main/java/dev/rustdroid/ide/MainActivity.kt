@@ -15,6 +15,11 @@ class MainActivity : ComponentActivity() {
     /** Set from ACTION_VIEW .rs intents until AppRoot consumes it (navigates to the imported file). */
     private val pendingOpenRs = mutableStateOf<Uri?>(null)
 
+    // R4A: UI language chosen in Settings (Spanish by default)
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(dev.rustdroid.ide.util.AppLanguage.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

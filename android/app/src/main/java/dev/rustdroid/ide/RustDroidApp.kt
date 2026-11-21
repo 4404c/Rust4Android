@@ -9,6 +9,11 @@ class RustDroidApp : Application() {
     lateinit var container: AppContainer
         private set
 
+    // R4A: chosen language for app-level strings (notifications, services)
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(dev.rustdroid.ide.util.AppLanguage.wrap(base))
+    }
+
     override fun onCreate() {
         super.onCreate()
         // Flight recorder FIRST: an uncaught exception anywhere (the

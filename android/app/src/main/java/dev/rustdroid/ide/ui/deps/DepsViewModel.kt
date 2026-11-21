@@ -1,6 +1,7 @@
 package dev.rustdroid.ide.ui.deps
 
 import androidx.lifecycle.ViewModel
+import dev.rustdroid.ide.R
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.rustdroid.ide.di.AppContainer
@@ -22,6 +23,9 @@ class DepsViewModel(
     val container: AppContainer,
     val projectName: String,
 ) : ViewModel() {
+
+    /** R4A: localized message from the language-wrapped app context. */
+    private fun str(id: Int, vararg args: Any): String = container.context.getString(id, *args)
 
     private val repo = container.projectRepository
     private val crates = container.cratesIoClient
@@ -113,11 +117,11 @@ class DepsViewModel(
         try {
             _results.value = crates.search(q)
             if (_results.value.isEmpty()) {
-                _message.value = "no crates matched '$q'"
+                _message.value = str(R.string.vm_deps_no_match, q)
             }
         } catch (e: Exception) {
             _results.value = emptyList()
-            _message.value = "crates.io unreachable: ${e.message}"
+            _message.value = str(R.string.vm_deps_unreachable, e.message.orEmpty())
         } finally {
             _searching.value = false
         }
@@ -155,13 +159,13 @@ class DepsViewModel(
                         manifest, crate.name, crate.max_version.ifEmpty { "0.0.0" },
                     )
                 }
-                _message.value = "added ${crate.name} = \"${crate.max_version}\" — downloading…"
+                _message.value = str(R.string.vm_deps_added, crate.name, crate.max_version)
                 refresh()
                 // Download right away so errors surface here (with the real
                 // cargo output) instead of as a mysterious build failure later.
                 fetchNow()
             } catch (e: Exception) {
-                _message.value = "add failed: ${e.message}"
+                _message.value = str(R.string.vm_deps_add_failed, e.message.orEmpty())
             }
         }
     }
@@ -175,7 +179,7 @@ class DepsViewModel(
                 if (removed) _message.value = "removed $name"
                 refresh()
             } catch (e: Exception) {
-                _message.value = "remove failed: ${e.message}"
+                _message.value = str(R.string.vm_deps_remove_failed, e.message.orEmpty())
             }
         }
     }
@@ -188,7 +192,7 @@ class DepsViewModel(
     fun fetchNow() {
         if (_fetching.value) return
         if (!container.toolchainPaths.isInstalled()) {
-            _message.value = "toolchain not installed — install it from Settings first"
+            _message.value = str(R.string.vm_deps_no_toolchain)
             return
         }
         fetchJob?.cancel()
@@ -212,7 +216,7 @@ class DepsViewModel(
                     },
                 )
                 if (result.success) {
-                    _message.value = "dependencies downloaded"
+                    _message.value = str(R.string.vm_deps_downloaded)
                 } else {
                     // Snackbar is 2-line-capped — keep it a pointer; the full
                     // (selectable/copyable) error output is in fetchLog.
@@ -232,7 +236,7 @@ class DepsViewModel(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _message.value = "fetch error: ${e.message}"
+                _message.value = str(R.string.vm_deps_fetch_error, e.message.orEmpty())
             } finally {
                 _fetching.value = false
             }

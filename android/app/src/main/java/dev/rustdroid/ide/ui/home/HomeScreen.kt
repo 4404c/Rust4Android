@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui.home
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -95,6 +97,8 @@ fun HomeScreen(
             )
         }
     }
+    val storageRequiredMsg = stringResource(R.string.home_storage_required)
+    val genericFailedMsg = stringResource(R.string.common_failed)
     val storagePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -102,7 +106,7 @@ fun HomeScreen(
             folderPicker.launch(null)
         } else {
             vm.reportError(
-                "storage access is required to edit a folder in place — grant it and try again",
+                storageRequiredMsg,
             )
         }
     }
@@ -119,13 +123,13 @@ fun HomeScreen(
                 title = { Text("R4A") },
                 actions = {
                     IconButton(onClick = openFolderPicker) {
-                        Icon(RdIcons.FolderOpen, contentDescription = "Open folder as project")
+                        Icon(RdIcons.FolderOpen, contentDescription = stringResource(R.string.home_open_folder_cd))
                     }
                     // v0.2: the terminal moved OUT of the Home toolbar and
                     // ONTO each project card (plus the editor toolbar) — it
                     // is a per-project tool, not a global menu entry.
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.common_settings))
                     }
                 },
             )
@@ -135,7 +139,7 @@ fun HomeScreen(
                 ExtendedFloatingActionButton(
                     onClick = { showNewDialog = true },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("New project") },
+                    text = { Text(stringResource(R.string.home_new_project)) },
                 )
             }
         },
@@ -148,14 +152,14 @@ fun HomeScreen(
                 ) {
                     EmptyState(
                         icon = RdIcons.Folder,
-                        title = "No cargo projects yet",
-                        subtitle = "Create one with cargo new — it compiles and runs right on this device.",
+                        title = stringResource(R.string.home_empty_title),
+                        subtitle = stringResource(R.string.home_empty_subtitle),
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(onClick = openFolderPicker) {
                         Icon(RdIcons.FolderOpen, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Open a folder as a project")
+                        Text(stringResource(R.string.home_open_folder))
                     }
                 }
             }
@@ -200,18 +204,17 @@ fun HomeScreen(
             // external folders belong to the user — removing the entry must
             // never delete the underlying files
             ConfirmDialog(
-                title = "Remove '${target.name}' from RustDroid?",
-                text = "The folder stays where it is, with every file untouched — " +
-                    "only the RustDroid project entry is removed.",
-                confirmLabel = "Remove",
+                title = stringResource(R.string.home_remove_title, target.name),
+                text = stringResource(R.string.home_remove_body),
+                confirmLabel = stringResource(R.string.common_remove),
                 onConfirm = { vm.removeExternal(target); deleteTarget = null },
                 onDismiss = { deleteTarget = null },
             )
         } else {
             ConfirmDialog(
-                title = "Delete '${target.name}'?",
-                text = "The whole project directory is removed, including target/ build outputs.",
-                confirmLabel = "Delete",
+                title = stringResource(R.string.home_delete_title, target.name),
+                text = stringResource(R.string.home_delete_body),
+                confirmLabel = stringResource(R.string.common_delete),
                 onConfirm = { vm.delete(target); deleteTarget = null },
                 onDismiss = { deleteTarget = null },
             )
@@ -238,7 +241,7 @@ fun HomeScreen(
                 vm.adoptFolder(dir, withCargo, packageName) { ref, err ->
                     adopting = false
                     folderCandidate = null
-                    if (ref != null) onOpenProject(ref) else vm.reportError(err ?: "failed")
+                    if (ref != null) onOpenProject(ref) else vm.reportError(err ?: genericFailedMsg)
                 }
             },
             onDismiss = { if (!adopting) folderCandidate = null },
@@ -248,7 +251,7 @@ fun HomeScreen(
     error?.let { msg ->
         AlertDialog(
             onDismissRequest = { vm.clearError() },
-            title = { Text("Error") },
+            title = { Text(stringResource(R.string.common_error)) },
             text = { Text(msg) },
             confirmButton = { TextButton(onClick = { vm.clearError() }) { Text("OK") } },
         )
@@ -288,11 +291,11 @@ private fun ProjectCard(
                 }
                 val fmt = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
                 Text(
-                    "modified ${fmt.format(Date(project.lastModifiedMs))}" +
+                    stringResource(R.string.home_modified, fmt.format(Date(project.lastModifiedMs))) +
                         when {
-                            project.dependencyCount >= 0 -> " · ${project.dependencyCount} deps"
-                            project.external -> " · no Cargo.toml (editing only)"
-                            else -> " · Cargo.toml unreadable"
+                            project.dependencyCount >= 0 -> stringResource(R.string.home_deps_count, project.dependencyCount)
+                            project.external -> stringResource(R.string.home_no_manifest)
+                            else -> stringResource(R.string.home_manifest_unreadable)
                         },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -310,7 +313,7 @@ private fun ProjectCard(
             }
             if (!project.external) {
                 IconButton(onClick = onRename) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.home_rename_cd), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             // v0.2: per-project terminal — the session starts IN this
@@ -318,14 +321,14 @@ private fun ProjectCard(
             IconButton(onClick = onOpenTerminal) {
                 Icon(
                     RdIcons.Terminal,
-                    contentDescription = "Open terminal in ${project.name}",
+                    contentDescription = stringResource(R.string.home_open_terminal_cd, project.name),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Filled.Delete,
-                    contentDescription = if (project.external) "Remove from RustDroid" else "Delete",
+                    contentDescription = if (project.external) stringResource(R.string.home_remove_cd) else stringResource(R.string.common_delete),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -355,12 +358,11 @@ private fun AdoptFolderDialog(
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("Open '${dir.name}' in place?") },
+        title = { Text(stringResource(R.string.home_open_in_place_title, dir.name)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "The folder stays where it is and every edit saves straight into it — " +
-                        "nothing is copied or moved.",
+                    stringResource(R.string.home_open_in_place_body),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(
@@ -376,17 +378,17 @@ private fun AdoptFolderDialog(
                         onValueChange = { name = it },
                         singleLine = true,
                         enabled = !busy,
-                        label = { Text("Cargo package name") },
+                        label = { Text(stringResource(R.string.home_package_name)) },
                         isError = name.isNotEmpty() && !nameOk,
                         supportingText = {
                             if (name.isNotEmpty() && !nameOk) {
-                                Text("letters, digits, - and _; must start with a letter")
+                                Text(stringResource(R.string.common_name_rule))
                             }
                         },
                     )
                 }
                 if (busy) {
-                    Text("opening…", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.home_opening), style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -395,12 +397,12 @@ private fun AdoptFolderDialog(
                 TextButton(
                     onClick = { onAdopt(false, name) },
                     enabled = !busy,
-                ) { Text("Open") }
+                ) { Text(stringResource(R.string.common_open)) }
             } else {
                 TextButton(
                     onClick = { onAdopt(true, name) },
                     enabled = !busy && nameOk,
-                ) { Text("Add Cargo.toml") }
+                ) { Text(stringResource(R.string.home_add_manifest)) }
             }
         },
         dismissButton = {
@@ -409,9 +411,9 @@ private fun AdoptFolderDialog(
                 TextButton(
                     onClick = { onAdopt(false, name) },
                     enabled = !busy,
-                ) { Text("Just edit files") }
+                ) { Text(stringResource(R.string.home_just_edit)) }
             } else {
-                TextButton(onClick = { if (!busy) onDismiss() }, enabled = !busy) { Text("Cancel") }
+                TextButton(onClick = { if (!busy) onDismiss() }, enabled = !busy) { Text(stringResource(R.string.common_cancel)) }
             }
         },
     )
@@ -430,26 +432,26 @@ private fun NewProjectDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New cargo project") },
+        title = { Text(stringResource(R.string.home_new_cargo_project)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.common_name)) },
                     singleLine = true,
                     enabled = !busy,
                     isError = name.isNotEmpty() && !nameOk,
                     supportingText = {
-                        if (name.isNotEmpty() && !nameOk) Text("letters, digits, - and _; must start with a letter")
+                        if (name.isNotEmpty() && !nameOk) Text(stringResource(R.string.common_name_rule))
                     },
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = isLib, onCheckedChange = { isLib = it }, enabled = !busy)
-                    Text("Library (--lib) instead of binary (--bin)")
+                    Text(stringResource(R.string.home_lib_checkbox))
                 }
                 if (busy) {
-                    Text("running cargo new…", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.home_running_cargo_new), style = MaterialTheme.typography.bodySmall)
                 }
                 if (log != null) {
                     Text(
@@ -465,9 +467,9 @@ private fun NewProjectDialog(
             TextButton(
                 onClick = { onCreate(name, isLib) },
                 enabled = !busy && nameOk,
-            ) { Text("Create") }
+            ) { Text(stringResource(R.string.common_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -477,7 +479,7 @@ private fun RenameDialog(initial: String, onRename: (String) -> Unit, onDismiss:
     val nameOk = name.matches(Regex("[a-zA-Z][a-zA-Z0-9_-]*"))
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename project") },
+        title = { Text(stringResource(R.string.home_rename_title)) },
         text = {
             OutlinedTextField(
                 value = name,
@@ -487,8 +489,8 @@ private fun RenameDialog(initial: String, onRename: (String) -> Unit, onDismiss:
             )
         },
         confirmButton = {
-            TextButton(onClick = { onRename(name) }, enabled = nameOk) { Text("Rename") }
+            TextButton(onClick = { onRename(name) }, enabled = nameOk) { Text(stringResource(R.string.home_rename_cd)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }

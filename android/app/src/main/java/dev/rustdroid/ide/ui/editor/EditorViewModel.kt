@@ -1,6 +1,7 @@
 package dev.rustdroid.ide.ui.editor
 
 import androidx.lifecycle.ViewModel
+import dev.rustdroid.ide.R
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.rustdroid.ide.di.AppContainer
@@ -45,6 +46,9 @@ class EditorViewModel(
     val projectName: String,
     initialFile: String? = null,
 ) : ViewModel() {
+
+    /** R4A: localized message from the language-wrapped app context. */
+    private fun str(id: Int, vararg args: Any): String = container.context.getString(id, *args)
 
     /**
      * [projectName] is a project REF: a bare name (internal project under
@@ -153,7 +157,7 @@ class EditorViewModel(
                 _tabs.value = _tabs.value + EditorTab(relativePath, file, text)
                 setActive(_tabs.value.size - 1)
             } catch (e: IOException) {
-                console.system("cannot open $relativePath: ${e.message}")
+                console.system(str(R.string.vm_editor_cannot_open, relativePath, e.message.orEmpty()))
             }
         }
     }
@@ -219,7 +223,7 @@ class EditorViewModel(
                 openFile(rel)
                 _createdFile.value = rel
             } catch (e: Exception) {
-                _createFileError.value = e.message ?: "could not create '$rel'"
+                _createFileError.value = e.message ?: str(R.string.vm_editor_cannot_create, rel)
             }
         }
     }
@@ -255,7 +259,7 @@ class EditorViewModel(
                 refreshTree()
                 _deletedFile.value = rel
             } catch (e: Exception) {
-                _deleteFileError.value = e.message ?: "could not delete '$rel'"
+                _deleteFileError.value = e.message ?: str(R.string.vm_editor_cannot_delete, rel)
             }
         }
     }
@@ -269,6 +273,12 @@ class EditorViewModel(
             .filter { (i, tab) -> tab.relativePath == rel || tab.relativePath.startsWith(prefix) }
             .sortedByDescending { it.index }
             .forEach { doClose(it.index) }
+    }
+
+    /** R4A: keep the tab open (dialog dismissed or "Cancel"). */
+    fun cancelClose() {
+        _pendingClose = -1
+        _showCloseConfirm.value = false
     }
 
     fun confirmClose(save: Boolean) {
@@ -303,7 +313,7 @@ class EditorViewModel(
             repo.writeFile(tab.file, text)
             tab.dirty = false
         } catch (e: IOException) {
-            console.system("save failed (${tab.relativePath}): ${e.message}")
+            console.system(str(R.string.vm_editor_save_failed, tab.relativePath, e.message.orEmpty()))
         }
     }
 
@@ -320,8 +330,28 @@ class EditorViewModel(
                 repo.writeFile(tab.file, tab.cachedText)
                 tab.dirty = false
             } catch (e: IOException) {
-                console.system("save failed (${tab.relativePath}): ${e.message}")
+                console.system(str(R.string.vm_editor_save_failed, tab.relativePath, e.message.orEmpty()))
             }
+        }
+    }
+
+    // ---------------- leaving the project (R4A) ----------------
+
+    /** Names of the open files with unsaved edits (empty = nothing to save). */
+    fun unsavedFiles(): List<String> {
+        activeTab?.let { it.cachedText = _activeText.value }
+        return _tabs.value.filter { it.dirty }.map { it.relativePath }
+    }
+
+    /**
+     * Saves every dirty tab, then calls [onSaved] only if all of them were
+     * written. A failed save stays dirty (the error is in the console), so the
+     * screen does not leave and silently drop those edits.
+     */
+    fun saveAllThen(onSaved: () -> Unit) {
+        viewModelScope.launch {
+            saveAllChanged()
+            if (_tabs.value.none { it.dirty }) onSaved()
         }
     }
 
@@ -407,8 +437,7 @@ class EditorViewModel(
                 // right where "Permission denied (os error 13)" used to be
                 if (runEnv.containsKey("CARGO_TARGET_DIR")) {
                     console.system(
-                        "note: this folder is on shared storage (noexec) — " +
-                            "binaries are built and run from app storage",
+                        str(R.string.vm_editor_shared_storage_note),
                     )
                 }
                 val result = runner.run(

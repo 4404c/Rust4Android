@@ -1,12 +1,19 @@
 package dev.rustdroid.ide.ui.editor
 
 import androidx.compose.foundation.background
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +49,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 
 
 import androidx.compose.material.icons.filled.Warning
@@ -52,7 +61,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
@@ -86,14 +94,18 @@ import kotlinx.coroutines.launch
 import dev.rustdroid.ide.di.AppContainer
 import dev.rustdroid.ide.model.ConsoleLine
 import dev.rustdroid.ide.ui.components.RdIcons
+import dev.rustdroid.ide.ui.components.EdgeDrawer
+import dev.rustdroid.ide.ui.components.rememberEdgeDrawerState
 import dev.rustdroid.ide.model.Diagnostic
 import dev.rustdroid.ide.model.FileNode
 import dev.rustdroid.ide.model.Severity
 import dev.rustdroid.ide.model.Stream
+import dev.rustdroid.ide.runtime.ConsoleClassifier
+import dev.rustdroid.ide.runtime.ConsoleKind
 import dev.rustdroid.ide.ui.theme.LocalEditorPalette
 import dev.rustdroid.ide.ui.theme.MonoSmall
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun EditorScreen(
     container: AppContainer,
@@ -101,6 +113,8 @@ fun EditorScreen(
     onOpenDeps: (String) -> Unit,
     onOpenTerminal: (String) -> Unit = {},
     initialFile: String? = null,
+    onOpenSettings: () -> Unit = {},
+    onExit: () -> Unit = {},
 ) {
     val vm: EditorViewModel = viewModel(
         key = "editor-$projectName",
@@ -170,10 +184,30 @@ fun EditorScreen(
         WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
     )
 
-    val drawerState = androidx.compose.material3.rememberDrawerState(
-        initialValue = androidx.compose.material3.DrawerValue.Closed,
-    )
+    val drawerState = rememberEdgeDrawerState()
+    // fresh tree every time the drawer starts opening (button or swipe): the
+    // folder may have changed on disk (opened-in-place projects are shared)
+    LaunchedEffect(drawerState) {
+        androidx.compose.runtime.snapshotFlow { drawerState.isOpen }
+            .collect { open -> if (open) vm.refreshTree() }
+    }
     val drawerScope = androidx.compose.runtime.rememberCoroutineScope()
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+    // R4A: leaving the project — from the drawer's "Salir" button or the
+    // system back gesture. Unsaved edits used to be dropped silently on back.
+    var exitUnsaved by remember { mutableStateOf<List<String>?>(null) }
+    val requestExit: () -> Unit = {
+        val unsaved = vm.unsavedFiles()
+        if (unsaved.isEmpty()) onExit() else exitUnsaved = unsaved
+    }
+    androidx.activity.compose.BackHandler {
+        if (drawerState.isOpen) {
+            drawerScope.launch { drawerState.close() }
+        } else {
+            requestExit()
+        }
+    }
 
     // auto-scroll console to bottom on new lines
     val consoleListState = rememberLazyListState()
@@ -201,25 +235,14 @@ fun EditorScreen(
         }
     }
 
-    ModalNavigationDrawer(
-        // The editor is a sora-editor Android View (AndroidView interop): it
-        // scrolls and long-press-selects inside the View system and never
-        // consumes pointer events in Compose's gesture pipeline. With drawer
-        // gestures enabled while CLOSED, M3's anchoredDraggable watches the
-        // same pointer stream over the content area and (a) steals a
-        // long-press once the finger drifts past touch slop — cancelling the
-        // editor mid-hold, so text selection never fires, and (b) reads
-        // scroll/fling motion as a horizontal drag, popping the drawer open
-        // while scrolling long files. Compose-native scrollables (the
-        // console LazyColumn) consume their deltas first, so only interop
-        // children are exposed.
-        //
-        // Gestures are enabled only while the drawer is OPEN: the sheet then
-        // covers the editor, nothing interop sits under the gesture area,
-        // and a right-to-left swipe (off the sheet or the scrim) closes it.
-        // Opening stays a deliberate act — the toolbar folder button — so
-        // scrolling code can never accidentally summon the drawer.
-        gesturesEnabled = drawerState.targetValue == androidx.compose.material3.DrawerValue.Open,
+    // R4A: EdgeDrawer instead of Material's ModalNavigationDrawer. The code
+    // editor is a sora-editor Android View: M3's drawer drag detector, when
+    // enabled while closed, watched the same pointer stream over the editor,
+    // stole long-presses (text selection never fired) and read scrolling as
+    // a horizontal drag. EdgeDrawer only listens on a thin left-edge strip
+    // while closed, and the drawer follows the finger.
+    EdgeDrawer(
+        state = drawerState,
         drawerContent = {
             ModalDrawerSheet {
                 Column(Modifier.fillMaxHeight()) {
@@ -229,7 +252,7 @@ fun EditorScreen(
                     ) {
                         Icon(RdIcons.Folder, null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(8.dp))
-                        Text("Files", style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.editor_files), style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.weight(1f))
                         IconButton(
                             onClick = { showNewFile = true },
@@ -237,14 +260,14 @@ fun EditorScreen(
                         ) {
                             Icon(
                                 Icons.Filled.Add,
-                                contentDescription = "New file",
+                                contentDescription = stringResource(R.string.editor_new_file),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(18.dp),
                             )
                         }
                         Spacer(Modifier.width(4.dp))
                         TextButton(onClick = { vm.toggleAllFiles() }) {
-                            Text(if (allFiles) "Sources" else "All files")
+                            Text(if (allFiles) stringResource(R.string.editor_sources) else stringResource(R.string.editor_all_files))
                         }
                     }
                     LazyColumn(Modifier.weight(1f)) {
@@ -259,10 +282,36 @@ fun EditorScreen(
                             )
                         }
                     }
+                    // R4A: project actions pinned to the bottom of the drawer
+                    androidx.compose.material3.HorizontalDivider()
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.common_settings)) },
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                        selected = false,
+                        onClick = {
+                            drawerScope.launch { drawerState.close() }
+                            onOpenSettings()
+                        },
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.editor_exit_project)) },
+                        icon = {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ExitToApp,
+                                contentDescription = null,
+                            )
+                        },
+                        selected = false,
+                        onClick = {
+                            drawerScope.launch { drawerState.close() }
+                            requestExit()
+                        },
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 12.dp),
+                    )
                 }
             }
         },
-        drawerState = drawerState,
     ) {
         Scaffold(
             topBar = {
@@ -275,25 +324,25 @@ fun EditorScreen(
                             vm.refreshTree()
                             drawerScope.launch { drawerState.open() }
                         }) {
-                            Icon(RdIcons.Folder, contentDescription = "Files")
+                            Icon(RdIcons.Folder, contentDescription = stringResource(R.string.editor_files))
                         }
                     },
                     title = { Text(projectName.substringAfterLast('/')) },
                     actions = {
-                        TextButton(onClick = { onOpenDeps(projectName) }) { Text("Deps") }
+                        TextButton(onClick = { onOpenDeps(projectName) }) { Text(stringResource(R.string.editor_deps)) }
                         // v0.2: per-project terminal from where the script is
                         // written — the session starts IN this project's
                         // directory (cargo run / fetch / test with no cd).
                         IconButton(onClick = { onOpenTerminal(projectName) }) {
-                            Icon(RdIcons.Terminal, contentDescription = "Open terminal in this project")
+                            Icon(RdIcons.Terminal, contentDescription = stringResource(R.string.editor_open_terminal_cd))
                         }
                         if (running) {
                             IconButton(onClick = { vm.stop() }) {
-                                Icon(RdIcons.Stop, contentDescription = "Stop", tint = MaterialTheme.colorScheme.error)
+                                Icon(RdIcons.Stop, contentDescription = stringResource(R.string.editor_stop), tint = MaterialTheme.colorScheme.error)
                             }
                         } else {
                             IconButton(onClick = { vm.run() }) {
-                                Icon(Icons.Filled.PlayArrow, contentDescription = "Run", tint = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.editor_run), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     },
@@ -335,8 +384,19 @@ fun EditorScreen(
                                             )
                                         }
                                     }
-                                    .clickable { vm.setActive(i) }
-                                    .padding(start = 10.dp, end = 4.dp),
+                                    // R4A: tap selects, long-press closes (no
+                                    // small X that is easy to hit by accident)
+                                    .combinedClickable(
+                                        onClick = { vm.setActive(i) },
+                                        onLongClickLabel = stringResource(R.string.editor_close_tab),
+                                        onLongClick = {
+                                            haptics.performHapticFeedback(
+                                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+                                            )
+                                            vm.closeTab(i, force = false)
+                                        },
+                                    )
+                                    .padding(horizontal = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 if (tab.dirty) {
@@ -354,23 +414,6 @@ fun EditorScreen(
                                     color = if (selected) MaterialTheme.colorScheme.onSurface
                                     else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Spacer(Modifier.width(4.dp))
-                                // close: 22dp hit area (touch targets shrink for
-                                // icon-only affordances); inner clickable consumes
-                                // the tap so the tab itself doesn't also switch
-                                Box(
-                                    Modifier
-                                        .width(22.dp).height(22.dp)
-                                        .clickable { vm.closeTab(i, force = false) },
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Close,
-                                        contentDescription = "Close tab",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.height(13.dp).width(13.dp),
-                                    )
-                                }
                             }
                         }
                     }
@@ -380,7 +423,7 @@ fun EditorScreen(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     if (tabs.isEmpty()) {
                         Text(
-                            "Open a file from the drawer",
+                            stringResource(R.string.editor_open_from_drawer),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.align(Alignment.Center),
@@ -426,11 +469,11 @@ fun EditorScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(RdIcons.Terminal, null, Modifier.height(14.dp).width(14.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text("Console")
+                                        Text(stringResource(R.string.editor_console))
                                         lastResult?.let {
                                             Spacer(Modifier.width(6.dp))
                                             Text(
-                                                if (it.success) "· ok" else "· exit ${it.exitCode}",
+                                                if (it.success) "· ok" else stringResource(R.string.editor_exit_code, it.exitCode),
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = if (it.success) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
                                             )
@@ -445,7 +488,7 @@ fun EditorScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Warning, null, Modifier.height(14.dp).width(14.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text("Problems")
+                                        Text(stringResource(R.string.editor_problems))
                                         if (errorCount + warningCount > 0) {
                                             Spacer(Modifier.width(6.dp))
                                             Badge { Text("$errorCount/$warningCount") }
@@ -483,11 +526,45 @@ fun EditorScreen(
 
     if (showCloseConfirm) {
         AlertDialog(
-            onDismissRequest = { vm.confirmClose(save = false) },
-            title = { Text("Unsaved changes") },
-            text = { Text("Save before closing this tab?") },
-            confirmButton = { TextButton(onClick = { vm.confirmClose(save = true) }) { Text("Save & close") } },
-            dismissButton = { TextButton(onClick = { vm.confirmClose(save = false) }) { Text("Discard") } },
+            // R4A: tapping outside cancels (it used to DISCARD the edits)
+            onDismissRequest = { vm.cancelClose() },
+            title = { Text(stringResource(R.string.editor_unsaved_title)) },
+            text = { Text(stringResource(R.string.editor_close_tab_body)) },
+            confirmButton = { TextButton(onClick = { vm.confirmClose(save = true) }) { Text(stringResource(R.string.editor_save_close)) } },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { vm.cancelClose() }) { Text(stringResource(R.string.common_cancel)) }
+                    TextButton(onClick = { vm.confirmClose(save = false) }) { Text(stringResource(R.string.editor_dont_save)) }
+                }
+            },
+        )
+    }
+
+    exitUnsaved?.let { files ->
+        AlertDialog(
+            onDismissRequest = { exitUnsaved = null },
+            title = { Text(stringResource(R.string.editor_exit_title)) },
+            text = {
+                Text(
+                    if (files.size == 1) stringResource(R.string.editor_exit_one, files[0])
+                    else stringResource(R.string.editor_exit_many, files.size, files.joinToString(", "))
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    exitUnsaved = null
+                    vm.saveAllThen(onExit)
+                }) { Text(stringResource(R.string.editor_save_exit)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { exitUnsaved = null }) { Text(stringResource(R.string.common_cancel)) }
+                    TextButton(onClick = {
+                        exitUnsaved = null
+                        onExit()
+                    }) { Text(stringResource(R.string.editor_dont_save)) }
+                }
+            },
         )
     }
 
@@ -530,11 +607,11 @@ private fun NewFileDialog(
     val trimmed = name.trim()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New file") },
+        title = { Text(stringResource(R.string.editor_new_file)) },
         text = {
             Column {
                 Text(
-                    "Path relative to the project root, e.g. src/main.rs or notes.md",
+                    stringResource(R.string.editor_new_file_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -543,7 +620,7 @@ private fun NewFileDialog(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text("File name") },
+                    label = { Text(stringResource(R.string.editor_file_name)) },
                     isError = error != null,
                     supportingText = if (error != null) {
                         { Text(error, color = MaterialTheme.colorScheme.error) }
@@ -562,9 +639,9 @@ private fun NewFileDialog(
             TextButton(
                 onClick = { onCreate(trimmed) },
                 enabled = trimmed.isNotEmpty(),
-            ) { Text("Create") }
+            ) { Text(stringResource(R.string.common_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -573,7 +650,7 @@ private fun NewFileDialog(
  * drawer as before); long-press offers deletion via [onDelete]. The drawer
  * sheet is pure Compose, so combinedClickable's long-press does not fight
  * the sora-editor interop view (which only ever sits under the CLOSED
- * drawer — see ModalNavigationDrawer gesturesEnabled note above).
+ * drawer — see the EdgeDrawer note above).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -628,17 +705,17 @@ private fun DeleteFileDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (node.isDirectory) "Delete folder?" else "Delete file?") },
+        title = { Text(if (node.isDirectory) stringResource(R.string.editor_delete_folder_q) else stringResource(R.string.editor_delete_file_q)) },
         text = {
             Column {
                 Text(
                     node.relativePath +
-                        if (node.isDirectory) " and everything inside it" else "",
+                        if (node.isDirectory) stringResource(R.string.editor_and_everything_inside) else "",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "This cannot be undone.",
+                    stringResource(R.string.editor_cannot_undo),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -654,10 +731,10 @@ private fun DeleteFileDialog(
         },
         confirmButton = {
             TextButton(onClick = onDelete) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.common_delete), color = MaterialTheme.colorScheme.error)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 
@@ -671,6 +748,7 @@ private fun ConsolePanel(
 ) {
     val palette = LocalEditorPalette.current
     val clipboard = LocalClipboardManager.current
+    val kinds = androidx.compose.runtime.remember(lines) { ConsoleClassifier.classify(lines) }
     Column(Modifier.fillMaxSize()) {
         // Console toolbar: guaranteed copy path. Long-press selection
         // (SelectionContainer below) can be fiddly on some devices and is
@@ -682,7 +760,7 @@ private fun ConsolePanel(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "${lines.size} lines",
+                stringResource(R.string.editor_lines, lines.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 10.dp),
@@ -697,7 +775,7 @@ private fun ConsolePanel(
             ) {
                 Icon(
                     RdIcons.Copy,
-                    contentDescription = "Copy all output",
+                    contentDescription = stringResource(R.string.editor_copy_all),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp),
                 )
@@ -711,7 +789,7 @@ private fun ConsolePanel(
             ) {
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "Clear console",
+                    contentDescription = stringResource(R.string.editor_clear_console),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp),
                 )
@@ -725,11 +803,22 @@ private fun ConsolePanel(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
             ) {
-                itemsIndexed(lines) { _, line ->
-                    val color = when (line.stream) {
-                        Stream.STDOUT -> palette.stdout
-                        Stream.STDERR -> palette.stderr
-                        Stream.SYSTEM -> palette.system
+                itemsIndexed(lines) { index, line ->
+                    // R4A: color by meaning, not just by stream — cargo prints
+                    // all of its progress on stderr, which used to be all red.
+                    val color = when (kinds.getOrNull(index)) {
+                        ConsoleKind.OUTPUT -> palette.stdout
+                        ConsoleKind.STATUS -> palette.status
+                        ConsoleKind.ERROR -> palette.stderr
+                        ConsoleKind.WARNING -> palette.warning
+                        ConsoleKind.NOTE -> palette.system
+                        ConsoleKind.NOISE -> palette.noise
+                        ConsoleKind.SYSTEM -> palette.system
+                        ConsoleKind.STDERR, null -> when (line.stream) {
+                            Stream.STDOUT -> palette.stdout
+                            Stream.STDERR -> palette.stderr
+                            Stream.SYSTEM -> palette.system
+                        }
                     }
                     Text(
                         line.text.ifEmpty { " " },
@@ -790,7 +879,7 @@ private fun StdinBar(onSend: (String) -> Unit) {
         ) {
             Icon(
                 RdIcons.Send,
-                contentDescription = "Send to program",
+                contentDescription = stringResource(R.string.editor_send_stdin),
                 tint = if (input.isNotEmpty()) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
@@ -807,7 +896,7 @@ private fun ProblemsPanel(
     if (problems.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                "no problems — build clean",
+                stringResource(R.string.editor_no_problems),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

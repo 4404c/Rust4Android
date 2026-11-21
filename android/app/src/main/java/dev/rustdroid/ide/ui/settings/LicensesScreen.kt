@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui.settings
 
 import androidx.compose.foundation.clickable
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -61,10 +63,10 @@ fun LicensesScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Licenses") },
+                title = { Text(stringResource(R.string.settings_licenses)) },
                 navigationIcon = {
                     IconButton(onClick = { selected?.let { selected = null } ?: onBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
             )
@@ -92,7 +94,7 @@ fun LicensesScreen(onBack: () -> Unit) {
                             e.sourceAssetUrl?.let { url ->
                                 Spacer(Modifier.height(2.dp))
                                 Text(
-                                    "Corresponding source: $url",
+                                    stringResource(R.string.licenses_source, url),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     fontFamily = FontFamily.Monospace,
@@ -119,7 +121,7 @@ fun LicensesScreen(onBack: () -> Unit) {
                 }
                 item {
                     Text(
-                        text ?: "(license text missing from APK assets)",
+                        text ?: stringResource(R.string.licenses_missing),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                     )

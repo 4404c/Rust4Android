@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui.deps
 
 import androidx.compose.foundation.clickable
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -88,10 +90,10 @@ fun DepsScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
-                title = { Text("Dependencies — ${projectName.substringAfterLast('/')}") },
+                title = { Text(stringResource(R.string.deps_title, projectName.substringAfterLast('/'))) },
                 actions = {
                     if (fetching) {
                         CircularProgressIndicator(
@@ -101,7 +103,7 @@ fun DepsScreen(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        TextButton(onClick = { vm.fetchNow() }) { Text("Fetch") }
+                        TextButton(onClick = { vm.fetchNow() }) { Text(stringResource(R.string.deps_fetch)) }
                     }
                 },
             )
@@ -119,7 +121,7 @@ fun DepsScreen(
             OutlinedTextField(
                 value = query,
                 onValueChange = { vm.setQuery(it) },
-                label = { Text("Search crates.io") },
+                label = { Text(stringResource(R.string.deps_search)) },
                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                 trailingIcon = {
                     when {
@@ -132,7 +134,7 @@ fun DepsScreen(
                                 focusManager.clearFocus()
                             },
                         ) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.deps_clear_search))
                         }
                     }
                 },
@@ -159,7 +161,7 @@ fun DepsScreen(
             ) {
                 if (deps.isNotEmpty()) {
                     item(key = "deps-header") {
-                        SectionTitle("In Cargo.toml · ${deps.size}")
+                        SectionTitle(stringResource(R.string.deps_in_manifest, deps.size))
                     }
                     items(deps, key = { "dep-${it.name}" }) { dep ->
                         Row(
@@ -188,7 +190,7 @@ fun DepsScreen(
                             ) {
                                 Icon(
                                     Icons.Filled.Delete,
-                                    contentDescription = "Remove ${dep.name}",
+                                    contentDescription = stringResource(R.string.deps_remove_cd, dep.name),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -203,7 +205,7 @@ fun DepsScreen(
 
                 if (results.isNotEmpty()) {
                     item(key = "results-header") {
-                        SectionTitle("crates.io results · ${results.size}")
+                        SectionTitle(stringResource(R.string.deps_results, results.size))
                     }
                     items(results, key = { "crate-${it.name}" }) { crate ->
                         CrateResultRow(crate) { vm.add(crate) }
@@ -211,7 +213,7 @@ fun DepsScreen(
                 } else if (!searching && query.trim().length >= 2 && !fetching) {
                     item(key = "no-results") {
                         Text(
-                            "no results for “${query.trim()}”",
+                            stringResource(R.string.deps_no_results, query.trim()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -226,13 +228,13 @@ fun DepsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             SectionTitle(
-                                if (fetching) "fetch output — downloading…" else "fetch output",
+                                if (fetching) stringResource(R.string.deps_fetch_output_running) else stringResource(R.string.deps_fetch_output),
                                 Modifier.weight(1f),
                             )
                             TextButton(
                                 onClick = { vm.clearFetchLog() },
                                 enabled = !fetching,
-                            ) { Text("Clear") }
+                            ) { Text(stringResource(R.string.common_clear)) }
                         }
                     }
                     // Single selectable text block: long-press selects, so the
@@ -301,7 +303,7 @@ private fun CrateResultRow(crate: CrateSummary, onAdd: () -> Unit) {
             }
             IconButton(onClick = onAdd) {
                 Icon(
-                    Icons.Filled.Add, contentDescription = "Add ${crate.name}",
+                    Icons.Filled.Add, contentDescription = stringResource(R.string.deps_add_cd, crate.name),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }

@@ -56,6 +56,9 @@ class DiagnosticsParser {
         val message = h.groupValues[4].trim()
 
         if (message.isEmpty()) return
+        // R4A: always-present Android messages the user cannot act on
+        // (e.g. the incremental-cache hard-link fallback) stay out of Problems.
+        if (KnownNoise.matches(message)) return
         if (message.startsWith("aborting due to") ||
             message.startsWith("could not compile") ||
             message.endsWith("warnings emitted") ||

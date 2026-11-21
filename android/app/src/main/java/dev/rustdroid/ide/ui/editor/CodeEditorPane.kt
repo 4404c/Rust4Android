@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.rustdroid.ide.model.JumpRequest
@@ -92,6 +94,62 @@ object RustEditor {
     }
 }
 
+/**
+ * R4A: "flash" for jump-to-line. The editor already paints the cursor's line
+ * with the scheme's CURRENT_LINE color; after a jump the cursor sits on the
+ * target line, so we tint that color toward [accent], hold it briefly, then
+ * animate it back to the original. The original is always restored, also
+ * when a new jump cancels a running flash.
+ */
+private class LineFlash(private val editor: CodeEditor) {
+    private var animator: android.animation.ValueAnimator? = null
+    private var restore: Pair<EditorColorScheme, Int>? = null
+
+    fun start(accent: Int) {
+        cancel() // restores the base color of a running flash first
+        val scheme = editor.colorScheme
+        val base = scheme.getColor(EditorColorScheme.CURRENT_LINE)
+        restore = scheme to base
+        val evaluator = android.animation.ArgbEvaluator()
+        val lit = evaluator.evaluate(0.55f, base, accent) as Int
+        scheme.setColor(EditorColorScheme.CURRENT_LINE, lit)
+        editor.invalidate()
+        animator = android.animation.ValueAnimator.ofObject(evaluator, lit, base).apply {
+            startDelay = HOLD_MS
+            duration = FADE_MS
+            interpolator = android.view.animation.DecelerateInterpolator(1.5f)
+            addUpdateListener {
+                scheme.setColor(EditorColorScheme.CURRENT_LINE, it.animatedValue as Int)
+                editor.invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    scheme.setColor(EditorColorScheme.CURRENT_LINE, base)
+                    editor.invalidate()
+                }
+            })
+            start()
+        }
+    }
+
+    fun cancel() {
+        animator?.cancel()
+        animator = null
+        // restore explicitly: a flash cancelled during its hold delay may not
+        // deliver onAnimationEnd on every Android version
+        restore?.let { (scheme, base) ->
+            scheme.setColor(EditorColorScheme.CURRENT_LINE, base)
+            editor.invalidate()
+        }
+        restore = null
+    }
+
+    private companion object {
+        const val HOLD_MS = 400L
+        const val FADE_MS = 1600L
+    }
+}
+
 @Composable
 fun CodeEditorPane(
     text: String,
@@ -115,12 +173,19 @@ fun CodeEditorPane(
     }
 
     // jump to diagnostic location (1-based -> 0-based)
+    val flashAccent = MaterialTheme.colorScheme.primary.toArgb()
+    val flash = remember { LineFlash(editor) }
     LaunchedEffect(jumpRequest) {
         if (jumpRequest != null) {
             val line = (jumpRequest.line - 1).coerceAtLeast(0)
             val col = (jumpRequest.col - 1).coerceAtLeast(0)
             editor.setSelection(line, col, true)
+            // R4A: light up the target line, then fade back to normal
+            flash.start(flashAccent)
         }
+    }
+    DisposableEffect(Unit) {
+        onDispose { flash.cancel() }
     }
 
     // theme flip: recreate the color scheme in place

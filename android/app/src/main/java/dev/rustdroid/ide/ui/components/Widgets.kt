@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -106,7 +108,7 @@ fun EmptyState(
 fun ConfirmDialog(
     title: String,
     text: String,
-    confirmLabel: String = "Confirm",
+    confirmLabel: String = "",
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -115,9 +117,14 @@ fun ConfirmDialog(
         title = { Text(title) },
         text = { Text(text) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(confirmLabel, color = MaterialTheme.colorScheme.error) }
+            TextButton(onClick = onConfirm) {
+                Text(
+                    confirmLabel.ifEmpty { stringResource(R.string.common_confirm) },
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
 

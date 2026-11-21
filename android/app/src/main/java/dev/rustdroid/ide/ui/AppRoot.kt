@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui
 
 import android.net.Uri
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -207,6 +209,8 @@ fun AppRoot(
                 initialFile = file.ifBlank { null },
                 onOpenDeps = { nav.navigate(Routes.deps(it)) },
                 onOpenTerminal = { ref -> navigateToTerminal(nav, ref) },
+                onOpenSettings = { nav.navigate(Routes.SETTINGS) },
+                onExit = { nav.popBackStack() },
             )
         }
         composable(Routes.DEPS) { entry ->
@@ -278,7 +282,7 @@ fun AppRoot(
         val report = crashReport!!
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("RustDroid closed unexpectedly") },
+            title = { Text(stringResource(R.string.crash_title)) },
             text = {
                 Column(
                     Modifier
@@ -302,13 +306,13 @@ fun AppRoot(
                     cm?.setPrimaryClip(
                         android.content.ClipData.newPlainText("rustdroid-crash", report)
                     )
-                }) { Text("Copy") }
+                }) { Text(stringResource(R.string.common_copy)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     dev.rustdroid.ide.runtime.CrashRecorder.clear(crashContext.filesDir)
                     crashReport = null
-                }) { Text("Dismiss") }
+                }) { Text(stringResource(R.string.common_dismiss)) }
             },
         )
     }

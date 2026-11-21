@@ -1,6 +1,7 @@
 package dev.rustdroid.ide.ui.terminal
 
 import android.content.Context
+import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -190,7 +191,7 @@ fun TerminalScreen(
         imePadPx = imeInsetPx
     }
 
-    val title = projectDir?.let { "Terminal · ${it.name}" } ?: "Terminal"
+    val title = projectDir?.let { stringResource(R.string.terminal_title_project, it.name) } ?: stringResource(R.string.terminal_title)
 
     Scaffold(
         topBar = {
@@ -198,14 +199,14 @@ fun TerminalScreen(
                 title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
                     // New session — in the same project this screen was
                     // opened for (else the projects root).
                     IconButton(onClick = { vm.createSession(projectDir, projectRef) }) {
-                        Icon(Icons.Filled.Add, contentDescription = "New session")
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.terminal_new_session))
                     }
                 },
             )
@@ -392,7 +393,7 @@ private fun SessionTabs(
                         ) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "Close session",
+                                contentDescription = stringResource(R.string.terminal_close_session),
                                 modifier = Modifier.height(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -673,18 +674,18 @@ private fun TerminalEmptyState(
             } else {
                 EmptyState(
                     icon = RdIcons.Terminal,
-                    title = "No terminal sessions",
-                    subtitle = "Open one from a project card or the editor toolbar — the session starts in that project, so cargo run, cargo fetch and cargo test work directly.",
+                    title = stringResource(R.string.terminal_empty_title),
+                    subtitle = stringResource(R.string.terminal_empty_subtitle),
                 )
                 Spacer(Modifier.height(16.dp))
             }
             ExtendedFloatingActionButton(onClick = onNewSession) {
                 Icon(RdIcons.Terminal, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("New session")
+                Text(stringResource(R.string.terminal_new_session))
             }
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onBack) { Text("Back") }
+            TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
         }
     }
 }

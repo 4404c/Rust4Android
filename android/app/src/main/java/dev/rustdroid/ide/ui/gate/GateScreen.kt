@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui.gate
 
 import android.Manifest
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -91,9 +93,7 @@ fun GateScreen(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "A Rust toolchain that lives on this device: " +
-                    "${ToolchainDistro.RUST_VERSION} for aarch64 Android, with the " +
-                    "on-device link kit Phase 1 proved out.",
+                stringResource(R.string.gate_tagline, ToolchainDistro.RUST_VERSION),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
@@ -171,12 +171,12 @@ private fun ReadyCard() {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                "Toolchain verified — opening your projects…",
+                stringResource(R.string.gate_verified_title),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
             Text(
-                "rustc, cargo, std and the link kit all passed the on-device smoke test.",
+                stringResource(R.string.gate_verified_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer,
             )
@@ -197,21 +197,18 @@ private fun InstallPrompt(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "First run: install the toolchain",
+                stringResource(R.string.gate_first_run),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                "Downloads the RustDroid bundle (${Fs.humanBytes(ToolchainDistro.expectedSizeBytes)}) — " +
-                    "rustc, cargo, std and the link kit — from the project's GitHub release. " +
-                    "The download runs in a foreground service and survives screen-off.",
+                stringResource(R.string.gate_download_body, Fs.humanBytes(ToolchainDistro.expectedSizeBytes)),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             if (ToolchainDistro.isPinned) {
                 Text(
-                    "Integrity: SHA-256 pinned in-app — a corrupted or tampered " +
-                        "download fails loudly instead of producing a broken install.",
+                    stringResource(R.string.gate_integrity),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -220,16 +217,14 @@ private fun InstallPrompt(
             Button(
                 onClick = onDownload,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Download (${Fs.humanBytes(ToolchainDistro.expectedSizeBytes)})") }
+            ) { Text(stringResource(R.string.gate_download_btn, Fs.humanBytes(ToolchainDistro.expectedSizeBytes))) }
             if (hasExistingFiles) {
                 OutlinedButton(
                     onClick = onReverifyExisting,
                     modifier = Modifier.fillMaxWidth(),
-                ) { Text("Verify files already on this device…") }
+                ) { Text(stringResource(R.string.gate_verify_existing)) }
                 Text(
-                    "Toolchain files were found from an earlier install that never " +
-                        "finished verification — re-run the health checks on them " +
-                        "first; a pass skips the download entirely.",
+                    stringResource(R.string.gate_verify_existing_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -237,10 +232,9 @@ private fun InstallPrompt(
             OutlinedButton(
                 onClick = onImport,
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Import zip file…") }
+            ) { Text(stringResource(R.string.gate_import_zip)) }
             Text(
-                "Offline or on metered data? Download the bundle on a PC, copy it " +
-                    "to the phone, and import it here.",
+                stringResource(R.string.gate_offline),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -256,7 +250,7 @@ private fun DownloadCard(state: ToolchainState.Downloading) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Downloading toolchain…",
+                stringResource(R.string.gate_downloading),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
@@ -285,8 +279,7 @@ private fun DownloadCard(state: ToolchainState.Downloading) {
                 )
             }
             Text(
-                "SHA-256 is checked when the download completes. You can put the " +
-                    "app in the background — the download continues.",
+                stringResource(R.string.gate_download_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -302,21 +295,20 @@ private fun ExtractCard(state: ToolchainState.Extracting) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Extracting toolchain…",
+                stringResource(R.string.gate_extracting),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             LinearProgressIndicator(Modifier.fillMaxWidth())
             val entries = state.done
             Text(
-                if (entries > 0) "$entries entries placed" else "starting…",
+                if (entries > 0) stringResource(R.string.gate_entries_placed, entries) else stringResource(R.string.gate_starting),
                 style = MaterialTheme.typography.titleMedium,
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                "Placing ~117 MB under files/usr — file modes preserved from tar. " +
-                    "This takes a minute or two.",
+                stringResource(R.string.gate_extract_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -332,13 +324,13 @@ private fun VerifyCard(state: ToolchainState.Verifying) {
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                "Verifying install health",
+                stringResource(R.string.gate_verifying),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 20.dp),
             )
             Text(
-                "The last check compiles, links AND runs hello.rs on-device — the same gate CI runs.",
+                stringResource(R.string.gate_verifying_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -361,7 +353,7 @@ private fun FailedCard(state: ToolchainState.Failed, onRetry: () -> Unit, onImpo
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Install failed at ${state.stage}",
+                stringResource(R.string.gate_failed_at, state.stage.toString()),
                 style = MaterialTheme.typography.titleLarge,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
@@ -372,8 +364,8 @@ private fun FailedCard(state: ToolchainState.Failed, onRetry: () -> Unit, onImpo
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onRetry) { Text("Retry download") }
-                OutlinedButton(onClick = onImport) { Text("Import zip…") }
+                Button(onClick = onRetry) { Text(stringResource(R.string.gate_retry)) }
+                OutlinedButton(onClick = onImport) { Text(stringResource(R.string.gate_import_short)) }
             }
         }
     }
@@ -388,7 +380,7 @@ private fun LogTail(manager: dev.rustdroid.ide.toolchain.ToolchainManager) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(
-                "log",
+                stringResource(R.string.gate_log),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

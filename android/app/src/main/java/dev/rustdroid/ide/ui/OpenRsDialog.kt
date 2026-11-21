@@ -1,6 +1,8 @@
 package dev.rustdroid.ide.ui
 
 import android.net.Uri
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -122,7 +124,7 @@ fun OpenRsDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = {
             Text(
-                source?.let { "Open '${it.fileName}'" } ?: "Open Rust file",
+                source?.let { stringResource(R.string.openrs_title_file, it.fileName) } ?: stringResource(R.string.openrs_title),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -137,7 +139,7 @@ fun OpenRsDialog(
                     )
 
                     source == null -> Text(
-                        "reading file…",
+                        stringResource(R.string.openrs_reading),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -148,23 +150,23 @@ fun OpenRsDialog(
                             onValueChange = { name = it },
                             singleLine = true,
                             enabled = !busy,
-                            label = { Text("New project name") },
+                            label = { Text(stringResource(R.string.openrs_new_name)) },
                             isError = name.isNotEmpty() && !nameOk,
                             supportingText = {
                                 if (name.isNotEmpty() && !nameOk) {
-                                    Text("letters, digits, - and _; must start with a letter")
+                                    Text(stringResource(R.string.common_name_rule))
                                 }
                             },
                         )
                         HorizontalDivider()
                         Text(
-                            "…or add to an existing project:",
+                            stringResource(R.string.openrs_or_add),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         if (projects.isEmpty()) {
                             Text(
-                                "no projects yet — create one above",
+                                stringResource(R.string.openrs_no_projects),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -180,7 +182,7 @@ fun OpenRsDialog(
                         }
                         if (busy) {
                             Text(
-                                "importing…",
+                                stringResource(R.string.openrs_importing),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -200,10 +202,10 @@ fun OpenRsDialog(
             TextButton(
                 onClick = { createNewProject() },
                 enabled = !busy && source != null && nameOk,
-            ) { Text("Create project") }
+            ) { Text(stringResource(R.string.openrs_create_project)) }
         },
         dismissButton = {
-            TextButton(onClick = { if (!busy) onDismiss() }, enabled = !busy) { Text("Cancel") }
+            TextButton(onClick = { if (!busy) onDismiss() }, enabled = !busy) { Text(stringResource(R.string.common_cancel)) }
         },
     )
 }
@@ -231,7 +233,7 @@ private fun ProjectRow(
             Text(project.name, style = MaterialTheme.typography.bodyMedium)
             Text(
                 if (project.external) project.dir.parent ?: project.dir.path
-                else "in RustDroid projects",
+                else stringResource(R.string.openrs_in_projects),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

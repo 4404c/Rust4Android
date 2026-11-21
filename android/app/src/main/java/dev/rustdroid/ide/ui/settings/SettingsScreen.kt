@@ -1,6 +1,11 @@
 package dev.rustdroid.ide.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import dev.rustdroid.ide.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -55,7 +60,7 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
     LaunchedEffect(Unit) { vm.refreshStorage() }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Settings") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.common_settings)) }) },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(
@@ -69,11 +74,11 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
             // ---- toolchain ----
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Toolchain", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_toolchain), style = MaterialTheme.typography.titleMedium)
                     when (state) {
                         is ToolchainState.Ready -> {
                             Text(
-                                "✓ verified healthy — all checks passed",
+                                stringResource(R.string.settings_healthy),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = HealthyGreen,
                             )
@@ -94,7 +99,7 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
                             )
                         }
                         is ToolchainState.Verifying -> {
-                            Text("re-verifying…", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.settings_reverifying), style = MaterialTheme.typography.bodySmall)
                             (state as ToolchainState.Verifying).checks.forEach { CheckRow(it) }
                         }
                         is ToolchainState.Failed -> {
@@ -105,33 +110,36 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
                                 color = MaterialTheme.colorScheme.error,
                             )
                         }
-                        else -> Text("not installed", style = MaterialTheme.typography.bodySmall)
+                        else -> Text(stringResource(R.string.settings_not_installed), style = MaterialTheme.typography.bodySmall)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(onClick = { vm.reverify() }, enabled = !busy) {
-                            Text("Re-verify health")
+                            Text(stringResource(R.string.settings_reverify))
                         }
                         Button(onClick = { vm.uninstall() }, enabled = !busy) {
-                            Text("Uninstall toolchain")
+                            Text(stringResource(R.string.settings_uninstall))
                         }
                     }
                     Text(
-                        "Re-verify runs the full 12-check suite incl. compiling and running a test program. When it passes you are returned to your projects.",
+                        stringResource(R.string.settings_reverify_note),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
+            // ---- language (R4A) ----
+            LanguageCard()
+
             // ---- storage ----
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Storage", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_storage), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     storage.forEach { (label, bytes) -> StorageRow(label, bytes) }
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = { vm.clearCaches() }, enabled = !busy) {
-                        Text("Clear cargo caches")
+                        Text(stringResource(R.string.settings_clear_caches))
                     }
                 }
             }
@@ -139,28 +147,70 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
             // ---- about ----
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("About", style = MaterialTheme.typography.titleMedium)
-                    Text("R4A 0.2.0 — Rust 4 Android. Basado en RustDroid (MIT).", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.settings_about), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_about_app), style = MaterialTheme.typography.bodySmall)
                     Text(
-                        "Toolchain: rust ${ToolchainDistro.RUST_VERSION} (aarch64-linux-android), built from source " +
-                            "by GitHub Actions; bundled via the rustdroid-link kit (crt objects, bionic stubs, " +
-                            "libunwind.a, cc shim -> ld.lld).",
+                        stringResource(R.string.settings_about_toolchain, ToolchainDistro.RUST_VERSION),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        "Editor: sora-editor (LGPL-2.1) with the VS Code Rust grammar (MIT). " +
-                            "Free software; F-Droid distribution intended.",
+                        stringResource(R.string.settings_about_editor),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     // Plan §7.5: the full per-component license surface —
                     // including the REQUIRED BusyBox GPL-2.0 source offer.
                     OutlinedButton(onClick = onOpenLicenses) {
-                        Text("Licenses")
+                        Text(stringResource(R.string.settings_licenses))
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * R4A: in-app language picker. Saving the choice and recreating the activity
+ * re-runs MainActivity.attachBaseContext, which applies it (AppLanguage).
+ */
+@Composable
+private fun LanguageCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val current = remember { dev.rustdroid.ide.util.AppLanguage.get(context) }
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.settings_language), style = MaterialTheme.typography.titleMedium)
+            listOf(
+                dev.rustdroid.ide.util.AppLanguage.Option.ES to R.string.lang_es,
+                dev.rustdroid.ide.util.AppLanguage.Option.EN to R.string.lang_en,
+            ).forEach { (option, label) ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = option == current,
+                            role = androidx.compose.ui.semantics.Role.RadioButton,
+                            onClick = {
+                                if (option != current) {
+                                    dev.rustdroid.ide.util.AppLanguage.set(context, option)
+                                    (context as? android.app.Activity)?.recreate()
+                                }
+                            },
+                        )
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.RadioButton(selected = option == current, onClick = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(label), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Text(
+                stringResource(R.string.settings_language_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

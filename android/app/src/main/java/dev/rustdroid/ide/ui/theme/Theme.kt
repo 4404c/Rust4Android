@@ -62,6 +62,10 @@ data class EditorPalette(
     val stdout: androidx.compose.ui.graphics.Color,
     val stderr: androidx.compose.ui.graphics.Color,
     val system: androidx.compose.ui.graphics.Color,
+    // R4A: console colors by meaning (see runtime/ConsoleClassifier.kt)
+    val warning: androidx.compose.ui.graphics.Color,
+    val status: androidx.compose.ui.graphics.Color,
+    val noise: androidx.compose.ui.graphics.Color,
 )
 
 val LocalEditorPalette = staticCompositionLocalOf {
@@ -70,6 +74,9 @@ val LocalEditorPalette = staticCompositionLocalOf {
         stdout = androidx.compose.ui.graphics.Color(0xFFD4D4D4),
         stderr = androidx.compose.ui.graphics.Color(0xFFFF8A80),
         system = androidx.compose.ui.graphics.Color(0xFF80CBC4),
+        warning = androidx.compose.ui.graphics.Color(0xFFFFCC66),
+        status = androidx.compose.ui.graphics.Color(0xFF9E9E9E),
+        noise = androidx.compose.ui.graphics.Color(0xFF6E6A66),
     )
 }
 
@@ -85,6 +92,9 @@ fun RustDroidTheme(
             stdout = androidx.compose.ui.graphics.Color(0xFFD4D4D4),
             stderr = androidx.compose.ui.graphics.Color(0xFFFF8A80),
             system = androidx.compose.ui.graphics.Color(0xFF80CBC4),
+            warning = androidx.compose.ui.graphics.Color(0xFFFFCC66),
+            status = androidx.compose.ui.graphics.Color(0xFF9E9E9E),
+            noise = androidx.compose.ui.graphics.Color(0xFF6E6A66),
         )
     } else {
         EditorPalette(
@@ -92,6 +102,9 @@ fun RustDroidTheme(
             stdout = androidx.compose.ui.graphics.Color(0xFF1F1F1F),
             stderr = androidx.compose.ui.graphics.Color(0xFFB3261E),
             system = androidx.compose.ui.graphics.Color(0xFF00695C),
+            warning = androidx.compose.ui.graphics.Color(0xFF8A5A00),
+            status = androidx.compose.ui.graphics.Color(0xFF6B6B6B),
+            noise = androidx.compose.ui.graphics.Color(0xFFA19D99),
         )
     }
     CompositionLocalProvider(LocalEditorPalette provides palette) {
