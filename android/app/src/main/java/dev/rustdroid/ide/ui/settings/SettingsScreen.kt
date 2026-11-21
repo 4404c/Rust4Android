@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import dev.rustdroid.ide.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.Column
@@ -131,6 +132,9 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
             // ---- language (R4A) ----
             LanguageCard()
 
+            // ---- appearance (R4A) ----
+            AppearanceCard()
+
             // ---- storage ----
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -211,6 +215,41 @@ private fun LanguageCard() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/** R4A: appearance toggles. Changes apply right away (AppSettings flows). */
+@Composable
+private fun AppearanceCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .toggleable(
+                        value = fileIcons,
+                        role = androidx.compose.ui.semantics.Role.Switch,
+                    ) {
+                        dev.rustdroid.ide.util.AppSettings.setFileIcons(context, it)
+                    }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.settings_file_icons), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        stringResource(R.string.settings_file_icons_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                androidx.compose.material3.Switch(checked = fileIcons, onCheckedChange = null)
+            }
         }
     }
 }

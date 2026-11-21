@@ -23,6 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
@@ -75,6 +81,10 @@ fun DepsScreen(
     val message by vm.message.collectAsState()
     val fetching by vm.fetching.collectAsState()
     val fetchLog by vm.fetchLog.collectAsState()
+    val popular by vm.popular.collectAsState()
+    val installing by vm.installing.collectAsState()
+    // R4A: crates already in Cargo.toml show a check instead of "+"
+    val depNames = remember(deps) { deps.map { it.name }.toSet() }
 
     val snackbar = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
@@ -108,7 +118,18 @@ fun DepsScreen(
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
+        // R4A: keep messages above the keyboard (they used to hide behind it)
+        // (the scaffold already lifts it above the navigation bar, which the
+        // IME inset includes too — exclude it, or a gap shows over the keyboard)
+        snackbarHost = {
+            SnackbarHost(
+                snackbar,
+                Modifier.windowInsetsPadding(
+                    androidx.compose.foundation.layout.WindowInsets.ime
+                        .exclude(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+                ),
+            )
+        },
     ) { padding ->
         // imePadding keeps the search box above the keyboard on edge-to-edge
         // builds (adjustResize alone does not resize once edge-to-edge is on).
@@ -208,7 +229,10 @@ fun DepsScreen(
                         SectionTitle(stringResource(R.string.deps_results, results.size))
                     }
                     items(results, key = { "crate-${it.name}" }) { crate ->
-                        CrateResultRow(crate) { vm.add(crate) }
+                        CrateResultRow(crate, added = crate.name in depNames, installing = installing == crate.name) {
+                            focusManager.clearFocus() // close the keyboard: show the download
+                            vm.add(crate)
+                        }
                     }
                 } else if (!searching && query.trim().length >= 2 && !fetching) {
                     item(key = "no-results") {
@@ -218,6 +242,19 @@ fun DepsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                         )
+                    }
+                }
+
+                // R4A: well-known crates before the user searches
+                if (query.isBlank() && popular.isNotEmpty()) {
+                    item(key = "popular-header") {
+                        SectionTitle(stringResource(R.string.deps_popular))
+                    }
+                    items(popular, key = { "popular-${it.name}" }) { crate ->
+                        CrateResultRow(crate, added = crate.name in depNames, installing = installing == crate.name) {
+                            focusManager.clearFocus()
+                            vm.add(crate)
+                        }
                     }
                 }
 
@@ -259,12 +296,17 @@ fun DepsScreen(
 }
 
 @Composable
-private fun CrateResultRow(crate: CrateSummary, onAdd: () -> Unit) {
+private fun CrateResultRow(
+    crate: CrateSummary,
+    added: Boolean = false,
+    installing: Boolean = false,
+    onAdd: () -> Unit,
+) {
     Card(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onAdd),
+            .clickable(enabled = !added && !installing, onClick = onAdd),
     ) {
         Row(
             Modifier.padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
@@ -285,7 +327,7 @@ private fun CrateResultRow(crate: CrateSummary, onAdd: () -> Unit) {
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "${Fs.humanCount(crate.downloads)} downloads",
+                        stringResource(R.string.deps_downloads, Fs.humanCount(crate.downloads)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline,
                     )
@@ -301,11 +343,25 @@ private fun CrateResultRow(crate: CrateSummary, onAdd: () -> Unit) {
                     )
                 }
             }
-            IconButton(onClick = onAdd) {
-                Icon(
-                    Icons.Filled.Add, contentDescription = stringResource(R.string.deps_add_cd, crate.name),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+            when {
+                // R4A: this crate is being added (spinner) / already in
+                // Cargo.toml (check) / can be added (+)
+                installing -> Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                }
+                added -> Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = stringResource(R.string.deps_added_cd, crate.name),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                else -> IconButton(onClick = onAdd) {
+                    Icon(
+                        Icons.Filled.Add, contentDescription = stringResource(R.string.deps_add_cd, crate.name),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
     }

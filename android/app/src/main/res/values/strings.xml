@@ -172,4 +172,11 @@
     <string name="vm_editor_cannot_delete">no se pudo borrar «%1$s»</string>
     <string name="vm_editor_save_failed">no se pudo guardar (%1$s): %2$s</string>
     <string name="vm_editor_shared_storage_note">nota: esta carpeta está en el almacenamiento compartido, donde Android no deja ejecutar programas — se compila y ejecuta desde la carpeta de la app</string>
+    <string name="deps_popular">Populares (funcionan en R4A)</string>
+    <string name="deps_added_cd">%1$s ya está en Cargo.toml</string>
+    <string name="deps_downloads">%1$s descargas</string>
+    <string name="vm_deps_no_compatible">ninguna versión de %1$s funciona con Rust %2$s</string>
+    <string name="settings_appearance">Apariencia</string>
+    <string name="settings_file_icons">Íconos de tipo de archivo</string>
+    <string name="settings_file_icons_desc">Muestra un dibujito según el tipo de archivo en Files y en las pestañas.</string>
 </resources>

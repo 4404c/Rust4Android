@@ -46,6 +46,10 @@ class DepsViewModel(
     private val _results = MutableStateFlow<List<CrateSummary>>(emptyList())
     val results: StateFlow<List<CrateSummary>> = _results.asStateFlow()
 
+    /** R4A: well-known pure-Rust crates, shown before the user searches. */
+    private val _popular = MutableStateFlow(popularCache)
+    val popular: StateFlow<List<CrateSummary>> = _popular.asStateFlow()
+
     private val _searching = MutableStateFlow(false)
     val searching: StateFlow<Boolean> = _searching.asStateFlow()
 
@@ -55,6 +59,14 @@ class DepsViewModel(
     /** True while `cargo fetch` (the actual dependency download) is running. */
     private val _fetching = MutableStateFlow(false)
     val fetching: StateFlow<Boolean> = _fetching.asStateFlow()
+
+    /**
+     * R4A: the crate being added right now (version lookup + download), so
+     * only ITS row shows a spinner — `cargo fetch` downloads everything at
+     * once, which used to put a spinner on every dependency.
+     */
+    private val _installing = MutableStateFlow<String?>(null)
+    val installing: StateFlow<String?> = _installing.asStateFlow()
 
     /**
      * Tail of the last `cargo fetch` output — shown (selectable) in the
@@ -96,6 +108,13 @@ class DepsViewModel(
 
     init {
         refresh()
+        if (popularCache.isEmpty()) {
+            viewModelScope.launch {
+                // best effort: offline just means no "popular" section
+                runCatching { crates.byNames(dev.rustdroid.ide.projects.PopularCrates.names) }
+                    .onSuccess { popularCache = it; _popular.value = it }
+            }
+        }
         // debounce search
         viewModelScope.launch {
             _query.collect { q ->
@@ -152,19 +171,31 @@ class DepsViewModel(
     }
 
     fun add(crate: CrateSummary) {
+        _installing.value = crate.name
         viewModelScope.launch {
             try {
-                withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    CargoToml.addDependency(
-                        manifest, crate.name, crate.max_version.ifEmpty { "0.0.0" },
-                    )
+                // R4A: the newest version that builds with the on-device Rust
+                // (max_version may need a newer toolchain, e.g. uuid 1.29.3
+                // requires Rust 1.89 while the bundle is 1.85)
+                val rust = dev.rustdroid.ide.toolchain.ToolchainDistro.RUST_VERSION
+                val version = dev.rustdroid.ide.projects.CrateVersions.pickCompatible(
+                    crates.versions(crate.name), rust,
+                )
+                if (version == null) {
+                    _installing.value = null
+                    _message.value = str(R.string.vm_deps_no_compatible, crate.name, rust)
+                    return@launch
                 }
-                _message.value = str(R.string.vm_deps_added, crate.name, crate.max_version)
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    CargoToml.addDependency(manifest, crate.name, version)
+                }
+                _message.value = str(R.string.vm_deps_added, crate.name, version)
                 refresh()
                 // Download right away so errors surface here (with the real
                 // cargo output) instead of as a mysterious build failure later.
                 fetchNow()
             } catch (e: Exception) {
+                _installing.value = null
                 _message.value = str(R.string.vm_deps_add_failed, e.message.orEmpty())
             }
         }
@@ -239,6 +270,7 @@ class DepsViewModel(
                 _message.value = str(R.string.vm_deps_fetch_error, e.message.orEmpty())
             } finally {
                 _fetching.value = false
+                _installing.value = null
             }
         }
     }
@@ -274,6 +306,10 @@ class DepsViewModel(
     }
 
     companion object {
+        /** Popular crates fetched once per app run (crates.io is rate-limited). */
+        @Volatile
+        private var popularCache: List<CrateSummary> = emptyList()
+
         /** Appended to the fetch log when cargo output shows a TLS trust failure. */
         const val TLS_HINT =
             "hint: TLS trust failure (curl 77/60). Cargo now runs with HTTP debugging — " +

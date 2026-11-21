@@ -168,4 +168,11 @@
     <string name="vm_editor_cannot_delete">could not delete \'%1$s\'</string>
     <string name="vm_editor_save_failed">save failed (%1$s): %2$s</string>
     <string name="vm_editor_shared_storage_note">note: this folder is on shared storage (noexec) — binaries are built and run from app storage</string>
+    <string name="deps_popular">Popular (work on R4A)</string>
+    <string name="deps_added_cd">%1$s is in Cargo.toml</string>
+    <string name="deps_downloads">%1$s downloads</string>
+    <string name="vm_deps_no_compatible">no version of %1$s works with Rust %2$s</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_file_icons">File type icons</string>
+    <string name="settings_file_icons_desc">Shows an icon for each file type in Files and the editor tabs.</string>
 </resources>

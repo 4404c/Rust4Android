@@ -10,6 +10,44 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 object RdIcons {
 
+    /** Builds an icon from standard Material path data (Apache-2.0). */
+    private fun fromPathData(name: String, pathData: String): ImageVector =
+        materialIcon(name = name) {
+            addPath(
+                pathData = androidx.compose.ui.graphics.vector.addPathNodes(pathData),
+                fill = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black),
+            )
+        }
+
+    /** R4A: Material "extension" (puzzle piece) — dependencies / crates. */
+    val Package: ImageVector by lazy {
+        fromPathData(
+            "RdPackage",
+            "M20.5,11H19V7c0,-1.1 -0.9,-2 -2,-2h-4V3.5C13,2.12 11.88,1 10.5,1S8,2.12 8,3.5V5H4" +
+                "c-1.1,0 -1.99,0.9 -1.99,2v3.8H3.5c1.49,0 2.7,1.21 2.7,2.7s-1.21,2.7 -2.7,2.7H2V20" +
+                "c0,1.1 0.9,2 2,2h3.8v-1.5c0,-1.49 1.21,-2.7 2.7,-2.7c1.49,0 2.7,1.21 2.7,2.7V22H17" +
+                "c1.1,0 2,-0.9 2,-2v-4h1.5c1.38,0 2.5,-1.12 2.5,-2.5S21.88,11 20.5,11z",
+        )
+    }
+
+    /** R4A: Material "insert_drive_file" — generic file. */
+    val FileGeneric: ImageVector by lazy {
+        fromPathData(
+            "RdFileGeneric",
+            "M6,2c-1.1,0 -1.99,0.9 -1.99,2L4,20c0,1.1 0.89,2 1.99,2H18c1.1,0 2,-0.9 2,-2V8l-6,-6H6z" +
+                "M13,9V3.5L18.5,9H13z",
+        )
+    }
+
+    /** R4A: Material "terminal" (window with a >_ prompt). */
+    val Console: ImageVector by lazy {
+        fromPathData(
+            "RdConsole",
+            "M20,4H4C2.89,4 2,4.9 2,6v12c0,1.1 0.89,2 2,2h16c1.1,0 2,-0.9 2,-2V6C22,4.9 21.11,4 20,4z" +
+                "M20,18H4V8h16V18zM18,17h-6v-2h6V17zM7.5,17l-1.41,-1.41L8.67,13l-2.59,-2.59L7.5,9l4,4L7.5,17z",
+        )
+    }
+
     val Folder: ImageVector by lazy {
         materialIcon(name = "RdFolder") {
             materialPath {

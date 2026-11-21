@@ -98,6 +98,7 @@ import kotlinx.coroutines.launch
 import dev.rustdroid.ide.di.AppContainer
 import dev.rustdroid.ide.model.ConsoleLine
 import dev.rustdroid.ide.ui.components.RdIcons
+import dev.rustdroid.ide.ui.components.FileTypeIcon
 import dev.rustdroid.ide.ui.components.EdgeDrawer
 import dev.rustdroid.ide.ui.components.rememberEdgeDrawerState
 import dev.rustdroid.ide.model.Diagnostic
@@ -133,6 +134,8 @@ fun EditorScreen(
     val lastResult by vm.lastResult.collectAsState()
     val bottomTab by vm.bottomTab.collectAsState()
     val panelCollapsed by vm.panelCollapsed.collectAsState()
+    // R4A: Settings > Appearance > file type icons (on by default)
+    val showFileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
     val jump by vm.jump.collectAsState()
     val showCloseConfirm by vm.showCloseConfirm.collectAsState()
     val allFiles by vm.treeAllFiles.collectAsState()
@@ -288,6 +291,7 @@ fun EditorScreen(
                         items(treeRows, key = { it.node.relativePath }) { row ->
                             FileTreeRow(
                                 row,
+                                showFileIcon = showFileIcons,
                                 onClick = {
                                     val node = row.node
                                     if (node.isDirectory) {
@@ -302,8 +306,31 @@ fun EditorScreen(
                             )
                         }
                     }
-                    // R4A: project actions pinned to the bottom of the drawer
+                    // R4A: project tools (moved here from the top bar)
                     androidx.compose.material3.HorizontalDivider()
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.editor_deps), fontSize = 12.sp) },
+                        icon = { Icon(RdIcons.Package, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        selected = false,
+                        onClick = {
+                            drawerScope.launch { drawerState.close() }
+                            onOpenDeps(projectName)
+                        },
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp).height(40.dp),
+                    )
+                    androidx.compose.material3.NavigationDrawerItem(
+                        label = { Text(stringResource(R.string.terminal_title), fontSize = 12.sp) },
+                        icon = { Icon(RdIcons.Console, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        selected = false,
+                        onClick = {
+                            drawerScope.launch { drawerState.close() }
+                            // the session starts IN this project's directory
+                            onOpenTerminal(projectName)
+                        },
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(40.dp),
+                    )
+                    // R4A: project actions pinned to the bottom of the drawer
+                    androidx.compose.material3.HorizontalDivider(Modifier.padding(horizontal = 24.dp))
                     androidx.compose.material3.NavigationDrawerItem(
                         label = { Text(stringResource(R.string.common_settings), fontSize = 12.sp) },
                         icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp)) },
@@ -351,13 +378,7 @@ fun EditorScreen(
                     },
                     title = { Text(projectName.substringAfterLast('/')) },
                     actions = {
-                        TextButton(onClick = { onOpenDeps(projectName) }) { Text(stringResource(R.string.editor_deps)) }
-                        // v0.2: per-project terminal from where the script is
-                        // written — the session starts IN this project's
-                        // directory (cargo run / fetch / test with no cd).
-                        IconButton(onClick = { onOpenTerminal(projectName) }) {
-                            Icon(RdIcons.Terminal, contentDescription = stringResource(R.string.editor_open_terminal_cd))
-                        }
+                        // R4A: Deps and Terminal moved to the Files drawer
                         if (running) {
                             IconButton(onClick = { vm.stop() }) {
                                 Icon(RdIcons.Stop, contentDescription = stringResource(R.string.editor_stop), tint = MaterialTheme.colorScheme.error)
@@ -386,7 +407,7 @@ fun EditorScreen(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .height(30.dp)
+                            .height(38.dp) // R4A: was 30dp — easier to read and tap
                             .horizontalScroll(rememberScrollState())
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
@@ -396,7 +417,7 @@ fun EditorScreen(
                             val activeBg = MaterialTheme.colorScheme.surface
                             Row(
                                 Modifier
-                                    .height(30.dp)
+                                    .height(38.dp)
                                     .background(if (selected) activeBg else Color.Transparent)
                                     .drawBehind {
                                         if (selected) {
@@ -420,7 +441,7 @@ fun EditorScreen(
                                             vm.closeTab(i, force = false)
                                         },
                                     )
-                                    .padding(horizontal = 10.dp),
+                                    .padding(horizontal = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 if (tab.dirty) {
@@ -431,10 +452,14 @@ fun EditorScreen(
                                     )
                                     Spacer(Modifier.width(6.dp))
                                 }
+                                if (showFileIcons) {
+                                    FileTypeIcon(tab.relativePath.substringAfterLast('/'), size = 15.dp)
+                                    Spacer(Modifier.width(6.dp))
+                                }
                                 Text(
                                     tab.relativePath.substringAfterLast('/'),
                                     maxLines = 1,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 14.sp), // R4A: was 11sp
                                     color = if (selected) MaterialTheme.colorScheme.onSurface
                                     else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -698,6 +723,7 @@ private fun NewFileDialog(
 @Composable
 private fun FileTreeRow(
     row: TreeRow,
+    showFileIcon: Boolean = true,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -739,6 +765,10 @@ private fun FileTreeRow(
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),
             )
+            Spacer(Modifier.width(6.dp))
+        } else if (showFileIcon) {
+            // R4A: icon by file type (Rust gear for .rs, etc.)
+            FileTypeIcon(node.file.name, size = 16.dp)
             Spacer(Modifier.width(6.dp))
         }
         Text(

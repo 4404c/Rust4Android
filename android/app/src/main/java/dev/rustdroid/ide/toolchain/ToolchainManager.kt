@@ -107,6 +107,29 @@ class ToolchainManager(
     private fun firstLine(s: String) = s.lineSequence().firstOrNull() ?: s
 
     /**
+     * R4A: `resolver.incompatible-rust-versions = "fallback"` (Cargo >= 1.84)
+     * makes cargo pick, for every dependency, the newest version whose
+     * rust-version fits the installed toolchain — measured on device: uuid
+     * resolves to 1.26.1 instead of 1.29.3 (which needs Rust 1.89). Without
+     * it, transitive dependencies silently pick versions that cannot build.
+     * Leaves the setting alone if the user already chose a value.
+     */
+    private fun ensureMsrvAwareResolver(cfg: File) {
+        cfg.parentFile?.mkdirs()
+        val text = if (cfg.isFile) cfg.readText() else ""
+        if ("incompatible-rust-versions" in text) return
+        val line = "incompatible-rust-versions = \"fallback\""
+        val header = Regex("""(?m)^\[resolver\][ \t]*$""")
+        val updated = if (header.containsMatchIn(text)) {
+            text.replaceFirst(header, "[resolver]\n$line")
+        } else {
+            val base = text.trimEnd()
+            (if (base.isEmpty()) "" else "$base\n\n") + "[resolver]\n$line\n"
+        }
+        cfg.writeText(updated)
+    }
+
+    /**
      * R4A: swap in the patched BusyBox shipped in the APK (see
      * [BusyboxOverlay]). Never fatal — on failure the bundle's BusyBox stays
      * and the terminal still works, just with the old resize behavior.
@@ -488,6 +511,8 @@ class ToolchainManager(
      * cainfo value pointing at the missing file is stripped instead.
      */
     private suspend fun writeCargoDefaults() = withContext(Dispatchers.IO) {
+        // R4A: prefer dependency versions that build with the on-device Rust
+        runCatching { ensureMsrvAwareResolver(File(ProcEnv.cargoHome(context.filesDir), "config.toml")) }
         runCatching {
             // Warm the bundle first so cainfo points at a real file even
             // if the first cargo invocation races ProcEnv's lazy ensure().

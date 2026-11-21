@@ -299,7 +299,9 @@ class ProjectRepository(
 
     private fun isEditable(name: String): Boolean {
         val ext = name.substringAfterLast('.', "")
-        return name == "Cargo.toml" || name == "Cargo.lock" ||
+        // R4A: files without an extension (main, Makefile, LICENSE, ...) are
+        // shown too — a file saved without ".rs" used to vanish from Sources
+        return ext.isEmpty() || name == "Cargo.toml" || name == "Cargo.lock" ||
             ext in setOf("rs", "toml", "md", "txt", "json", "yml", "yaml", "lock", "cfg", "sh")
     }
 

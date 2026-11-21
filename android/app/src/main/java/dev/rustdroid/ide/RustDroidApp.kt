@@ -23,6 +23,7 @@ class RustDroidApp : Application() {
         // handler so the system crash flow is unchanged.
         CrashRecorder.install(filesDir)
         container = AppContainer(this)
+        dev.rustdroid.ide.util.AppSettings.init(this)
         // R4A: parse the editor's theme + Rust grammar in the background now,
         // instead of on the main thread when the first project opens.
         Thread({ dev.rustdroid.ide.ui.editor.RustEditor.warmUp(this) }, "r4a-editor-warmup")
