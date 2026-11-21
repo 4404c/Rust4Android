@@ -4,6 +4,7 @@
   "colors": {
     "editor.background": "#1E1E1E",
     "editor.foreground": "#D4D4D4",
+    "highlightedDelimitersForeground": "#FFD866",
     "editor.selectionBackground": "#264F78",
     "editor.lineHighlightBackground": "#2A2A2A",
     "editorLineNumber.foreground": "#6E7681",

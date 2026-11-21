@@ -90,6 +90,9 @@ object RustEditor {
         runCatching {
             registry.setTheme(if (dark) "RustDroid Dark" else "RustDroid Light")
         }
+        // R4A: the matching-bracket color lives in the theme JSONs
+        // ("highlightedDelimitersForeground"). Setting it here does not stick:
+        // the scheme re-applies its theme when attached to the editor.
         return TextMateColorScheme.create(registry, registry.currentThemeModel)
     }
 }
