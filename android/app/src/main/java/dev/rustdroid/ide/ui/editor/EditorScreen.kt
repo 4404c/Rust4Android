@@ -312,7 +312,8 @@ fun EditorScreen(
                             drawerScope.launch { drawerState.close() }
                             onOpenSettings()
                         },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                        // R4A: compact rows (Material default is 56dp each)
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp).height(40.dp),
                     )
                     androidx.compose.material3.NavigationDrawerItem(
                         label = { Text(stringResource(R.string.editor_exit_project), fontSize = 12.sp) },
@@ -328,7 +329,7 @@ fun EditorScreen(
                             drawerScope.launch { drawerState.close() }
                             requestExit()
                         },
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 12.dp),
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp).height(40.dp),
                     )
                 }
             }
