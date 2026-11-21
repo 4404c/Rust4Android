@@ -69,6 +69,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -526,10 +527,24 @@ fun EditorScreen(
                 if (!hideBottom) {
                     Surface(tonalElevation = 2.dp) {
                     Column(Modifier.fillMaxWidth()) {
-                        TabRow(selectedTabIndex = if (bottomTab == EditorViewModel.BottomTab.CONSOLE) 0 else 1) {
+                        // R4A: folded panel -> neither tab looks selected (no
+                        // indicator, unselected colors) until one is tapped
+                        val tabIndex = if (bottomTab == EditorViewModel.BottomTab.CONSOLE) 0 else 1
+                        TabRow(
+                            selectedTabIndex = tabIndex,
+                            indicator = { positions ->
+                                if (!panelCollapsed) {
+                                    androidx.compose.material3.TabRowDefaults.SecondaryIndicator(
+                                        Modifier.tabIndicatorOffset(positions[tabIndex])
+                                    )
+                                }
+                            },
+                        ) {
                             Tab(
-                                selected = bottomTab == EditorViewModel.BottomTab.CONSOLE,
+                                selected = !panelCollapsed && bottomTab == EditorViewModel.BottomTab.CONSOLE,
                                 onClick = { vm.onBottomTabClicked(EditorViewModel.BottomTab.CONSOLE) },
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(RdIcons.Terminal, null, Modifier.height(14.dp).width(14.dp))
@@ -547,8 +562,10 @@ fun EditorScreen(
                                 },
                             )
                             Tab(
-                                selected = bottomTab == EditorViewModel.BottomTab.PROBLEMS,
+                                selected = !panelCollapsed && bottomTab == EditorViewModel.BottomTab.PROBLEMS,
                                 onClick = { vm.onBottomTabClicked(EditorViewModel.BottomTab.PROBLEMS) },
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Filled.Warning, null, Modifier.height(14.dp).width(14.dp))
