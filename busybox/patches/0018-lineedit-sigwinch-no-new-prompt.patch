@@ -1,0 +1,34 @@
+R4A: backport from busybox master (libbb/lineedit.c).
+
+With LI_INTERRUPTIBLE (set by ash), 1.36.1 aborted line editing on ANY
+EINTR — including the one caused by SIGWINCH when the terminal is resized
+(e.g. the on-screen keyboard opening or closing). ash then wrote "\n" and
+returned an empty line, so every resize printed a fresh prompt. Upstream
+master only bails out when a real signal handler set bb_got_signal; the
+SIGWINCH handler does not, so a resize just redraws the line in place.
+
+--- a/libbb/lineedit.c	2026-11-21 17:57:43.552529800 -0300
++++ b/libbb/lineedit.c	2026-11-21 17:57:43.603244400 -0300
+@@ -2197,14 +2197,16 @@
+ 			IF_FEATURE_EDITING_WINCH(S.ok_to_redraw = 0;)
+ 			if (errno != EINTR)
+ 				break;
++			/* It was EINTR. Repeat read_key() unless... */
+ 			if (state->flags & LI_INTERRUPTIBLE) {
+-				/* LI_INTERRUPTIBLE bails out on EINTR,
+-				 * but nothing really guarantees that bb_got_signal
+-				 * is nonzero. Follow the least surprise principle:
++				/* LI_INTERRUPTIBLE bails out on EINTR
++				 * if bb_got_signal became nonzero.
++				 * (It may stay zero: for example, our SIGWINCH
++				 * handler does not set it. This is used for signals
++				 * which should not interrupt line editing).
+ 				 */
+-				if (bb_got_signal == 0)
+-					bb_got_signal = 255;
+-				goto ret;
++				if (bb_got_signal != 0)
++					goto ret; /* will return -1 */
+ 			}
+ 		}
+ 

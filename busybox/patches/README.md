@@ -26,3 +26,9 @@ Carried set (with 1.36.1 retargeting notes):
 Patch application is **FATAL, never warn-and-continue** — the repo's
 post-vendor lesson (plan §7.2). Context drift on upstream bumps is a
 stop-and-fix event by design.
+
+R4A additions:
+
+| Patch | Why |
+|---|---|
+| 0018-lineedit-sigwinch-no-new-prompt | Backport from busybox master: a terminal resize (SIGWINCH, e.g. the soft keyboard opening/closing) no longer aborts line editing in ash, which used to print a new prompt on every resize. |
