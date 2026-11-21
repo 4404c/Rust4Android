@@ -172,6 +172,8 @@ fun EditorScreen(
     // panel so the script gets the whole space above the IME (see bottom
     // panel below). Track View-level focus from sora-editor.
     var editorFocused by remember { mutableStateOf(false) }
+    // R4A: folders folded in the Files tree (relative paths)
+    var collapsedDirs by remember { mutableStateOf(emptySet<String>()) }
     // R4A: the sora editor view, so the symbol bar can type into it
     var codeEditor by remember { mutableStateOf<io.github.rosemoe.sora.widget.CodeEditor?>(null) }
 
@@ -276,15 +278,25 @@ fun EditorScreen(
                             Text(if (allFiles) stringResource(R.string.editor_sources) else stringResource(R.string.editor_all_files))
                         }
                     }
-                    LazyColumn(Modifier.weight(1f)) {
-                        items(tree, key = { it.relativePath }) { node ->
+                    // R4A: tree-style guides + collapsible folders
+                    val treeRows = remember(tree, collapsedDirs) {
+                        FileTreeGuides.rows(tree, collapsedDirs)
+                    }
+                    LazyColumn(Modifier.weight(1f).padding(top = 4.dp)) {
+                        items(treeRows, key = { it.node.relativePath }) { row ->
                             FileTreeRow(
-                                node,
-                                onOpen = { rel, isDir ->
-                                    if (!isDir) vm.openFile(rel)
-                                    drawerScope.launch { drawerState.close() }
+                                row,
+                                onClick = {
+                                    val node = row.node
+                                    if (node.isDirectory) {
+                                        val p = node.relativePath
+                                        collapsedDirs = if (p in collapsedDirs) collapsedDirs - p else collapsedDirs + p
+                                    } else {
+                                        vm.openFile(node.relativePath)
+                                        drawerScope.launch { drawerState.close() }
+                                    }
                                 },
-                                onDelete = { pendingDelete = node },
+                                onDelete = { pendingDelete = row.node },
                             )
                         }
                     }
@@ -667,8 +679,8 @@ private fun NewFileDialog(
 }
 
 /**
- * One drawer row. Tap opens (files) / toggles nothing (dirs close the
- * drawer as before); long-press offers deletion via [onDelete]. The drawer
+ * One drawer row. Tap opens a file (and closes the drawer) or folds/unfolds
+ * a folder (R4A); long-press offers deletion via [onDelete]. The drawer
  * sheet is pure Compose, so combinedClickable's long-press does not fight
  * the sora-editor interop view (which only ever sits under the CLOSED
  * drawer — see the EdgeDrawer note above).
@@ -676,41 +688,63 @@ private fun NewFileDialog(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileTreeRow(
-    node: FileNode,
-    onOpen: (String, Boolean) -> Unit,
+    row: TreeRow,
+    onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val node = row.node
+    val guideColor = MaterialTheme.colorScheme.outlineVariant
+    val col = TreeColumn
+    val startPad = 10.dp
     Row(
         Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = { onOpen(node.relativePath, node.isDirectory) },
-                onLongClick = onDelete,
-            )
+            .combinedClickable(onClick = onClick, onLongClick = onDelete)
+            // `tree`-style guides: one column per level; ancestors that still
+            // have siblings below get a full vertical line, the row's own
+            // column gets ├ or └ (see FileTreeGuides).
+            .drawBehind {
+                val stroke = 1.dp.toPx()
+                val colPx = col.toPx()
+                val x0 = startPad.toPx()
+                val midY = size.height / 2f
+                row.continues.forEachIndexed { level, cont ->
+                    if (cont) {
+                        val x = x0 + level * colPx + colPx / 2f
+                        drawLine(guideColor, Offset(x, 0f), Offset(x, size.height), stroke)
+                    }
+                }
+                val x = x0 + node.depth * colPx + colPx / 2f
+                drawLine(guideColor, Offset(x, 0f), Offset(x, if (row.isLast) midY else size.height), stroke)
+                drawLine(guideColor, Offset(x, midY), Offset(x + colPx / 2f + 2.dp.toPx(), midY), stroke)
+            }
             .padding(
-                start = (12 + node.depth * 16).dp,
-                top = 8.dp, bottom = 8.dp, end = 12.dp,
+                start = startPad + col * (node.depth + 1) + 4.dp,
+                top = 7.dp, bottom = 7.dp, end = 12.dp,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (node.isDirectory) {
             Icon(
-                RdIcons.Folder, null,
+                if (row.expanded) RdIcons.FolderOpen else RdIcons.Folder, null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.width(18.dp).height(18.dp),
+                modifier = Modifier.size(16.dp),
             )
-        } else {
-            Spacer(Modifier.width(18.dp))
+            Spacer(Modifier.width(6.dp))
         }
-        Spacer(Modifier.width(8.dp))
         Text(
             if (node.isDirectory) node.file.name + "/" else node.file.name,
             style = MaterialTheme.typography.bodySmall,
-            color = if (node.isDirectory) MaterialTheme.colorScheme.onSurface
+            color = if (node.isDirectory) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
         )
     }
 }
+
+/** Width of one indentation level in the Files tree. */
+private val TreeColumn = 14.dp
 
 /**
  * Confirms deleting [node] (a whole subtree when it is a directory).
