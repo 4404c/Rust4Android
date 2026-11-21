@@ -459,7 +459,13 @@ fun EditorScreen(
                                 Icon(RdIcons.Stop, contentDescription = stringResource(R.string.editor_stop), tint = MaterialTheme.colorScheme.error)
                             }
                         } else {
-                            IconButton(onClick = { vm.run() }) {
+                            IconButton(onClick = {
+                                // R4A: hide the keyboard so the console is visible
+                                codeEditor?.hideEditorWindows()
+                                codeEditor?.hideSoftInput()
+                                keyboard?.hide()
+                                vm.run()
+                            }) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.editor_run), tint = MaterialTheme.colorScheme.primary)
                             }
                         }
