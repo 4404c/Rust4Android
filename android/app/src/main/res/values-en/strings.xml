@@ -175,4 +175,6 @@
     <string name="settings_appearance">Appearance</string>
     <string name="settings_file_icons">File type icons</string>
     <string name="settings_file_icons_desc">Shows an icon for each file type in Files and the editor tabs.</string>
+    <string name="editor_undo">Undo</string>
+    <string name="editor_redo">Redo</string>
 </resources>

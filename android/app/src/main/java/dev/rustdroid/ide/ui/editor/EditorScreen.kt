@@ -182,6 +182,25 @@ fun EditorScreen(
     var collapsedDirs by remember { mutableStateOf(emptySet<String>()) }
     // R4A: the sora editor view, so the symbol bar can type into it
     var codeEditor by remember { mutableStateOf<io.github.rosemoe.sora.widget.CodeEditor?>(null) }
+    // R4A: undo/redo buttons in the top bar, greyed out when there is nothing
+    // to undo/redo (refreshed on every content change of the editor)
+    var canUndo by remember { mutableStateOf(false) }
+    var canRedo by remember { mutableStateOf(false) }
+    DisposableEffect(codeEditor) {
+        val ed = codeEditor
+        // The event fires while undo()/redo() are still updating the history,
+        // so read the state on the next loop turn (post), not inside the event.
+        val refresh = Runnable {
+            canUndo = ed?.canUndo() == true
+            canRedo = ed?.canRedo() == true
+        }
+        val receipt = ed?.subscribeEvent(io.github.rosemoe.sora.event.ContentChangeEvent::class.java) { _, _ ->
+            ed.post(refresh)
+        }
+        canUndo = ed?.canUndo() == true
+        canRedo = ed?.canRedo() == true
+        onDispose { receipt?.unsubscribe() }
+    }
 
     // v0.2.1 (review P2): the console panel's visibility is decided by the IME
     // inset's DIRECTION, not by a fixed fraction of the screen. The v0.2 rule
@@ -380,6 +399,14 @@ fun EditorScreen(
                     title = { Text(projectName.substringAfterLast('/')) },
                     actions = {
                         // R4A: Deps and Terminal moved to the Files drawer
+                        if (tabs.isNotEmpty()) {
+                            IconButton(onClick = { codeEditor?.undo() }, enabled = canUndo) {
+                                Icon(RdIcons.Undo, contentDescription = stringResource(R.string.editor_undo))
+                            }
+                            IconButton(onClick = { codeEditor?.redo() }, enabled = canRedo) {
+                                Icon(RdIcons.Redo, contentDescription = stringResource(R.string.editor_redo))
+                            }
+                        }
                         if (running) {
                             IconButton(onClick = { vm.stop() }) {
                                 Icon(RdIcons.Stop, contentDescription = stringResource(R.string.editor_stop), tint = MaterialTheme.colorScheme.error)

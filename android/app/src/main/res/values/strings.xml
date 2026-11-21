@@ -179,4 +179,6 @@
     <string name="settings_appearance">Apariencia</string>
     <string name="settings_file_icons">Íconos de tipo de archivo</string>
     <string name="settings_file_icons_desc">Muestra un dibujito según el tipo de archivo en Files y en las pestañas.</string>
+    <string name="editor_undo">Deshacer</string>
+    <string name="editor_redo">Rehacer</string>
 </resources>
