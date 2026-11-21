@@ -112,6 +112,9 @@ object RustEditor {
             io.github.rosemoe.sora.widget.component.EditorDiagnosticTooltipWindow::class.java,
             R4ADiagnosticTooltip(editor),
         )
+        // R4A: our icons in the suggestion list (instead of the "K" letter)
+        editor.getComponent(io.github.rosemoe.sora.widget.component.EditorAutoCompletion::class.java)
+            .setAdapter(R4ACompletionAdapter())
         editor.typefaceText = android.graphics.Typeface.MONOSPACE
         editor.setTextSize(14f)
         editor.setWordwrap(false)

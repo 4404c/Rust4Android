@@ -113,6 +113,8 @@
     <string name="editor_open_terminal_cd">Abrir terminal en este proyecto</string>
     <string name="editor_stop">Detener</string>
     <string name="editor_run">Ejecutar</string>
+    <string name="completion_keyword">palabra de Rust</string>
+    <string name="completion_name">en el archivo</string>
     <string name="editor_close_tab">cerrar</string>
     <string name="editor_open_from_drawer">Abrí un archivo desde el panel de archivos</string>
     <string name="editor_console">Console</string>

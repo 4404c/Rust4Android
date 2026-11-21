@@ -109,6 +109,8 @@
     <string name="editor_open_terminal_cd">Open terminal in this project</string>
     <string name="editor_stop">Stop</string>
     <string name="editor_run">Run</string>
+    <string name="completion_keyword">Rust keyword</string>
+    <string name="completion_name">in this file</string>
     <string name="editor_close_tab">close</string>
     <string name="editor_open_from_drawer">Open a file from the drawer</string>
     <string name="editor_console">Console</string>
