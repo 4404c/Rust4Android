@@ -59,14 +59,25 @@ object RustEditor {
         }
     }
 
-    fun createLanguage(context: Context): TextMateLanguage {
+    /**
+     * R4A: load the theme and the Rust grammar off the main thread at app
+     * start (the grammar registry caches it), so opening a project no longer
+     * freezes the UI for ~150 ms while it parses. The throwaway language is
+     * destroyed; each editor still gets its own instance.
+     */
+    fun warmUp(context: Context) {
+        runCatching { createLanguage(context).destroy() }
+    }
+
+    fun createLanguage(context: Context): TextMateLanguage = synchronized(this) {
+        ensureInit(context)
         val assets = context.assets
         val def = DefaultGrammarDefinition.withLanguageConfiguration(
             grammarSourceFor(assets, "textmate/rust.tmLanguage.json"),
             "textmate/rust-language-configuration.json",
             "rust", "source.rust",
         )
-        return TextMateLanguage.create(def, true)
+        TextMateLanguage.create(def, true)
     }
 
     private fun grammarSourceFor(assets: android.content.res.AssetManager, path: String): IGrammarSource =
@@ -80,6 +91,11 @@ object RustEditor {
         editor.typefaceText = android.graphics.Typeface.MONOSPACE
         editor.setTextSize(14f)
         editor.setWordwrap(false)
+        // R4A: line numbers used to touch the screen edge — indent them and
+        // leave some room around the divider (values are in px)
+        val dp = context.resources.displayMetrics.density
+        editor.setLineNumberMarginLeft(8 * dp)
+        editor.setDividerMargin(6 * dp, 6 * dp)
         editor.getProps().autoIndent = true
         editor.getProps().symbolPairAutoCompletion = true
         return editor

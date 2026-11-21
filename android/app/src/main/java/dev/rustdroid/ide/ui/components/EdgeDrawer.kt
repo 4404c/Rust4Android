@@ -118,13 +118,18 @@ fun EdgeDrawer(
                 .drawerDrag(state, widthPx, scope),
         )
 
-        // Only composed while visible; derivedStateOf keeps the editor from
-        // recomposing on every drag frame.
+        // derivedStateOf keeps the editor from recomposing on every drag frame.
         val visible by remember { derivedStateOf { state.progress.value > 0f } }
-        if (visible) {
-            // Untranslated full-size layer: drag deltas are measured here, in
-            // screen space, so the moving sheet does not distort them.
-            Box(Modifier.fillMaxSize().drawerDrag(state, widthPx, scope)) {
+        // Untranslated full-size layer: drag deltas are measured here, in
+        // screen space, so the moving sheet does not distort them. It only
+        // listens while the drawer is visible — closed, it has no pointer
+        // input at all, so touches fall through to the content.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .then(if (visible) Modifier.drawerDrag(state, widthPx, scope) else Modifier),
+        ) {
+            if (visible) {
                 Box(
                     Modifier
                         .fillMaxSize()
@@ -134,16 +139,19 @@ fun EdgeDrawer(
                             detectTapGestures { scope.launch { state.close() } }
                         },
                 )
-                Box(
-                    Modifier
-                        .width(sheetWidth)
-                        .fillMaxHeight()
-                        .graphicsLayer {
-                            translationX = -widthPx * (1f - state.progress.value)
-                        },
-                ) {
-                    drawerContent()
-                }
+            }
+            // R4A: the sheet stays composed while closed, parked off-screen.
+            // Composing it on the first frame of a swipe (file list, guides)
+            // was the main source of jank when opening Files.
+            Box(
+                Modifier
+                    .width(sheetWidth)
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        translationX = -widthPx * (1f - state.progress.value)
+                    },
+            ) {
+                drawerContent()
             }
         }
     }

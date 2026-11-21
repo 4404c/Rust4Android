@@ -32,6 +32,12 @@ android {
 
     buildTypes {
         release {
+            // R4A: signed with the local debug key for now, so a release
+            // build installs over the debug one (same signature: the
+            // toolchain in app data survives). Release builds are much
+            // smoother than debug ones (Compose runs unoptimized in debug).
+            // TODO: a real release key before publishing anywhere.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
