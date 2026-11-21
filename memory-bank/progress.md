@@ -13,6 +13,7 @@
 - Deps: populares, ✓ en las agregadas, spinner sólo en la que se instala, versión compatible con Rust 1.85; archivos sin extensión visibles.
 - Resolver MSRV-aware en cargo.
 - Botones deshacer/rehacer arriba, al lado de ▶.
+- ▶ Ejecutar baja el teclado y cierra popups del editor para que se vea la consola.
 - Build release para arranque rápido.
 
 ## Errores en vivo (commit 108f857, ya en `main`)

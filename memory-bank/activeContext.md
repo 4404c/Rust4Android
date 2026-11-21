@@ -9,6 +9,7 @@ Terminados los **errores en vivo** (commit `108f857`, en `main`). Sin tarea en c
 - Errores en vivo: `runtime/LiveChecker.kt`, `runtime/CargoCheckParser.kt` (+ test), caja de error propia y quick fixes en `CodeEditorPane.kt`.
 - Botón ⓘ (autocompletado on/off), opción "Revisar errores mientras escribo", abrir el drawer cierra caja/teclado/popups.
 - Memory bank y `.cursorrules` creados.
+- ▶ Ejecutar baja el teclado (commit `149be81`): en `EditorScreen.kt`, el botón llama `hideEditorWindows`, `hideSoftInput` y `keyboard.hide()` antes de `vm.run()`.
 
 ## Próximos pasos posibles
 1. Decidir si la caja de error debe abrirse sola al escribir dentro del error.
