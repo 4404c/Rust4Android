@@ -7,6 +7,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -309,7 +312,8 @@ private const val IME_SETTLE_DEBOUNCE_MS = 100L
  * Then set this to false and delete it together with the overlay call site
  * and the counters in RdViewClient.
  */
-private const val TERMINAL_DIAGNOSTICS = true
+// R4A: off — it was a debugging aid left visible to users
+private const val TERMINAL_DIAGNOSTICS = false
 
 @Composable
 private fun SessionTabs(
@@ -478,11 +482,25 @@ private fun TerminalPane(
         requestFocusAndShowKeyboard(view)
     }
 
-    AndroidView(
-        factory = { view },
-        modifier = Modifier.fillMaxSize(),
-    )
+    // R4A: the renderer does not paint a background, so the terminal used to
+    // show the app theme behind white text (unreadable in light theme). Give
+    // it a fixed dark background and a small inset so text doesn't touch
+    // the screen edge.
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(TerminalBackground)
+            .padding(start = 6.dp, top = 4.dp, end = 2.dp),
+    ) {
+        AndroidView(
+            factory = { view },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
+
+/** Same dark tone as the editor console. */
+private val TerminalBackground = Color(0xFF141311)
 
 /**
  * v0.2 input fix, shared by the pane attach and the view client's tap
@@ -707,12 +725,14 @@ private fun ExtraKeysRow(
     ctrlVisual: Boolean,
     onCtrlToggled: (Boolean) -> Unit,
 ) {
-    Surface(tonalElevation = 2.dp) {
+    // R4A: flat strip with thin separators, same look as the editor's
+    // symbol bar (it used to be big rounded chips)
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .height(38.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             ExtraKey("Esc", Modifier.weight(1f)) { entry.session.write("\u001b") }
             ExtraKey("Tab", Modifier.weight(1f)) { entry.session.write("\t") }
@@ -741,25 +761,33 @@ private fun ExtraKey(
     highlighted: Boolean = false,
     onClick: () -> Unit,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.small,
-        color = if (highlighted) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surfaceVariant,
-        onClick = onClick,
-    ) {
+    Row(modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
-                .fillMaxWidth()
-                .height(40.dp),
+                .weight(1f)
+                .fillMaxHeight()
+                .background(
+                    if (highlighted) MaterialTheme.colorScheme.primaryContainer
+                    else Color.Transparent
+                )
+                .clickable(onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 label,
-                style = MaterialTheme.typography.labelLarge,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
                 color = if (highlighted) MaterialTheme.colorScheme.onPrimaryContainer
                 else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
             )
         }
+        // thin separator on the right, like the symbol bar
+        Box(
+            Modifier
+                .width(1.dp)
+                .height(18.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
     }
 }

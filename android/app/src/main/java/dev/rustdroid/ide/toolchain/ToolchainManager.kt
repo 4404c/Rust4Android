@@ -62,7 +62,10 @@ class ToolchainManager(
         // so backfill config.toml CA trust + warm the bundle once at startup.
         // Idempotent and IO-dispatched; skips entirely when not installed.
         if (_state.value is ToolchainState.Ready) {
-            defaultScope.launch { writeCargoDefaults() }
+            defaultScope.launch {
+                writeCargoDefaults()
+                applyBusyboxOverlay()
+            }
         }
         // Crash recovery: an install interrupted between SWAP and READY
         // leaves a pending-transaction marker on disk. Reconcile it BEFORE
@@ -102,6 +105,17 @@ class ToolchainManager(
     }
 
     private fun firstLine(s: String) = s.lineSequence().firstOrNull() ?: s
+
+    /**
+     * R4A: swap in the patched BusyBox shipped in the APK (see
+     * [BusyboxOverlay]). Never fatal — on failure the bundle's BusyBox stays
+     * and the terminal still works, just with the old resize behavior.
+     */
+    private fun applyBusyboxOverlay() {
+        runCatching { BusyboxOverlay.apply(context, paths) }
+            .onSuccess { replaced -> if (replaced) log("busybox: installed the patched R4A build") }
+            .onFailure { log("busybox: could not install the patched build: ${it.message}") }
+    }
 
     private fun log(line: String) {
         synchronized(logTail) {
@@ -392,6 +406,7 @@ class ToolchainManager(
                 },
             )
             writeCargoDefaults()
+            applyBusyboxOverlay()
             _state.value = ToolchainState.Ready(firstLine(rustc), firstLine(cargo))
             _verifyPassTick.value += 1L
             log("verification PASSED — toolchain ready")
