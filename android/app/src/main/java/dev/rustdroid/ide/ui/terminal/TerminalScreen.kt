@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
@@ -186,6 +187,7 @@ fun TerminalScreen(
     // brief for the key row.
     val density = androidx.compose.ui.platform.LocalDensity.current
     val imeInsetPx = WindowInsets.ime.getBottom(density)
+    val navBarPx = WindowInsets.navigationBars.getBottom(density)
     var imePadPx by remember { mutableStateOf(0) }
     LaunchedEffect(imeInsetPx) {
         // Restarted on every frame of the animation, so this only runs to
@@ -223,7 +225,11 @@ fun TerminalScreen(
                 // per animation frame is what produced 58 pty resizes and 58
                 // shell prompts. Edge-to-edge still neutralizes adjustResize,
                 // so the inset must be applied by hand — just not per frame.
-                .padding(bottom = with(density) { imePadPx.toDp() })
+                // R4A: the scaffold padding above already holds the
+                // navigation bar, and the IME inset includes it too — subtract
+                // it, or an empty strip the nav bar's height sits above the
+                // keyboard.
+                .padding(bottom = with(density) { (imePadPx - navBarPx).coerceAtLeast(0).toDp() })
         ) {
             // ---- session tab strip (v0: simple strip + close per tab) ----
             SessionTabs(

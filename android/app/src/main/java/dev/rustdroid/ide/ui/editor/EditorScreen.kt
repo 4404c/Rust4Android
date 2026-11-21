@@ -171,7 +171,8 @@ fun EditorScreen(
     // IME-aware layout: editor focus + visible keyboard => hide the console
     // panel so the script gets the whole space above the IME (see bottom
     // panel below). Track View-level focus from sora-editor.
-    var editorFocused by remember { mutableStateOf(false) }
+    // R4A: true while the console's stdin field has focus (see hideBottom)
+    var stdinFocused by remember { mutableStateOf(false) }
     // R4A: folders folded in the Files tree (relative paths)
     var collapsedDirs by remember { mutableStateOf(emptySet<String>()) }
     // R4A: the sora editor view, so the symbol bar can type into it
@@ -455,7 +456,6 @@ fun EditorScreen(
                             dark = dark,
                             onTextChange = { vm.onTextChange(it) },
                             jumpRequest = jump,
-                            onFocusChanged = { editorFocused = it },
                             onEditorReady = { codeEditor = it },
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -488,7 +488,12 @@ fun EditorScreen(
                 // v0.2 "console takes a second to come back" report) and
                 // treats a small but held-open keyboard as open (the
                 // floating-IME inversion the threshold rule had).
-                val hideBottom = imeVisible && editorFocused
+                // R4A: hide whenever the keyboard is up, unless the user is
+                // typing into the console's stdin field. It used to require
+                // the editor to hold focus, so coming back from the terminal
+                // with the keyboard still open (editor not focused) showed
+                // the panel right above the keyboard.
+                val hideBottom = imeVisible && !stdinFocused
                 val errorCount = problems.count { it.severity == Severity.ERROR }
                 val warningCount = problems.count { it.severity == Severity.WARNING }
                 if (!hideBottom) {
@@ -543,6 +548,7 @@ fun EditorScreen(
                                     onSend = { vm.sendStdin(it) },
                                     onClear = { vm.clearConsole() },
                                     listState = consoleListState,
+                                    onStdinFocusChanged = { stdinFocused = it },
                                 )
                                 EditorViewModel.BottomTab.PROBLEMS -> ProblemsPanel(
                                     problems = problems,
@@ -800,6 +806,7 @@ private fun ConsolePanel(
     onSend: (String) -> Unit,
     onClear: () -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    onStdinFocusChanged: (Boolean) -> Unit = {},
 ) {
     val palette = LocalEditorPalette.current
     val clipboard = LocalClipboardManager.current
@@ -886,15 +893,17 @@ private fun ConsolePanel(
         // stdin is only meaningful while a program is actually running —
         // hiding it otherwise removes the dead send button confusion.
         if (running) {
-            StdinBar(onSend = onSend)
+            StdinBar(onSend = onSend, onFocusChanged = onStdinFocusChanged)
         }
     }
 }
 
 @Composable
-private fun StdinBar(onSend: (String) -> Unit) {
+private fun StdinBar(onSend: (String) -> Unit, onFocusChanged: (Boolean) -> Unit = {}) {
     val palette = LocalEditorPalette.current
     var input by remember { mutableStateOf("") }
+    // the bar disappears when the program ends — never leave "focused" stuck
+    DisposableEffect(Unit) { onDispose { onFocusChanged(false) } }
 
     fun submit() {
         val text = input
@@ -924,7 +933,9 @@ private fun StdinBar(onSend: (String) -> Unit) {
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
             keyboardActions = KeyboardActions(onSend = { submit() }),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { onFocusChanged(it.isFocused) },
         )
         Spacer(Modifier.width(8.dp))
         IconButton(
