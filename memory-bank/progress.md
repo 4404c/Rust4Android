@@ -15,13 +15,13 @@
 - Botones deshacer/rehacer arriba, al lado de ▶.
 - Build release para arranque rápido.
 
-## En la rama `r4a/errores-en-vivo` (sin commitear todavía)
+## Errores en vivo (commit 108f857, ya en `main`)
 - Errores en vivo (`LiveChecker` + `CargoCheckParser`, 5 tests) con subrayado y caja de error con quick fixes.
 - Caja de error separada de los bordes, texto que no se sale, alto máximo 60 %.
 - Abrir el drawer cierra la caja de error, el teclado y popups.
 - Botón ⓘ para activar/desactivar autocompletado; colores del popup de autocompletado.
 - Opción "Revisar errores mientras escribo" en Apariencia.
-- Estado: el usuario confirmó que las sugerencias se ven bien. Falta commit + subir a main.
+- Estado: el usuario confirmó que las sugerencias se ven bien.
 
 ## Lo que falta / ideas
 - Clave de firma real para release.
