@@ -375,6 +375,42 @@ class ProjectRepository(
         if (!Fs.deleteRecursively(target)) throw IOException("could not delete '$rel'")
     }
 
+    /**
+     * R4A: renames or moves a file or folder inside [projectDir] — changing
+     * only the name renames, changing the folders moves ("src/a.rs" ->
+     * "src/juego/a.rs"). Same guards as [deleteFile]: no escaping the
+     * project, never the root nor the root Cargo.toml, never over an
+     * existing file, and a folder can not go inside itself.
+     */
+    fun moveFile(projectDir: File, from: String, to: String): File {
+        val src = from.trim().replace('\\', '/').trim('/')
+        val dst = to.trim().replace('\\', '/').trim('/')
+        if (src.isEmpty() || dst.isEmpty()) throw IOException("the name is empty")
+        val source = Fs.resolveChild(projectDir, src)
+        val target = Fs.resolveChild(projectDir, dst)
+        val root = projectDir.canonicalPath
+        if (source.canonicalPath == root || target.canonicalPath == root) {
+            throw IOException("cannot move the project root")
+        }
+        if (source.parentFile?.canonicalPath == root && source.name == "Cargo.toml") {
+            throw IOException("Cargo.toml is what makes this folder a project — it stays where it is")
+        }
+        if (!source.exists()) throw IOException("'$src' does not exist")
+        if (source.canonicalPath == target.canonicalPath) return target
+        if (target.exists()) throw IOException("'$dst' already exists")
+        if (source.isDirectory && (target.canonicalPath + "/").startsWith(source.canonicalPath + "/")) {
+            throw IOException("a folder can not go inside itself")
+        }
+        target.parentFile?.mkdirs()
+        if (!source.renameTo(target)) {
+            // renameTo can fail across mount points: copy, then delete
+            if (!source.copyRecursively(target) || !Fs.deleteRecursively(source)) {
+                throw IOException("could not move '$src'")
+            }
+        }
+        return target
+    }
+
     // ---- .rs intake (ACTION_VIEW from file managers) ----
 
     /**

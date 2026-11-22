@@ -238,4 +238,17 @@
     <string name="export_icon_crop_title">Crop icon</string>
     <string name="export_icon_crop_hint">Drag the square to choose which part to use. Pinch with two fingers to make it bigger or smaller.</string>
     <string name="export_icon_crop_use">Use</string>
+    <string name="search_title">Find</string>
+    <string name="search_find">Find</string>
+    <string name="search_replace_with">Replace with</string>
+    <string name="search_previous">Previous</string>
+    <string name="search_next">Next</string>
+    <string name="search_close">Close search</string>
+    <string name="search_replace_one">Replace</string>
+    <string name="search_replace_all">All</string>
+    <string name="files_rename_move">Rename or move</string>
+    <string name="files_move_hint">Change the name to rename, or the folder to move it (e.g. src/game/main.rs). Missing folders are created.</string>
+    <string name="files_path">Path in the project</string>
+    <string name="files_apply">Apply</string>
+    <string name="vm_editor_cannot_move">could not move %1$s</string>
 </resources>

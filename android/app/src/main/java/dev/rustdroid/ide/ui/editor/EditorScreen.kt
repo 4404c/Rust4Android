@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 
@@ -85,6 +86,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -132,6 +134,8 @@ fun EditorScreen(
     val tree by vm.tree.collectAsState()
     val running by vm.running.collectAsState()
     val gameRunning by vm.gameRunning.collectAsState()
+    // R4A: find / replace bar under the tabs
+    var searchOpen by remember { mutableStateOf(false) }
     // R4A: export APK (games only)
     val exportedApk by vm.exported.collectAsState()
     var showExport by remember { mutableStateOf(false) }
@@ -184,6 +188,11 @@ fun EditorScreen(
     val deletedFile by vm.deletedFile.collectAsState()
     val deleteFileError by vm.deleteFileError.collectAsState()
     var pendingDelete by remember { mutableStateOf<FileNode?>(null) }
+    // R4A: long-press menu (rename/move, delete) and the rename/move dialog
+    var fileMenu by remember { mutableStateOf<FileNode?>(null) }
+    var pendingMove by remember { mutableStateOf<FileNode?>(null) }
+    val movedFile by vm.movedFile.collectAsState()
+    val moveFileError by vm.moveFileError.collectAsState()
 
     // Re-entering this screen (e.g. back from the Deps screen) re-runs this
     // effect: pull fresh bytes for any tab that has no unsaved edits AND
@@ -324,6 +333,12 @@ fun EditorScreen(
             vm.clearNewFileSignals()
         }
     }
+    LaunchedEffect(movedFile) {
+        if (movedFile != null) {
+            pendingMove = null
+            vm.clearMoveSignals()
+        }
+    }
     // close the delete dialog once the VM reports the file is gone
     LaunchedEffect(deletedFile) {
         if (deletedFile != null) {
@@ -386,7 +401,7 @@ fun EditorScreen(
                                         drawerScope.launch { drawerState.close() }
                                     }
                                 },
-                                onDelete = { pendingDelete = row.node },
+                                onLongPress = { fileMenu = row.node },
                             )
                         }
                     }
@@ -477,6 +492,18 @@ fun EditorScreen(
                     actions = {
                         // R4A: Deps and Terminal moved to the Files drawer
                         if (tabs.isNotEmpty()) {
+                            // R4A: find / replace in the open file
+                            IconButton(onClick = {
+                                searchOpen = !searchOpen
+                                if (!searchOpen) codeEditor?.searcher?.stopSearch()
+                            }) {
+                                Icon(
+                                    Icons.Filled.Search,
+                                    contentDescription = stringResource(R.string.search_title),
+                                    tint = if (searchOpen) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             IconButton(onClick = {
                                 dev.rustdroid.ide.util.AppSettings.setAutoComplete(appContext, !autoComplete)
                             }) {
@@ -598,6 +625,19 @@ fun EditorScreen(
                             }
                         }
                     }
+                }
+
+                // ---- find / replace (R4A) ----
+                val editorForSearch = codeEditor
+                if (searchOpen && tabs.isNotEmpty() && editorForSearch != null) {
+                    EditorSearchBar(
+                        editor = editorForSearch,
+                        fileKey = activeRel,
+                        onClose = {
+                            searchOpen = false
+                            editorForSearch.searcher.stopSearch()
+                        },
+                    )
                 }
 
                 // ---- editor ----
@@ -796,6 +836,27 @@ fun EditorScreen(
         )
     }
 
+    fileMenu?.let { node ->
+        FileActionsDialog(
+            node = node,
+            onMove = { fileMenu = null; pendingMove = node },
+            onDelete = { fileMenu = null; pendingDelete = node },
+            onDismiss = { fileMenu = null },
+        )
+    }
+
+    pendingMove?.let { node ->
+        MoveFileDialog(
+            node = node,
+            error = moveFileError,
+            onMove = { to -> vm.moveFile(node.relativePath, to) },
+            onDismiss = {
+                vm.clearMoveSignals()
+                pendingMove = null
+            },
+        )
+    }
+
     pendingDelete?.let { node ->
         DeleteFileDialog(
             node = node,
@@ -864,7 +925,7 @@ private fun NewFileDialog(
 
 /**
  * One drawer row. Tap opens a file (and closes the drawer) or folds/unfolds
- * a folder (R4A); long-press offers deletion via [onDelete]. The drawer
+ * a folder (R4A); long-press opens the file menu (rename/move, delete). The drawer
  * sheet is pure Compose, so combinedClickable's long-press does not fight
  * the sora-editor interop view (which only ever sits under the CLOSED
  * drawer — see the EdgeDrawer note above).
@@ -875,7 +936,7 @@ private fun FileTreeRow(
     row: TreeRow,
     showFileIcon: Boolean = true,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
+    onLongPress: () -> Unit,
 ) {
     val node = row.node
     val guideColor = MaterialTheme.colorScheme.outlineVariant
@@ -884,7 +945,7 @@ private fun FileTreeRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onDelete)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
             // `tree`-style guides: one column per level; ancestors that still
             // have siblings below get a full vertical line, the row's own
             // column gets ├ or └ (see FileTreeGuides).
@@ -934,6 +995,104 @@ private fun FileTreeRow(
 
 /** Width of one indentation level in the Files tree. */
 private val TreeColumn = 14.dp
+
+/** R4A: what to do with a file or folder of the Files tree (long-press). */
+@Composable
+private fun FileActionsDialog(
+    node: FileNode,
+    onMove: () -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (node.isDirectory) node.relativePath + "/" else node.relativePath,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+        },
+        text = {
+            Column {
+                TextButton(onClick = onMove, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.files_rename_move), modifier = Modifier.fillMaxWidth())
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(R.string.common_delete),
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
+
+/**
+ * R4A: rename or move [node]: the whole path is editable, so changing the
+ * name renames and changing the folders moves. The cursor starts on the
+ * name (without the extension) — the usual thing to change.
+ */
+@Composable
+private fun MoveFileDialog(
+    node: FileNode,
+    error: String?,
+    onMove: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val initial = node.relativePath
+    val nameStart = initial.lastIndexOf('/') + 1
+    val nameEnd = if (node.isDirectory) initial.length
+    else initial.lastIndexOf('.').takeIf { it > nameStart } ?: initial.length
+    var value by remember {
+        mutableStateOf(
+            androidx.compose.ui.text.input.TextFieldValue(
+                initial, androidx.compose.ui.text.TextRange(nameStart, nameEnd),
+            ),
+        )
+    }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    val target = value.text.trim()
+    val ok = target.isNotEmpty() && target != initial
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.files_rename_move)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.files_move_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.files_path)) },
+                    isError = error != null,
+                    supportingText = if (error != null) {
+                        { Text(error, color = MaterialTheme.colorScheme.error) }
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, autoCorrectEnabled = false),
+                    keyboardActions = KeyboardActions(onDone = { if (ok) onMove(target) }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onMove(target) }, enabled = ok) { Text(stringResource(R.string.files_apply)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
 
 /**
  * Confirms deleting [node] (a whole subtree when it is a directory).

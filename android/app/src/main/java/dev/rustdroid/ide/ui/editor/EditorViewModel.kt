@@ -384,6 +384,48 @@ class EditorViewModel(
         }
     }
 
+    // ---------------- rename / move (R4A) ----------------
+
+    /** One-shot: the file was renamed/moved (closes the dialog). */
+    private val _movedFile = MutableStateFlow<String?>(null)
+    val movedFile: StateFlow<String?> = _movedFile.asStateFlow()
+    private val _moveFileError = MutableStateFlow<String?>(null)
+    val moveFileError: StateFlow<String?> = _moveFileError.asStateFlow()
+
+    fun clearMoveSignals() {
+        _movedFile.value = null
+        _moveFileError.value = null
+    }
+
+    /**
+     * Renames or moves [from] to [to] (paths relative to the project). Open
+     * tabs follow their files: same position, same unsaved text.
+     */
+    fun moveFile(from: String, to: String) {
+        viewModelScope.launch {
+            val src = from.trim().replace('\\', '/').trim('/')
+            val dst = to.trim().replace('\\', '/').trim('/')
+            try {
+                withContext(Dispatchers.IO) { repo.moveFile(projectDir, src, dst) }
+                _moveFileError.value = null
+                activeTab?.let { it.cachedText = _activeText.value }
+                val prefix = "$src/"
+                _tabs.value = _tabs.value.map { tab ->
+                    val newRel = when {
+                        tab.relativePath == src -> dst
+                        tab.relativePath.startsWith(prefix) -> dst + "/" + tab.relativePath.removePrefix(prefix)
+                        else -> return@map tab
+                    }
+                    EditorTab(newRel, File(projectDir, newRel), tab.cachedText).also { it.dirty = tab.dirty }
+                }
+                refreshTree()
+                _movedFile.value = dst
+            } catch (e: Exception) {
+                _moveFileError.value = e.message ?: str(R.string.vm_editor_cannot_move, src)
+            }
+        }
+    }
+
     /** Closes every tab at [rel] or nested under it (dir delete). */
     private fun closeTabsUnder(rel: String) {
         val prefix = rel.trimEnd('/') + "/"
