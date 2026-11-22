@@ -563,6 +563,45 @@ class EditorViewModel(
         return (parts.dropLast(1) + (last + 1).toString()).joinToString(".")
     }
 
+    /** R4A: this project's APK icon (192x192 PNG in app storage), if chosen. */
+    val exportIconFile: File
+        get() {
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val h = md.digest(exportKey.toByteArray()).take(8).joinToString("") { "%02x".format(it) }
+            return File(container.context.filesDir, "export-icons/$h.png")
+        }
+
+    /**
+     * R4A: make an APK icon from a picked image: center square crop, scaled
+     * to 192x192 (xxxhdpi launcher size), saved as PNG. False if unreadable.
+     */
+    suspend fun setExportIcon(uri: android.net.Uri): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val resolver = container.context.contentResolver
+            // read the size first: a big photo would not fit in memory
+            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            resolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+            var sample = 1
+            while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 192) sample *= 2
+            val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+            val src = resolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, opts) }
+                ?: return@runCatching false
+            val side = minOf(src.width, src.height)
+            val square = android.graphics.Bitmap.createBitmap(
+                src, (src.width - side) / 2, (src.height - side) / 2, side, side,
+            )
+            val icon = android.graphics.Bitmap.createScaledBitmap(square, 192, 192, true)
+            val out = exportIconFile
+            out.parentFile?.mkdirs()
+            out.outputStream().use { icon.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            true
+        }.getOrDefault(false)
+    }
+
+    fun clearExportIcon() {
+        exportIconFile.delete()
+    }
+
     /** The exported APK, once ready — the screen offers Install / Share. */
     private val _exported = MutableStateFlow<File?>(null)
     val exported: StateFlow<File?> = _exported.asStateFlow()
@@ -591,8 +630,9 @@ class EditorViewModel(
                 val dir = if ((public.isDirectory || public.mkdirs()) && public.canWrite()) public
                 else File(ctx.getExternalFilesDir(null), "exports")
                 val out = File(dir, fileName)
+                val icon = exportIconFile.takeIf { it.isFile }?.readBytes()
                 dev.rustdroid.ide.export.ApkExporter.export(
-                    template, lib, options, key, File(ctx.cacheDir, "export"), out,
+                    template, lib, options, key, File(ctx.cacheDir, "export"), out, icon,
                 )
                 exportPrefs.edit()
                     .putString("$exportKey|name", options.appName)

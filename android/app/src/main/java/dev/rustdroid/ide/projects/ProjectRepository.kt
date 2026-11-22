@@ -434,7 +434,10 @@ class ProjectRepository(
             |    let radio = 50.0;
             |
             |    loop {
-            |        let dt = get_frame_time();
+            |        // tiempo desde el cuadro anterior, con un tope: si el juego
+            |        // estuvo en pausa (fuiste al código o a otra app), sin el tope
+            |        // la pelota "saltaría" todo lo que se movería en ese tiempo
+            |        let dt = get_frame_time().min(1.0 / 20.0);
             |        let (ancho, alto) = (screen_width(), screen_height());
             |
             |        pos += vel * dt;
@@ -442,7 +445,7 @@ class ProjectRepository(
             |        if pos.x > ancho - radio { vel.x = -vel.x.abs(); }
             |        if pos.y < radio { vel.y = vel.y.abs(); }
             |        if pos.y > alto - radio { vel.y = -vel.y.abs(); }
-            |        // que no se escape de la pantalla (por ej. si cambia de tamaño)
+            |        // que no quede afuera si la pantalla cambia de tamaño (al girar el celu)
             |        pos.x = pos.x.min(ancho - radio).max(radio);
             |        pos.y = pos.y.min(alto - radio).max(radio);
             |

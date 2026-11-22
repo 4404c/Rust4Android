@@ -30,6 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -135,6 +138,9 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
             // ---- appearance (R4A) ----
             AppearanceCard()
 
+            // ---- game signing key (R4A) ----
+            SigningKeyCard()
+
             // ---- storage ----
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -215,6 +221,103 @@ private fun LanguageCard() {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/**
+ * R4A: the key that signs exported games. Android only installs an update
+ * signed with the same key, so it can be saved to a file and restored
+ * (after reinstalling R4A, or on another phone).
+ */
+@Composable
+private fun SigningKeyCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val dir = remember { java.io.File(context.filesDir, "signing") }
+    var fingerprint by remember {
+        mutableStateOf(
+            if (dev.rustdroid.ide.export.GameSigningKey.exists(dir))
+                runCatching { dev.rustdroid.ide.export.GameSigningKey.fingerprint(dev.rustdroid.ide.export.GameSigningKey.loadOrCreate(dir)) }.getOrNull()
+            else null,
+        )
+    }
+    var pendingRestore by remember { mutableStateOf<android.net.Uri?>(null) }
+    fun toast(id: Int, vararg args: Any) =
+        android.widget.Toast.makeText(context, context.getString(id, *args), android.widget.Toast.LENGTH_LONG).show()
+
+    val save = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val key = dev.rustdroid.ide.export.GameSigningKey.loadOrCreate(dir)
+                    context.contentResolver.openOutputStream(uri)?.use {
+                        it.write(dev.rustdroid.ide.export.GameSigningKey.backup(dir))
+                    } ?: error("no output")
+                    dev.rustdroid.ide.export.GameSigningKey.fingerprint(key)
+                }.getOrNull()
+            }
+            if (ok != null) { fingerprint = ok; toast(R.string.signing_saved) } else toast(R.string.signing_save_failed)
+        }
+    }
+    val open = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri -> if (uri != null) pendingRestore = uri }
+
+    pendingRestore?.let { uri ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingRestore = null },
+            title = { Text(stringResource(R.string.signing_restore_title)) },
+            text = { Text(stringResource(R.string.signing_restore_text)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    pendingRestore = null
+                    scope.launch {
+                        val fp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching {
+                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                                    ?: error("no input")
+                                dev.rustdroid.ide.export.GameSigningKey.fingerprint(
+                                    dev.rustdroid.ide.export.GameSigningKey.restore(dir, bytes),
+                                )
+                            }.getOrNull()
+                        }
+                        if (fp != null) { fingerprint = fp; toast(R.string.signing_restored) } else toast(R.string.signing_restore_failed)
+                    }
+                }) { Text(stringResource(R.string.signing_restore_confirm)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingRestore = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
+    Card {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.signing_title), style = MaterialTheme.typography.titleMedium)
+            Text(
+                fingerprint?.let { stringResource(R.string.signing_current, it) }
+                    ?: stringResource(R.string.signing_none),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                stringResource(R.string.signing_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { save.launch("r4a-clave-juegos.r4akey") }) {
+                    Text(stringResource(R.string.signing_save))
+                }
+                OutlinedButton(onClick = { open.launch(arrayOf("*/*")) }) {
+                    Text(stringResource(R.string.signing_restore))
+                }
+            }
         }
     }
 }

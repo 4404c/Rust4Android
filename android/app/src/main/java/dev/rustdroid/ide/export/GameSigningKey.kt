@@ -48,6 +48,52 @@ object GameSigningKey {
         return created
     }
 
+    /** Is there a key already (some game was exported or a backup restored)? */
+    fun exists(dir: File) = File(dir, KEY_FILE).isFile && File(dir, CERT_FILE).isFile
+
+    /** Short fingerprint of the certificate, to tell keys apart ("AB:12:…"). */
+    fun fingerprint(key: Key): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(key.certificate.encoded)
+            .take(6).joinToString(":") { "%02X".format(it) }
+
+    /**
+     * A backup file (.r4akey): a zip with the private key and its certificate.
+     * Whoever has it can sign updates of the user's games — keep it private.
+     */
+    fun backup(dir: File): ByteArray {
+        require(exists(dir)) { "no key" }
+        val out = ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(out).use { z ->
+            for (name in listOf(KEY_FILE, CERT_FILE)) {
+                z.putNextEntry(java.util.zip.ZipEntry(name))
+                z.write(File(dir, name).readBytes())
+                z.closeEntry()
+            }
+        }
+        return out.toByteArray()
+    }
+
+    /** Restore a [backup], replacing the current key. Throws if it is not valid. */
+    fun restore(dir: File, backup: ByteArray): Key {
+        val files = HashMap<String, ByteArray>()
+        java.util.zip.ZipInputStream(backup.inputStream()).use { z ->
+            while (true) {
+                val e = z.nextEntry ?: break
+                if (e.name == KEY_FILE || e.name == CERT_FILE) files[e.name] = z.readBytes()
+            }
+        }
+        val keyBytes = files[KEY_FILE] ?: error("not an R4A key backup")
+        val certBytes = files[CERT_FILE] ?: error("not an R4A key backup")
+        // validate before touching the current key
+        val key = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyBytes))
+        val cert = CertificateFactory.getInstance("X.509")
+            .generateCertificate(certBytes.inputStream()) as X509Certificate
+        dir.mkdirs()
+        File(dir, KEY_FILE).writeBytes(keyBytes)
+        File(dir, CERT_FILE).writeBytes(certBytes)
+        return Key(key, cert)
+    }
+
     fun create(owner: String): Key {
         val gen = KeyPairGenerator.getInstance("RSA")
         gen.initialize(2048, SecureRandom())

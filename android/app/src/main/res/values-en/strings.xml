@@ -218,4 +218,21 @@
 %1$s</string>
     <string name="export_install">Install</string>
     <string name="export_share">Share</string>
+    <string name="export_icon">Icon</string>
+    <string name="export_icon_pick">Choose image</string>
+    <string name="export_icon_clear">Remove</string>
+    <string name="export_icon_error">Could not read that image</string>
+    <string name="signing_title">Game signing</string>
+    <string name="signing_current">Your key: %1$s</string>
+    <string name="signing_none">No key yet: it is created when you export your first game (or save a backup).</string>
+    <string name="signing_note">Android only installs an update of a game signed with the same key. If you uninstall R4A the key is lost: keep a backup somewhere safe and private (whoever has it can sign updates of your games).</string>
+    <string name="signing_save">Save backup</string>
+    <string name="signing_restore">Restore</string>
+    <string name="signing_saved">Key backup saved</string>
+    <string name="signing_save_failed">Could not save the backup</string>
+    <string name="signing_restore_title">Restore the key?</string>
+    <string name="signing_restore_text">The current key is replaced by the backup. Games you exported with the current key can not be updated with the new one.</string>
+    <string name="signing_restore_confirm">Restore</string>
+    <string name="signing_restored">Key restored</string>
+    <string name="signing_restore_failed">That file is not an R4A key backup</string>
 </resources>

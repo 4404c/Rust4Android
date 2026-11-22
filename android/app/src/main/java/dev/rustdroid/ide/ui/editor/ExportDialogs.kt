@@ -5,6 +5,13 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -31,9 +38,24 @@ import java.io.File
 @Composable
 fun ExportApkDialog(
     initial: ApkExporter.Options,
+    iconFile: File,
+    onPickIcon: (android.net.Uri, (Boolean) -> Unit) -> Unit,
+    onClearIcon: () -> Unit,
     onExport: (ApkExporter.Options) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // R4A: launcher icon — bumped after each change to reload the preview
+    var iconVersion by remember { mutableStateOf(0) }
+    var iconError by remember { mutableStateOf(false) }
+    val icon = remember(iconVersion) {
+        iconFile.takeIf { it.isFile }?.let { android.graphics.BitmapFactory.decodeFile(it.path) }
+            ?.asImageBitmap()
+    }
+    val pickImage = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri != null) onPickIcon(uri) { ok -> iconError = !ok; iconVersion++ }
+    }
     var name by remember { mutableStateOf(initial.appName) }
     var pkg by remember { mutableStateOf(initial.packageName) }
     var versionName by remember { mutableStateOf(initial.versionName) }
@@ -51,6 +73,41 @@ fun ExportApkDialog(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (icon != null) {
+                        Image(
+                            icon, contentDescription = stringResource(R.string.export_icon),
+                            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(14.dp)),
+                        )
+                    } else {
+                        DefaultGameIcon(Modifier.size(56.dp))
+                    }
+                    Column {
+                        Text(stringResource(R.string.export_icon), style = MaterialTheme.typography.labelLarge)
+                        Row {
+                            // narrow dialog: tight padding, one line each
+                            val tight = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)
+                            TextButton(onClick = { pickImage.launch("image/*") }, contentPadding = tight) {
+                                Text(stringResource(R.string.export_icon_pick), maxLines = 1, softWrap = false)
+                            }
+                            if (icon != null) {
+                                TextButton(onClick = { onClearIcon(); iconVersion++ }, contentPadding = tight) {
+                                    Text(stringResource(R.string.export_icon_clear), maxLines = 1, softWrap = false)
+                                }
+                            }
+                        }
+                        if (iconError) {
+                            Text(
+                                stringResource(R.string.export_icon_error),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
                     label = { Text(stringResource(R.string.export_app_name)) },
@@ -94,6 +151,18 @@ fun ExportApkDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+/** The template's own icon (dark rounded square, orange ball). */
+@Composable
+private fun DefaultGameIcon(modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier) {
+        drawRoundRect(
+            androidx.compose.ui.graphics.Color(0xFF281E3C),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.minDimension * 0.23f),
+        )
+        drawCircle(androidx.compose.ui.graphics.Color(0xFFFF9800), radius = size.minDimension * 0.23f)
+    }
 }
 
 /** R4A: the APK is ready — install it here or share it. */

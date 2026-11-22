@@ -28,6 +28,9 @@ object ApkExporter {
     const val TEMPLATE_LABEL = "R4A Game Template"
     const val TEMPLATE_VERSION_NAME = "1.0"
 
+    /** Template entries that hold the launcher icon (PNG). */
+    val ICON_ENTRY = Regex("""res/[^/]*\.png|res/mipmap[^/]*/ic_launcher\.png""")
+
     private val SEGMENT = Regex("[a-zA-Z][a-zA-Z0-9_]*")
     private val JAVA_WORDS = setOf(
         "abstract", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue",
@@ -62,6 +65,7 @@ object ApkExporter {
         key: GameSigningKey.Key,
         workDir: File,
         out: File,
+        icon: ByteArray? = null,
     ) {
         require(isValidPackage(options.packageName)) { "package: ${options.packageName}" }
         require(options.appName.isNotBlank()) { "name" }
@@ -87,6 +91,9 @@ object ApkExporter {
                             options.versionCode,
                         )
                     }
+                    // the template's only image is its launcher icon (the
+                    // release build gives it a short name like res/o-.png)
+                    if (icon != null && ICON_ENTRY.matches(e.name)) data = icon
                     zout.putEntry(e.name, data, stored = e.method == ZipEntry.STORED)
                 }
                 zout.putEntry("lib/arm64-v8a/libgame.so", gameLibrary.readBytes(), stored = false)

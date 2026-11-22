@@ -267,6 +267,7 @@ public class MainActivity extends Activity {
         ResizingLayout layout = new ResizingLayout(this);
         layout.addView(view);
         setContentView(layout);
+        hideSystemBars();
 
         QuadNative.activityOnCreate(this);
 
@@ -277,6 +278,39 @@ public class MainActivity extends Activity {
         super.onResume();
         QuadNative.activityOnResume();
 
+    }
+
+    // R4A: games use the whole screen (immersive): the status and navigation
+    // bars stay hidden and only show for a moment when swiped from an edge.
+    // Also draw under the camera cutout.
+    private void hideSystemBars() {
+        if (Build.VERSION.SDK_INT >= 28) {
+            getWindow().getAttributes().layoutInDisplayCutoutMode =
+                LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        if (Build.VERSION.SDK_INT >= 30) {
+            getWindow().setDecorFitsSystemWindows(false);
+            android.view.WindowInsetsController c = getWindow().getInsetsController();
+            if (c != null) {
+                c.hide(WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            }
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        }
+    }
+
+    // bars come back after dialogs, the keyboard or app switches: hide again
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) hideSystemBars();
     }
 
     // R4A: the game surface swallows every key: make "back" leave the game

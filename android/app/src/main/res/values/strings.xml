@@ -222,4 +222,21 @@
 %1$s</string>
     <string name="export_install">Instalar</string>
     <string name="export_share">Compartir</string>
+    <string name="export_icon">Ícono</string>
+    <string name="export_icon_pick">Elegir imagen</string>
+    <string name="export_icon_clear">Quitar</string>
+    <string name="export_icon_error">No se pudo leer esa imagen</string>
+    <string name="signing_title">Firma de juegos</string>
+    <string name="signing_current">Tu clave: %1$s</string>
+    <string name="signing_none">Todavía no hay clave: se crea al exportar el primer juego (o al guardar un respaldo).</string>
+    <string name="signing_note">Android sólo instala una actualización de un juego si está firmada con la misma clave. Si desinstalás R4A, la clave se pierde: guardá un respaldo en un lugar seguro y privado (quien lo tenga puede firmar actualizaciones de tus juegos).</string>
+    <string name="signing_save">Guardar respaldo</string>
+    <string name="signing_restore">Restaurar</string>
+    <string name="signing_saved">Respaldo de la clave guardado</string>
+    <string name="signing_save_failed">No se pudo guardar el respaldo</string>
+    <string name="signing_restore_title">¿Restaurar la clave?</string>
+    <string name="signing_restore_text">La clave actual se reemplaza por la del respaldo. Los juegos que exportaste con la clave actual no se van a poder actualizar con la nueva.</string>
+    <string name="signing_restore_confirm">Restaurar</string>
+    <string name="signing_restored">Clave restaurada</string>
+    <string name="signing_restore_failed">Ese archivo no es un respaldo de clave de R4A</string>
 </resources>

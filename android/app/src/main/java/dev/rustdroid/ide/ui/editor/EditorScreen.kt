@@ -138,8 +138,12 @@ fun EditorScreen(
     // re-read when the drawer opens: Deps may have added macroquad meanwhile
     var isGame by remember { mutableStateOf(vm.isGameProject()) }
     if (showExport) {
+        val iconScope = androidx.compose.runtime.rememberCoroutineScope()
         ExportApkDialog(
             initial = remember { vm.exportDefaults() },
+            iconFile = vm.exportIconFile,
+            onPickIcon = { uri, done -> iconScope.launch { done(vm.setExportIcon(uri)) } },
+            onClearIcon = { vm.clearExportIcon() },
             onExport = { opts ->
                 showExport = false
                 vm.exportApk(opts)

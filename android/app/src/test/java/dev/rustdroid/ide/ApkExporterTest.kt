@@ -24,10 +24,11 @@ class ApkExporterTest {
         val keyDir = tmp.newFolder("keys")
         val key = GameSigningKey.loadOrCreate(keyDir, "Naza")
         val out = java.io.File(tmp.root, "out/Pelotita.apk")
+        val icon = byteArrayOf(0x89.toByte(), 'P'.code.toByte(), 'N'.code.toByte(), 'G'.code.toByte(), 1, 2, 3)
         ApkExporter.export(
             template, lib,
             ApkExporter.Options("Pelotita", "com.naza.pelotita", 4, "1.3"),
-            key, tmp.newFolder("work"), out,
+            key, tmp.newFolder("work"), out, icon,
         )
 
         val result = ApkVerifier.Builder(out).build().verify()
@@ -37,6 +38,10 @@ class ApkExporterTest {
         ZipFile(out).use { z ->
             assertEquals(4096L, z.getEntry("lib/arm64-v8a/libgame.so").size)
             assertEquals(java.util.zip.ZipEntry.STORED, z.getEntry("resources.arsc").method)
+            // the launcher icon is the one we passed
+            val icons = z.entries().toList().filter { ApkExporter.ICON_ENTRY.matches(it.name) }
+            assertEquals(1, icons.size)
+            assertTrue(z.getInputStream(icons[0]).readBytes().contentEquals(icon))
             val manifest = z.getInputStream(z.getEntry("AndroidManifest.xml")).readBytes()
             val s = BinaryManifest.strings(manifest)
             assertTrue("com.naza.pelotita" in s)
@@ -48,6 +53,25 @@ class ApkExporterTest {
         // the same key is reused next time (updates install over the old app)
         val again = GameSigningKey.loadOrCreate(keyDir)
         assertEquals(key.certificate, again.certificate)
+    }
+
+    @Test
+    fun `a key backup restores the same key elsewhere`() {
+        val dirA = tmp.newFolder("a")
+        val original = GameSigningKey.loadOrCreate(dirA)
+        val backup = GameSigningKey.backup(dirA)
+
+        val dirB = tmp.newFolder("b")
+        GameSigningKey.loadOrCreate(dirB) // a different key that gets replaced
+        GameSigningKey.restore(dirB, backup)
+        val restored = GameSigningKey.loadOrCreate(dirB)
+        assertEquals(original.certificate, restored.certificate)
+        assertEquals(GameSigningKey.fingerprint(original), GameSigningKey.fingerprint(restored))
+
+        // garbage is rejected and the current key stays
+        val bad = runCatching { GameSigningKey.restore(dirB, "hola".toByteArray()) }
+        assertTrue(bad.isFailure)
+        assertEquals(original.certificate, GameSigningKey.loadOrCreate(dirB).certificate)
     }
 
     @Test
