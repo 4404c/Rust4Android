@@ -17,6 +17,8 @@ junit = "4.13.2"
 androidx-annotation = "1.9.0"
 
 [libraries]
+# R4A: signs exported game APKs on the phone (same tool Android Studio uses)
+apksig = { module = "com.android.tools.build:apksig", version.ref = "agp" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core-ktx" }
 androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigation-compose" }

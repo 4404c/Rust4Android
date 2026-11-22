@@ -200,4 +200,22 @@
     <string name="deps_update_text">%1$s → %2$s (the newest that works with this Rust).</string>
     <string name="deps_update_breaking">This is a major version change: your code may need changes to compile. If something breaks, you can go back to the previous version in Cargo.toml.</string>
     <string name="deps_update_confirm">Update</string>
+    <string name="vm_export_note">export APK: the game is built in release mode (smaller, faster) from a copy of the project</string>
+    <string name="vm_export_packing">building and signing the APK…</string>
+    <string name="vm_export_done">APK ready: %1$s (%2$d KB)</string>
+    <string name="vm_export_failed">could not export the APK: %1$s</string>
+    <string name="export_apk_title">Export APK</string>
+    <string name="export_app_name">App name</string>
+    <string name="export_package">Package</string>
+    <string name="export_package_hint">Identifies the app, e.g. com.yourname.game. Keep it between versions.</string>
+    <string name="export_version_name">Version (shown to people)</string>
+    <string name="export_version_code">Version code</string>
+    <string name="export_version_code_hint">Whole number: each new version needs a bigger one.</string>
+    <string name="export_key_note">Signed with your R4A key (created the first time and kept in the app). With the same key, each new APK installs as an update of the previous one.</string>
+    <string name="export_confirm">Export</string>
+    <string name="export_ready_title">APK ready</string>
+    <string name="export_ready_text">Saved to:
+%1$s</string>
+    <string name="export_install">Install</string>
+    <string name="export_share">Share</string>
 </resources>

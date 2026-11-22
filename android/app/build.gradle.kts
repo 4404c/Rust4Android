@@ -84,6 +84,18 @@ android {
     }
 }
 
+// R4A: "Export APK" needs the game template (gameplayer module) inside R4A.
+// Build it and copy its unsigned APK into generated assets as gameplayer.apk.
+val gamePlayerAssets = layout.buildDirectory.dir("generated/r4a-gameplayer")
+val copyGamePlayer = tasks.register<Copy>("copyGamePlayerTemplate") {
+    dependsOn(":gameplayer:assembleRelease")
+    from(project(":gameplayer").layout.buildDirectory.file("outputs/apk/release/gameplayer-release-unsigned.apk"))
+    into(gamePlayerAssets.map { it.dir("export") })
+    rename { "gameplayer.apk" }
+}
+android.sourceSets.getByName("main").assets.srcDir(gamePlayerAssets)
+tasks.named("preBuild") { dependsOn(copyGamePlayer) }
+
 dependencies {
     // Compose
     implementation(platform(libs.compose.bom))
@@ -115,6 +127,8 @@ dependencies {
 
     // Cargo.toml parsing
     implementation(libs.tomlj)
+    // R4A: sign exported game APKs
+    implementation(libs.apksig)
 
     // Phase 4 terminal: vendored Termux modules (Apache-2.0, @ 3b66f87 —
     // see THIRD_PARTY.md). terminal-view exposes terminal-emulator via api,

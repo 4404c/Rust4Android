@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "RustDroid"
 include(":app")
+include(":gameplayer")
 
 // Phase 4: vendored Termux terminal modules @ 3b66f8799635a4dba4a206563048ff0e6792c487
 // (Apache-2.0 — see LICENSES/ and THIRD_PARTY.md; never termux-shared —

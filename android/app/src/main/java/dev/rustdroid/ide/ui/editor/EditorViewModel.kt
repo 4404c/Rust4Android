@@ -531,7 +531,89 @@ class EditorViewModel(
     fun build() = startCargo(listOf(cargoPath, "build"))
     fun clean() = startCargo(listOf(cargoPath, "clean"))
 
-    private fun startCargo(command: List<String>, game: Boolean = false) {
+    // ---------------- export APK (R4A) ----------------
+
+    /** Is this a macroquad game (Run opens it as an app, it can be exported)? */
+    fun isGameProject(): Boolean = runCatching {
+        dev.rustdroid.ide.runtime.GameBuild.isGame(File(projectDir, "Cargo.toml").readText())
+    }.getOrDefault(false)
+
+    private val exportPrefs
+        get() = container.context.getSharedPreferences("r4a_export", android.content.Context.MODE_PRIVATE)
+    private val exportKey get() = projectDir.canonicalPath
+
+    /** What the export dialog proposes: last choices, next version code. */
+    fun exportDefaults(): dev.rustdroid.ide.export.ApkExporter.Options {
+        val p = exportPrefs
+        val k = exportKey
+        val lastCode = p.getInt("$k|code", 0)
+        return dev.rustdroid.ide.export.ApkExporter.Options(
+            appName = p.getString("$k|name", null) ?: projectDir.name,
+            packageName = p.getString("$k|package", null)
+                ?: dev.rustdroid.ide.export.ApkExporter.suggestPackage(projectDir.name),
+            versionCode = lastCode + 1,
+            versionName = p.getString("$k|version", null)?.let { bumpVersion(it) } ?: "1.0",
+        )
+    }
+
+    /** "1.2" -> "1.3": a sensible next version name to propose. */
+    private fun bumpVersion(v: String): String {
+        val parts = v.split('.')
+        val last = parts.last().toIntOrNull() ?: return v
+        return (parts.dropLast(1) + (last + 1).toString()).joinToString(".")
+    }
+
+    /** The exported APK, once ready — the screen offers Install / Share. */
+    private val _exported = MutableStateFlow<File?>(null)
+    val exported: StateFlow<File?> = _exported.asStateFlow()
+    fun clearExported() { _exported.value = null }
+
+    fun exportApk(options: dev.rustdroid.ide.export.ApkExporter.Options) {
+        startCargo(listOf(cargoPath, "build", "--lib", "--release"), game = true, export = options)
+    }
+
+    private suspend fun writeApk(lib: File, options: dev.rustdroid.ide.export.ApkExporter.Options) {
+        console.system(str(R.string.vm_export_packing))
+        try {
+            val out = withContext(Dispatchers.IO) {
+                val ctx = container.context
+                val template = ctx.assets.open("export/gameplayer.apk").use { it.readBytes() }
+                val key = dev.rustdroid.ide.export.GameSigningKey.loadOrCreate(File(ctx.filesDir, "signing"))
+                val fileName = options.appName.replace(Regex("[^A-Za-z0-9._ -]"), "_").trim()
+                    .ifEmpty { "juego" } + "-" + options.versionName + ".apk"
+                // Download/R4A when shared storage is writable, else app storage
+                val public = File(
+                    android.os.Environment.getExternalStoragePublicDirectory(
+                        android.os.Environment.DIRECTORY_DOWNLOADS,
+                    ),
+                    "R4A",
+                )
+                val dir = if ((public.isDirectory || public.mkdirs()) && public.canWrite()) public
+                else File(ctx.getExternalFilesDir(null), "exports")
+                val out = File(dir, fileName)
+                dev.rustdroid.ide.export.ApkExporter.export(
+                    template, lib, options, key, File(ctx.cacheDir, "export"), out,
+                )
+                exportPrefs.edit()
+                    .putString("$exportKey|name", options.appName)
+                    .putString("$exportKey|package", options.packageName)
+                    .putInt("$exportKey|code", options.versionCode)
+                    .putString("$exportKey|version", options.versionName)
+                    .apply()
+                out
+            }
+            console.system(str(R.string.vm_export_done, out.absolutePath, (out.length() + 1023) / 1024))
+            _exported.value = out
+        } catch (e: Exception) {
+            console.system(str(R.string.vm_export_failed, e.message ?: e.javaClass.simpleName))
+        }
+    }
+
+    private fun startCargo(
+        command: List<String>,
+        game: Boolean = false,
+        export: dev.rustdroid.ide.export.ApkExporter.Options? = null,
+    ) {
         if (_running.value) return
         _panelCollapsed.value = false // R4A: show the output of the run
         runJob = viewModelScope.launch {
@@ -544,7 +626,7 @@ class EditorViewModel(
             console.clear()
             // Show the tool's short name, not its full path
             val display = command.first().substringAfterLast('/') +
-                command.drop(1).joinToString("", prefix = " ")
+                command.drop(1).joinToString(" ", prefix = " ")
             console.system("\$ $display")
             try {
                 // built here (not at class init) so bundle warm-up and the
@@ -564,10 +646,12 @@ class EditorViewModel(
                         _lastResult.value = null
                         return@launch
                     }
-                    console.system(str(R.string.vm_game_note))
+                    console.system(str(if (export != null) R.string.vm_export_note else R.string.vm_game_note))
                     cwd = prepared.dir
                     runEnv = runEnv + ("CARGO_TARGET_DIR" to prepared.targetDir.absolutePath)
-                    gameLib = prepared.library
+                    // export: release build (smaller, faster) next to the debug one
+                    gameLib = if (export != null) File(prepared.targetDir, "release/" + prepared.library.name)
+                    else prepared.library
                 }
                 // the insecure-TLS escape hatch is a global, persistent
                 // footgun — never let it run silently
@@ -618,7 +702,9 @@ class EditorViewModel(
                     else "(exit ${result.exitCode} in ${result.durationMs / 1000.0}s)"
                 )
                 if (gameLib != null && !result.cancelled && result.exitCode == 0) {
-                    if (gameLib.isFile) {
+                    if (export != null && gameLib.isFile) {
+                        writeApk(gameLib, export)
+                    } else if (gameLib.isFile) {
                         console.system(str(R.string.vm_game_opening))
                         // a game still open holds the old library: close it
                         if (gamePid() != null) {

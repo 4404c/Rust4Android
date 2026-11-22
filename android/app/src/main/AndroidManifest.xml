@@ -3,6 +3,8 @@
 
     <!-- Downloading the toolchain bundle + crates.io search. That's all. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- R4A: open the installer for an exported game APK -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Declared for API 34+ devices; enforcement is off at targetSdk 28 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -23,6 +25,17 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.RustDroid">
+
+        <!-- R4A: hands exported game APKs to the installer / share sheet -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="dev.rustdroid.ide.export"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/r4a_export_paths" />
+        </provider>
 
         <!-- R4A: runs a game the user compiled (miniquad/macroquad .so).
              Own process: a native library can not be unloaded, so each run

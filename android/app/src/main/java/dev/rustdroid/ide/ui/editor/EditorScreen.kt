@@ -132,6 +132,24 @@ fun EditorScreen(
     val tree by vm.tree.collectAsState()
     val running by vm.running.collectAsState()
     val gameRunning by vm.gameRunning.collectAsState()
+    // R4A: export APK (games only)
+    val exportedApk by vm.exported.collectAsState()
+    var showExport by remember { mutableStateOf(false) }
+    // re-read when the drawer opens: Deps may have added macroquad meanwhile
+    var isGame by remember { mutableStateOf(vm.isGameProject()) }
+    if (showExport) {
+        ExportApkDialog(
+            initial = remember { vm.exportDefaults() },
+            onExport = { opts ->
+                showExport = false
+                vm.exportApk(opts)
+            },
+            onDismiss = { showExport = false },
+        )
+    }
+    exportedApk?.let { apk ->
+        ExportedApkDialog(apk, onDismiss = { vm.clearExported() })
+    }
     val problems by vm.problems.collectAsState()
     val lastResult by vm.lastResult.collectAsState()
     val bottomTab by vm.bottomTab.collectAsState()
@@ -244,6 +262,7 @@ fun EditorScreen(
             .collect { open ->
                 if (open) {
                     vm.refreshTree()
+                    isGame = vm.isGameProject()
                     // R4A: opening Files closes the keyboard and any editor
                     // popup (error card, completion) so they don't sit on top
                     codeEditor?.hideEditorWindows()
@@ -389,6 +408,19 @@ fun EditorScreen(
                         },
                         modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(40.dp),
                     )
+                    // R4A: games can be exported as an installable APK
+                    if (isGame) {
+                        androidx.compose.material3.NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.export_apk_title), fontSize = 12.sp) },
+                            icon = { Icon(RdIcons.Android, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            selected = false,
+                            onClick = {
+                                drawerScope.launch { drawerState.close() }
+                                showExport = true
+                            },
+                            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(40.dp),
+                        )
+                    }
                     // R4A: project actions pinned to the bottom of the drawer
                     androidx.compose.material3.HorizontalDivider(Modifier.padding(horizontal = 24.dp))
                     androidx.compose.material3.NavigationDrawerItem(

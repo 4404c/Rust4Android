@@ -204,4 +204,22 @@
     <string name="deps_update_text">%1$s → %2$s (la más nueva que funciona con este Rust).</string>
     <string name="deps_update_breaking">Es un cambio grande de versión: puede que tu código necesite cambios para compilar. Si algo se rompe, podés volver a la versión anterior en Cargo.toml.</string>
     <string name="deps_update_confirm">Actualizar</string>
+    <string name="vm_export_note">exportar APK: se compila el juego en modo release (más chico y rápido) en una copia del proyecto</string>
+    <string name="vm_export_packing">armando y firmando el APK…</string>
+    <string name="vm_export_done">APK listo: %1$s (%2$d KB)</string>
+    <string name="vm_export_failed">no se pudo exportar el APK: %1$s</string>
+    <string name="export_apk_title">Exportar APK</string>
+    <string name="export_app_name">Nombre de la app</string>
+    <string name="export_package">Package</string>
+    <string name="export_package_hint">Identifica la app, ej. com.tunombre.juego. No lo cambies entre versiones.</string>
+    <string name="export_version_name">Versión (la que ve la gente)</string>
+    <string name="export_version_code">Código de versión</string>
+    <string name="export_version_code_hint">Número entero: cada versión nueva tiene que ser mayor.</string>
+    <string name="export_key_note">Se firma con tu clave de R4A (se crea la primera vez y se guarda en la app). Con la misma clave, cada APK nuevo se instala como actualización del anterior.</string>
+    <string name="export_confirm">Exportar</string>
+    <string name="export_ready_title">APK listo</string>
+    <string name="export_ready_text">Se guardó en:
+%1$s</string>
+    <string name="export_install">Instalar</string>
+    <string name="export_share">Compartir</string>
 </resources>
