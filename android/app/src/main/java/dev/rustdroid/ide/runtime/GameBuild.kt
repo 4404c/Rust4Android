@@ -15,9 +15,27 @@ import java.security.MessageDigest
 object GameBuild {
 
     /** The function miniquad's Android glue calls to start the game. */
+    // unsafe(...) form: required by edition 2024, accepted by older ones.
+    // main() returns right away (miniquad runs the game on its own thread,
+    // after installing a panic hook that only writes to logcat). Our hook,
+    // installed after it, also prints the panic where Console reads it and
+    // closes the game — otherwise it stays frozen with a dead render thread.
     const val ENTRY = "\n\n// R4A: Android entry point (added only in R4A's build copy)\n" +
-        // unsafe(...) form: required by edition 2024, accepted by older ones
-        "#[unsafe(no_mangle)]\npub extern \"C\" fn quad_main() {\n    main()\n}\n"
+        "#[unsafe(no_mangle)]\npub extern \"C\" fn quad_main() {\n" +
+        "    main();\n" +
+        "    let miniquad_hook = std::panic::take_hook();\n" +
+        "    std::panic::set_hook(Box::new(move |info| {\n" +
+        // same shape as Rust's own message: "thread 'x' panicked at file:line:col:"
+        "        let name = std::thread::current().name().unwrap_or(\"<unnamed>\").to_string();\n" +
+        "        eprintln!(\"thread '{name}' {info}\");\n" +
+        "        miniquad_hook(info);\n" +
+        // _exit, not process::exit: skipping the atexit cleanup avoids
+        // "FORTIFY: pthread_mutex_lock called on a destroyed mutex" noise
+        // from the game's other threads
+        "        unsafe extern \"C\" { fn _exit(code: i32) -> !; }\n" +
+        "        unsafe { _exit(101) }\n" +
+        "    }));\n" +
+        "}\n"
 
     /**
      * fontdue 0.9.4+ (pulled by macroquad) uses a Rust 1.87 API without
@@ -38,7 +56,10 @@ object GameBuild {
      */
     fun libManifest(cargoToml: String): String? {
         if (LIB_TABLE.containsMatchIn(cargoToml)) return null
-        val sb = StringBuilder(cargoToml.trimEnd()).append("\n")
+        // main.rs becomes the lib: stop cargo from also seeing it as a bin
+        // ("found to be present in multiple build targets" warning)
+        val noBins = Regex("""(?m)^(\s*\[package]\s*)$""").replaceFirst(cargoToml, "$1\nautobins = false")
+        val sb = StringBuilder(noBins.trimEnd()).append("\n")
         if (!Regex("""(?m)^\s*fontdue\s*=|dependencies\.fontdue]""").containsMatchIn(cargoToml)) {
             sb.append("\n# R4A: newer fontdue needs Rust 1.87\n")
             sb.append("[dependencies.fontdue]\nversion = \"$FONTDUE_PIN\"\n")

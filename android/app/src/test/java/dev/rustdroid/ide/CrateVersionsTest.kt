@@ -65,4 +65,34 @@ class CrateVersionsTest {
         assertEquals(2, v.size)
         assertEquals("1.89.0", v[0].rustVersion)
     }
+
+    @org.junit.Test
+    fun `spec versions are read, pinned ones are skipped`() {
+        org.junit.Assert.assertEquals("0.8.5", dev.rustdroid.ide.projects.CrateVersions.specVersion("\"0.8.5\""))
+        org.junit.Assert.assertEquals("1.2", dev.rustdroid.ide.projects.CrateVersions.specVersion("\"^1.2\""))
+        org.junit.Assert.assertEquals("0.4", dev.rustdroid.ide.projects.CrateVersions.specVersion("{ version = \"0.4\", default-features = false }"))
+        org.junit.Assert.assertNull(dev.rustdroid.ide.projects.CrateVersions.specVersion("\"=0.9.3\""))
+        org.junit.Assert.assertNull(dev.rustdroid.ide.projects.CrateVersions.specVersion("\"*\""))
+        org.junit.Assert.assertNull(dev.rustdroid.ide.projects.CrateVersions.specVersion("{ path = \"../x\" }"))
+    }
+
+    @org.junit.Test
+    fun `newer means newer than what the spec already allows`() {
+        val v = dev.rustdroid.ide.projects.CrateVersions
+        org.junit.Assert.assertFalse(v.isNewer("0.4", "0.4.16"))
+        org.junit.Assert.assertTrue(v.isNewer("0.8.5", "0.8.6"))
+        org.junit.Assert.assertTrue(v.isNewer("0.8.5", "0.9.2"))
+        org.junit.Assert.assertTrue(v.isNewer("1", "2.0.1"))
+        org.junit.Assert.assertFalse(v.isNewer("1.0.200", "1.0.200"))
+    }
+
+    @org.junit.Test
+    fun `breaking follows cargo compatibility`() {
+        val v = dev.rustdroid.ide.projects.CrateVersions
+        org.junit.Assert.assertFalse(v.isBreaking("0.8.5", "0.8.6"))
+        org.junit.Assert.assertTrue(v.isBreaking("0.8.5", "0.9.2"))
+        org.junit.Assert.assertFalse(v.isBreaking("1.2", "1.9.0"))
+        org.junit.Assert.assertTrue(v.isBreaking("1.9", "2.0.0"))
+        org.junit.Assert.assertTrue(v.isBreaking("0.0.3", "0.0.4"))
+    }
 }

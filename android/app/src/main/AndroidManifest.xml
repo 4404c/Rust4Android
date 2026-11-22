@@ -26,11 +26,16 @@
 
         <!-- R4A: runs a game the user compiled (miniquad/macroquad .so).
              Own process: a native library can not be unloaded, so each run
-             starts a fresh process. Not exported: only R4A opens it. -->
+             starts a fresh process. Not exported: only R4A opens it.
+             Own task: "back" slides to the code while the game stays alive
+             (paused) behind; R4A brings it back without reloading it. -->
         <activity
             android:name=".game.GameActivity"
             android:process=":game"
             android:exported="false"
+            android:taskAffinity="dev.rustdroid.ide.game"
+            android:launchMode="singleTask"
+            android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Black.NoTitleBar"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode" />
 
@@ -38,7 +43,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="adjustResize|stateAlwaysHidden"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

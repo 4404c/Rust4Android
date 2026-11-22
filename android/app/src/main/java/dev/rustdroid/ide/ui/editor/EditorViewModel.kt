@@ -161,8 +161,84 @@ class EditorViewModel(
     private val parser = DiagnosticsParser()
 
     /** R4A: a game library is built — the screen opens it in GameActivity. */
-    private val _launchGame = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val launchGame: kotlinx.coroutines.flow.SharedFlow<String> = _launchGame
+    data class GameLaunch(val library: String, val log: String)
+    private val _launchGame = kotlinx.coroutines.flow.MutableSharedFlow<GameLaunch>(extraBufferCapacity = 1)
+    val launchGame: kotlinx.coroutines.flow.SharedFlow<GameLaunch> = _launchGame
+
+    /** R4A: a game is open (its process is alive) — Run becomes Stop. */
+    private val _gameRunning = MutableStateFlow(false)
+    val gameRunning: StateFlow<Boolean> = _gameRunning.asStateFlow()
+    private var gameWatch: Job? = null
+
+    private val gameProcessName get() = container.context.packageName + ":game"
+
+    private fun gamePid(): Int? {
+        val am = container.context.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+            as android.app.ActivityManager
+        return am.runningAppProcesses?.firstOrNull { it.processName == gameProcessName }?.pid
+    }
+
+    @Volatile private var gameStoppedByUser = false
+
+    /** R4A: close the running game (its process holds the old library). */
+    fun stopGame() {
+        gamePid()?.let {
+            gameStoppedByUser = true
+            android.os.Process.killProcess(it)
+        }
+    }
+
+    /**
+     * R4A: copy what the game prints into Console while it runs, and say how
+     * it ended. The game writes to [log] (see GameActivity.redirectOutput).
+     */
+    private fun watchGame(log: File) {
+        gameWatch?.cancel()
+        gameStoppedByUser = false
+        gameWatch = viewModelScope.launch(Dispatchers.IO) {
+            val output = dev.rustdroid.ide.runtime.GameOutput()
+            val buf = ByteArray(8192)
+            var pos = 0L
+            var sawAlive = false
+            val start = System.currentTimeMillis()
+            fun readNew() {
+                if (!log.isFile) return
+                java.io.RandomAccessFile(log, "r").use { f ->
+                    f.seek(pos)
+                    while (true) {
+                        val n = f.read(buf)
+                        if (n <= 0) break
+                        pos += n
+                        output.feed(buf, n).forEach { console.append(it) }
+                    }
+                }
+            }
+            try {
+                while (true) {
+                    val alive = gamePid() != null
+                    if (alive) { sawAlive = true; _gameRunning.value = true }
+                    readNew()
+                    if (!alive && (sawAlive || System.currentTimeMillis() - start > 15_000)) break
+                    kotlinx.coroutines.delay(250)
+                }
+                readNew()
+                output.flush().forEach { console.append(it) }
+                val closedOk = File(log.path + dev.rustdroid.ide.game.GameActivity.CLOSED_SUFFIX).isFile
+                console.system(
+                    str(
+                        when {
+                            gameStoppedByUser -> R.string.vm_game_stopped
+                            closedOk || !sawAlive -> R.string.vm_game_closed
+                            else -> R.string.vm_game_crashed
+                        },
+                    ),
+                )
+            } finally {
+                _gameRunning.value = false
+                console.flush()
+            }
+        }
+    }
 
     enum class BottomTab { CONSOLE, PROBLEMS }
 
@@ -544,7 +620,16 @@ class EditorViewModel(
                 if (gameLib != null && !result.cancelled && result.exitCode == 0) {
                     if (gameLib.isFile) {
                         console.system(str(R.string.vm_game_opening))
-                        _launchGame.tryEmit(gameLib.absolutePath)
+                        // a game still open holds the old library: close it
+                        if (gamePid() != null) {
+                            stopGame()
+                            gameWatch?.join()
+                        }
+                        val log = File(container.context.filesDir, "games/run.log")
+                        log.delete()
+                        File(log.path + dev.rustdroid.ide.game.GameActivity.CLOSED_SUFFIX).delete()
+                        _launchGame.tryEmit(GameLaunch(gameLib.absolutePath, log.absolutePath))
+                        watchGame(log)
                     } else {
                         console.system(str(R.string.vm_game_cannot_build, gameLib.name))
                     }

@@ -50,6 +50,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
@@ -83,6 +86,42 @@ fun DepsScreen(
     val fetchLog by vm.fetchLog.collectAsState()
     val popular by vm.popular.collectAsState()
     val installing by vm.installing.collectAsState()
+    val updates by vm.updates.collectAsState()
+    // R4A: crate whose update the user tapped (confirmation dialog)
+    var confirmUpdate by remember { mutableStateOf<String?>(null) }
+    confirmUpdate?.let { name ->
+        val upd = updates[name]
+        if (upd == null) {
+            confirmUpdate = null
+        } else {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { confirmUpdate = null },
+                title = { Text(stringResource(R.string.deps_update_title, name)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.deps_update_text, upd.current, upd.latest))
+                        if (upd.breaking) {
+                            Text(
+                                stringResource(R.string.deps_update_breaking),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        confirmUpdate = null
+                        vm.update(name)
+                    }) { Text(stringResource(R.string.deps_update_confirm)) }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { confirmUpdate = null }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
+            )
+        }
+    }
     // R4A: crates already in Cargo.toml show a check instead of "+"
     val depNames = remember(deps) { deps.map { it.name }.toSet() }
 
@@ -204,6 +243,22 @@ fun DepsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                            }
+                            // R4A: ↑ only when a newer version that builds here exists
+                            updates[dep.name]?.let { _ ->
+                                if (installing == dep.name) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        Modifier.padding(12.dp).size(20.dp), strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    IconButton(onClick = { confirmUpdate = dep.name }) {
+                                        Icon(
+                                            dev.rustdroid.ide.ui.components.RdIcons.ArrowUp,
+                                            contentDescription = stringResource(R.string.deps_update_cd, dep.name),
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
                             }
                             IconButton(
                                 onClick = { vm.remove(dep.name) },

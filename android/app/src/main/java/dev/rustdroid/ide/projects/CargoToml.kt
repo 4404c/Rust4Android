@@ -40,6 +40,11 @@ object CargoToml {
     private fun specToString(raw: Any?): String = when (raw) {
         is String -> "\"$raw\""
         is Number -> raw.toString()
+        // R4A: inline tables used to print as "org.tomlj.MutableTomlTable@…"
+        is org.tomlj.TomlTable -> raw.keySet().joinToString(", ", "{ ", " }") { k ->
+            "$k = ${specToString(raw.get(listOf(k)))}"
+        }
+        is org.tomlj.TomlArray -> raw.toList().joinToString(", ", "[", "]") { specToString(it) }
         else -> raw.toString()
     }
 
@@ -82,6 +87,33 @@ object CargoToml {
     }
 
     /** Removes the `name = ...` entry from [dependencies] if present. */
+    /**
+     * R4A: change only the version of [name] under [dependencies], keeping
+     * everything else on its line: `rand = "0.8"` or
+     * `macroquad = { version = "0.4", default-features = false }`.
+     * False when the entry is not a single-line one (e.g. its own table).
+     */
+    fun setVersion(tomlFile: File, name: String, version: String): Boolean {
+        if (!tomlFile.isFile) return false
+        val lines = tomlFile.readText().lines().toMutableList()
+        val depIdx = sectionHeaderIndex(lines, "dependencies") ?: return false
+        val next = nextSectionStart(lines, depIdx)
+        val depSpec = Regex("^(\\s*\"?${Regex.escape(name)}\"?\\s*=\\s*)(.*)$")
+        val idx = (depIdx + 1 until next).firstOrNull { depSpec.matches(lines[it]) } ?: return false
+        val m = depSpec.matchEntire(lines[idx])!!
+        val value = m.groupValues[2]
+        val updated = when {
+            value.trimStart().startsWith("\"") ->
+                value.replaceFirst(Regex("\"[^\"]*\""), "\"$version\"")
+            value.trimStart().startsWith("{") && Regex("version\\s*=\\s*\"[^\"]*\"").containsMatchIn(value) ->
+                value.replaceFirst(Regex("(version\\s*=\\s*)\"[^\"]*\""), "$1\"$version\"")
+            else -> return false
+        }
+        lines[idx] = m.groupValues[1] + updated
+        tomlFile.writeText(lines.joinToString("\n"))
+        return true
+    }
+
     fun removeDependency(tomlFile: File, name: String): Boolean {
         if (!tomlFile.isFile) return false
         val lines = tomlFile.readText().lines().toMutableList()

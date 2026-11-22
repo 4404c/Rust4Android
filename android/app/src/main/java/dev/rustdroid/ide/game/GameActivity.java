@@ -254,6 +254,42 @@ public class GameActivity extends Activity {
     private boolean loaded = false;
 
     public static final String EXTRA_LIBRARY = "library";
+    /** R4A: file that receives the game's stdout/stderr (shown in Console). */
+    public static final String EXTRA_LOG = "log";
+    /** R4A: created next to the log when the game closes normally. */
+    public static final String CLOSED_SUFFIX = ".closed";
+
+    private String logPath = null;
+
+    /** Only files R4A itself put in its private storage. */
+    private String insideFilesDir(String p) throws java.io.IOException {
+        String path = new java.io.File(p).getCanonicalPath();
+        if (!path.startsWith(getFilesDir().getCanonicalPath() + "/")) {
+            throw new SecurityException("outside R4A storage: " + path);
+        }
+        return path;
+    }
+
+    /**
+     * R4A: println!/panic text of the game goes straight into a file (fd 1
+     * and 2 point at it), so nothing is lost even if the game aborts.
+     */
+    private void redirectOutput(String path) {
+        try {
+            logPath = insideFilesDir(path);
+            android.os.ParcelFileDescriptor pfd = android.os.ParcelFileDescriptor.open(
+                new java.io.File(logPath),
+                android.os.ParcelFileDescriptor.MODE_WRITE_ONLY
+                    | android.os.ParcelFileDescriptor.MODE_CREATE
+                    | android.os.ParcelFileDescriptor.MODE_APPEND);
+            android.system.Os.dup2(pfd.getFileDescriptor(), 1);
+            android.system.Os.dup2(pfd.getFileDescriptor(), 2);
+            pfd.close();
+        } catch (Throwable t) {
+            Log.e("R4A", "could not redirect game output", t);
+            logPath = null;
+        }
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -270,13 +306,11 @@ public class GameActivity extends Activity {
         // R4A: load the user's game library (absolute path, copied into
         // app storage by R4A) before handing the activity to miniquad
         String lib = getIntent().getStringExtra(EXTRA_LIBRARY);
+        String log = getIntent().getStringExtra(EXTRA_LOG);
+        if (log != null) redirectOutput(log);
         try {
             // only libraries R4A itself put in its private storage
-            String path = new java.io.File(lib).getCanonicalPath();
-            if (!path.startsWith(getFilesDir().getCanonicalPath() + "/")) {
-                throw new SecurityException("not an R4A game library: " + path);
-            }
-            System.load(path);
+            System.load(insideFilesDir(lib));
         } catch (Throwable t) {
             Log.e("R4A", "could not load game library " + lib, t);
             finish();
@@ -295,14 +329,29 @@ public class GameActivity extends Activity {
     }
 
     // R4A: the game surface swallows every key, so "back" never reached the
-    // activity and the game could not be closed. Back always returns to R4A.
+    // activity. Back (button or edge swipe) slides to the code; the game
+    // stays alive, paused, in its own task — R4A's Stop button closes it.
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-            if (event.getAction() == KeyEvent.ACTION_UP) finish();
+            if (event.getAction() == KeyEvent.ACTION_UP) goToCode();
             return true;
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    private void goToCode() {
+        Intent intent = new Intent(this, dev.rustdroid.ide.MainActivity.class)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        android.app.ActivityOptions slide = android.app.ActivityOptions.makeCustomAnimation(
+            this, dev.rustdroid.ide.R.anim.r4a_slide_in_left, dev.rustdroid.ide.R.anim.r4a_slide_out_right);
+        startActivity(intent, slide.toBundle());
+    }
+
+    // R4A: brought back from the code — keep playing, nothing to reload
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
     }
 
     @Override
@@ -324,6 +373,13 @@ public class GameActivity extends Activity {
         super.onDestroy();
 
         if (loaded) QuadNative.activityOnDestroy();
+        // R4A: tell the editor this was a normal close (not a crash)
+        if (logPath != null) {
+            try {
+                new java.io.File(logPath + CLOSED_SUFFIX).createNewFile();
+            } catch (java.io.IOException ignored) {
+            }
+        }
         // R4A: a native library can not be unloaded: end this process so the
         // next run loads the freshly compiled one
         System.exit(0);

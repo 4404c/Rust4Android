@@ -131,6 +131,7 @@ fun EditorScreen(
     val activeText by vm.activeText.collectAsState()
     val tree by vm.tree.collectAsState()
     val running by vm.running.collectAsState()
+    val gameRunning by vm.gameRunning.collectAsState()
     val problems by vm.problems.collectAsState()
     val lastResult by vm.lastResult.collectAsState()
     val bottomTab by vm.bottomTab.collectAsState()
@@ -271,12 +272,7 @@ fun EditorScreen(
     LaunchedEffect(liveCheckEnabled) { vm.scheduleLiveCheck(500) }
     // R4A: a macroquad game finished building — show it full screen
     LaunchedEffect(vm) {
-        vm.launchGame.collect { library ->
-            appContext.startActivity(
-                android.content.Intent(appContext, dev.rustdroid.ide.game.GameActivity::class.java)
-                    .putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_LIBRARY, library),
-            )
-        }
+        vm.launchGame.collect { launch -> showGame(appContext, launch) }
     }
     androidx.activity.compose.BackHandler {
         if (drawerState.isOpen) {
@@ -466,6 +462,15 @@ fun EditorScreen(
                         if (running) {
                             IconButton(onClick = { vm.stop() }) {
                                 Icon(RdIcons.Stop, contentDescription = stringResource(R.string.editor_stop), tint = MaterialTheme.colorScheme.error)
+                            }
+                        } else if (gameRunning) {
+                            // R4A: a game is open behind the code — go back to it
+                            // (it slides in from the right) or close it
+                            IconButton(onClick = { showGame(appContext, null) }) {
+                                Icon(RdIcons.Gamepad, contentDescription = stringResource(R.string.editor_back_to_game), tint = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { vm.stopGame() }) {
+                                Icon(RdIcons.Stop, contentDescription = stringResource(R.string.editor_stop_game), tint = MaterialTheme.colorScheme.error)
                             }
                         } else {
                             IconButton(onClick = {
@@ -1206,4 +1211,22 @@ private fun SymbolBar(onTab: () -> Unit, onSymbol: (String) -> Unit) {
             }
         }
     }
+}
+
+/**
+ * R4A: slide the game in from the right. With [launch] it starts a new
+ * game; without it, it brings back the one already running (its own task,
+ * singleTask: nothing is reloaded).
+ */
+private fun showGame(context: android.content.Context, launch: EditorViewModel.GameLaunch?) {
+    val intent = android.content.Intent(context, dev.rustdroid.ide.game.GameActivity::class.java)
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (launch != null) {
+        intent.putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_LIBRARY, launch.library)
+            .putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_LOG, launch.log)
+    }
+    val slide = android.app.ActivityOptions.makeCustomAnimation(
+        context, R.anim.r4a_slide_in_right, R.anim.r4a_slide_out_left,
+    )
+    context.startActivity(intent, slide.toBundle())
 }

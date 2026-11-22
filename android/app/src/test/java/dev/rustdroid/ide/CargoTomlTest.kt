@@ -34,6 +34,21 @@ class CargoTomlTest {
     }
 
     @Test
+    fun `inline table specs read like the file`() {
+        val f = toml(
+            """
+            [dependencies]
+            macroquad = { version = "0.4", default-features = false, features = ["audio"] }
+            """.trimIndent()
+        )
+        val spec = CargoToml.readDependencies(f).single().spec
+        assertTrue(spec, spec.startsWith("{ ") && spec.endsWith(" }"))
+        assertTrue(spec, spec.contains("version = \"0.4\""))
+        assertTrue(spec, spec.contains("default-features = false"))
+        assertTrue(spec, spec.contains("features = [\"audio\"]"))
+    }
+
+    @Test
     fun `no dependencies section yields empty`() {
         val f = toml(
             """
@@ -131,5 +146,26 @@ class CargoTomlTest {
         } catch (e: java.io.IOException) {
             assertTrue(e.message!!.contains("parse"))
         }
+    }
+
+    @Test
+    fun `setVersion changes only the version`() {
+        val f = toml(
+            """
+            [package]
+            name = "smoke"
+
+            [dependencies]
+            rand = "0.8.5" # aleatorios
+            macroquad = { version = "0.4", default-features = false }
+            """.trimIndent() + "\n"
+        )
+        assertTrue(CargoToml.setVersion(f, "rand", "0.9.2"))
+        assertTrue(CargoToml.setVersion(f, "macroquad", "0.5.0"))
+        val text = f.readText()
+        assertTrue(text, text.contains("rand = \"0.9.2\" # aleatorios\n"))
+        assertTrue(text, text.contains("macroquad = { version = \"0.5.0\", default-features = false }"))
+        assertTrue(text.endsWith("}\n"))
+        assertFalse(CargoToml.setVersion(f, "serde", "1.0.0"))
     }
 }

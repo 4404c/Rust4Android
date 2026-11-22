@@ -30,7 +30,7 @@ class GameBuildTest {
     @Test
     fun `lib manifest adds cdylib and the fontdue pin`() {
         val out = GameBuild.libManifest(toml)!!
-        assertTrue(out.startsWith(toml))
+        assertTrue(out.startsWith("[package]\nautobins = false\nname = \"mi-juego\""))
         assertTrue(out.contains("[dependencies.fontdue]\nversion = \"=0.9.3\""))
         assertTrue(out.contains("[lib]\ncrate-type = [\"cdylib\"]\npath = \"src/main.rs\""))
     }

@@ -191,4 +191,17 @@
     <string name="vm_game_opening">abriendo el juego… (atrás para volver)</string>
     <string name="vm_game_cannot_build">no se pudo preparar el juego (%1$s)</string>
     <string name="home_game_checkbox">Juego (macroquad)</string>
+    <string name="vm_deps_added_fontdue">agregado %1$s = \"%2$s\" y fontdue = \"=0.9.3\" (las nuevas piden Rust 1.87) — descargando…</string>
+    <string name="vm_game_closed">(juego cerrado)</string>
+    <string name="vm_game_crashed">el juego se cerró por un error — mirá las líneas de arriba</string>
+    <string name="editor_back_to_game">Volver al juego</string>
+    <string name="editor_stop_game">Cerrar el juego</string>
+    <string name="vm_game_stopped">(juego detenido)</string>
+    <string name="vm_deps_updated">actualizado %1$s %2$s → %3$s — descargando…</string>
+    <string name="vm_deps_update_manual">%1$s no se puede actualizar desde acá: cambiá la versión en Cargo.toml</string>
+    <string name="deps_update_cd">Actualizar %1$s</string>
+    <string name="deps_update_title">¿Actualizar %1$s?</string>
+    <string name="deps_update_text">%1$s → %2$s (la más nueva que funciona con este Rust).</string>
+    <string name="deps_update_breaking">Es un cambio grande de versión: puede que tu código necesite cambios para compilar. Si algo se rompe, podés volver a la versión anterior en Cargo.toml.</string>
+    <string name="deps_update_confirm">Actualizar</string>
 </resources>

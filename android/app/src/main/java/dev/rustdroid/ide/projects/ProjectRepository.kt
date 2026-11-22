@@ -442,6 +442,9 @@ class ProjectRepository(
             |        if pos.x > ancho - radio { vel.x = -vel.x.abs(); }
             |        if pos.y < radio { vel.y = vel.y.abs(); }
             |        if pos.y > alto - radio { vel.y = -vel.y.abs(); }
+            |        // que no se escape de la pantalla (por ej. si cambia de tamaño)
+            |        pos.x = pos.x.min(ancho - radio).max(radio);
+            |        pos.y = pos.y.min(alto - radio).max(radio);
             |
             |        // tocá la pantalla para mover la pelota
             |        for toque in touches() {

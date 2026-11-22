@@ -160,8 +160,66 @@ class DepsViewModel(
                 _deps.value = withContext(kotlinx.coroutines.Dispatchers.IO) {
                     CargoToml.readDependencies(manifest)
                 }
+                checkUpdates()
             } catch (e: IOException) {
                 _message.value = "Cargo.toml: ${e.message}"
+            }
+        }
+    }
+
+    /** R4A: an update the user can apply — shown as ↑ next to the crate. */
+    data class Update(val current: String, val latest: String, val breaking: Boolean)
+
+    private val _updates = MutableStateFlow<Map<String, Update>>(emptyMap())
+    val updates: StateFlow<Map<String, Update>> = _updates.asStateFlow()
+
+    /**
+     * R4A: newest version of each dependency that builds with the on-device
+     * Rust (same rule as adding one). Pinned specs (`=x`), fontdue (pinned on
+     * purpose for macroquad) and git/path dependencies are left alone.
+     * Network errors just mean no ↑ this time.
+     */
+    private suspend fun checkUpdates() {
+        val rust = dev.rustdroid.ide.toolchain.ToolchainDistro.RUST_VERSION
+        val found = HashMap<String, Update>()
+        for (dep in _deps.value) {
+            if (dep.name == "fontdue") continue
+            val current = dev.rustdroid.ide.projects.CrateVersions.specVersion(dep.spec) ?: continue
+            val latest = runCatching {
+                latestCache.getOrPut(dep.name) {
+                    dev.rustdroid.ide.projects.CrateVersions.pickCompatible(crates.versions(dep.name), rust)
+                }
+            }.getOrNull() ?: continue
+            if (dev.rustdroid.ide.projects.CrateVersions.isNewer(current, latest)) {
+                found[dep.name] = Update(
+                    current, latest,
+                    dev.rustdroid.ide.projects.CrateVersions.isBreaking(current, latest),
+                )
+            }
+        }
+        _updates.value = found
+    }
+
+    /** R4A: write the newer version (only the number changes) and download it. */
+    fun update(name: String) {
+        val upd = _updates.value[name] ?: return
+        _installing.value = name
+        viewModelScope.launch {
+            try {
+                val ok = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    CargoToml.setVersion(manifest, name, upd.latest)
+                }
+                if (!ok) {
+                    _installing.value = null
+                    _message.value = str(R.string.vm_deps_update_manual, name)
+                    return@launch
+                }
+                _message.value = str(R.string.vm_deps_updated, name, upd.current, upd.latest)
+                refresh()
+                fetchNow()
+            } catch (e: Exception) {
+                _installing.value = null
+                _message.value = str(R.string.vm_deps_add_failed, e.message.orEmpty())
             }
         }
     }
@@ -186,10 +244,20 @@ class DepsViewModel(
                     _message.value = str(R.string.vm_deps_no_compatible, crate.name, rust)
                     return@launch
                 }
-                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val pinnedFontdue = withContext(kotlinx.coroutines.Dispatchers.IO) {
                     CargoToml.addDependency(manifest, crate.name, version)
+                    // R4A: macroquad pulls fontdue, whose newer versions need
+                    // Rust 1.87 — pin the last one that builds here (unless
+                    // the user already chose a fontdue themselves)
+                    val needsPin = crate.name == "macroquad" &&
+                        !Regex("""(?m)^\s*fontdue\s*=""").containsMatchIn(manifest.readText())
+                    if (needsPin) {
+                        CargoToml.addDependency(manifest, "fontdue", dev.rustdroid.ide.runtime.GameBuild.FONTDUE_PIN)
+                    }
+                    needsPin
                 }
-                _message.value = str(R.string.vm_deps_added, crate.name, version)
+                _message.value = if (pinnedFontdue) str(R.string.vm_deps_added_fontdue, crate.name, version)
+                else str(R.string.vm_deps_added, crate.name, version)
                 refresh()
                 // Download right away so errors surface here (with the real
                 // cargo output) instead of as a mysterious build failure later.
@@ -309,6 +377,10 @@ class DepsViewModel(
         /** Popular crates fetched once per app run (crates.io is rate-limited). */
         @Volatile
         private var popularCache: List<CrateSummary> = emptyList()
+
+        /** R4A: newest compatible version per crate, looked up once per app run. */
+        private val latestCache: MutableMap<String, String?> =
+            java.util.Collections.synchronizedMap(HashMap())
 
         /** Appended to the fetch log when cargo output shows a TLS trust failure. */
         const val TLS_HINT =
