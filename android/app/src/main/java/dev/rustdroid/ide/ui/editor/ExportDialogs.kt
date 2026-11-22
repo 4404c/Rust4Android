@@ -7,6 +7,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.Alignment
@@ -39,7 +43,10 @@ import java.io.File
 fun ExportApkDialog(
     initial: ApkExporter.Options,
     iconFile: File,
-    onPickIcon: (android.net.Uri, (Boolean) -> Unit) -> Unit,
+    /** Load the picked image (scaled down); null if unreadable. */
+    onLoadIcon: (android.net.Uri, (android.graphics.Bitmap?) -> Unit) -> Unit,
+    /** Save [crop] (a square, in image pixels) of the image as the icon. */
+    onSaveIcon: (android.graphics.Bitmap, android.graphics.Rect, (Boolean) -> Unit) -> Unit,
     onClearIcon: () -> Unit,
     onExport: (ApkExporter.Options) -> Unit,
     onDismiss: () -> Unit,
@@ -51,10 +58,22 @@ fun ExportApkDialog(
         iconFile.takeIf { it.isFile }?.let { android.graphics.BitmapFactory.decodeFile(it.path) }
             ?.asImageBitmap()
     }
+    // picked image waiting to be cropped
+    var cropSource by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     val pickImage = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent(),
     ) { uri ->
-        if (uri != null) onPickIcon(uri) { ok -> iconError = !ok; iconVersion++ }
+        if (uri != null) onLoadIcon(uri) { bmp -> iconError = bmp == null; cropSource = bmp }
+    }
+    cropSource?.let { src ->
+        IconCropDialog(
+            src,
+            onCrop = { rect ->
+                cropSource = null
+                onSaveIcon(src, rect) { ok -> iconError = !ok; iconVersion++ }
+            },
+            onDismiss = { cropSource = null },
+        )
     }
     var name by remember { mutableStateOf(initial.appName) }
     var pkg by remember { mutableStateOf(initial.packageName) }
@@ -87,16 +106,15 @@ fun ExportApkDialog(
                     }
                     Column {
                         Text(stringResource(R.string.export_icon), style = MaterialTheme.typography.labelLarge)
-                        Row {
-                            // narrow dialog: tight padding, one line each
-                            val tight = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp)
-                            TextButton(onClick = { pickImage.launch("image/*") }, contentPadding = tight) {
-                                Text(stringResource(R.string.export_icon_pick), maxLines = 1, softWrap = false)
-                            }
-                            if (icon != null) {
-                                TextButton(onClick = { onClearIcon(); iconVersion++ }, contentPadding = tight) {
-                                    Text(stringResource(R.string.export_icon_clear), maxLines = 1, softWrap = false)
-                                }
+                        // one under the other: the dialog is narrow and a
+                        // side-by-side pair got cut ("Quita / r")
+                        val tight = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                        TextButton(onClick = { pickImage.launch("image/*") }, contentPadding = tight) {
+                            Text(stringResource(R.string.export_icon_pick), maxLines = 1)
+                        }
+                        if (icon != null) {
+                            TextButton(onClick = { onClearIcon(); iconVersion++ }, contentPadding = tight) {
+                                Text(stringResource(R.string.export_icon_clear), maxLines = 1)
                             }
                         }
                         if (iconError) {
@@ -204,4 +222,104 @@ private fun shareApk(context: Context, apk: File) {
         .putExtra(Intent.EXTRA_STREAM, apkUri(context, apk))
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     context.startActivity(Intent.createChooser(send, apk.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+/**
+ * R4A: choose which square part of the picked image becomes the icon.
+ * The whole image is shown with a square on top: drag it with one finger,
+ * pinch with two to make it bigger or smaller. The corners are rounded in
+ * the preview because launchers usually round them too.
+ */
+@Composable
+private fun IconCropDialog(
+    src: android.graphics.Bitmap,
+    onCrop: (android.graphics.Rect) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val w = src.width.toFloat()
+    val h = src.height.toFloat()
+    val maxSide = minOf(w, h)
+    val minSide = maxSide / 8f
+    // crop square in IMAGE pixels: center and side
+    var cx by remember { mutableStateOf(w / 2f) }
+    var cy by remember { mutableStateOf(h / 2f) }
+    var side by remember { mutableStateOf(maxSide) }
+    fun clamp() {
+        side = side.coerceIn(minSide, maxSide)
+        cx = cx.coerceIn(side / 2f, w - side / 2f)
+        cy = cy.coerceIn(side / 2f, h - side / 2f)
+    }
+    val image = remember(src) { src.asImageBitmap() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.export_icon_crop_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.foundation.layout.BoxWithConstraints(
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(w / h),
+                ) {
+                    // image drawn at constraints width: scale = view px / image px
+                    val scale = constraints.maxWidth / w
+                    androidx.compose.foundation.Canvas(
+                        Modifier
+                            .matchParentSize()
+                            .pointerInput(src) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    cx += pan.x / scale
+                                    cy += pan.y / scale
+                                    side /= zoom // pinch out = smaller square = zoom into the image
+                                    clamp()
+                                }
+                            },
+                    ) {
+                        drawImage(
+                            image,
+                            dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()),
+                        )
+                        val left = (cx - side / 2f) * scale
+                        val top = (cy - side / 2f) * scale
+                        val s = side * scale
+                        // dim everything outside the square
+                        val dim = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f)
+                        drawRect(dim, size = androidx.compose.ui.geometry.Size(size.width, top))
+                        drawRect(dim, topLeft = androidx.compose.ui.geometry.Offset(0f, top + s),
+                            size = androidx.compose.ui.geometry.Size(size.width, size.height - top - s))
+                        drawRect(dim, topLeft = androidx.compose.ui.geometry.Offset(0f, top),
+                            size = androidx.compose.ui.geometry.Size(left, s))
+                        drawRect(dim, topLeft = androidx.compose.ui.geometry.Offset(left + s, top),
+                            size = androidx.compose.ui.geometry.Size(size.width - left - s, s))
+                        drawRoundRect(
+                            androidx.compose.ui.graphics.Color.White,
+                            topLeft = androidx.compose.ui.geometry.Offset(left, top),
+                            size = androidx.compose.ui.geometry.Size(s, s),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(s * 0.18f),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx()),
+                        )
+                    }
+                }
+                Text(
+                    stringResource(R.string.export_icon_crop_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val half = side / 2f
+                onCrop(
+                    android.graphics.Rect(
+                        (cx - half).toInt().coerceAtLeast(0),
+                        (cy - half).toInt().coerceAtLeast(0),
+                        (cx + half).toInt().coerceAtMost(src.width),
+                        (cy + half).toInt().coerceAtMost(src.height),
+                    ),
+                )
+            }) { Text(stringResource(R.string.export_icon_crop_use)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }

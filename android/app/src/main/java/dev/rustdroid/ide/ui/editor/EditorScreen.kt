@@ -142,7 +142,8 @@ fun EditorScreen(
         ExportApkDialog(
             initial = remember { vm.exportDefaults() },
             iconFile = vm.exportIconFile,
-            onPickIcon = { uri, done -> iconScope.launch { done(vm.setExportIcon(uri)) } },
+            onLoadIcon = { uri, done -> iconScope.launch { done(vm.loadIconSource(uri)) } },
+            onSaveIcon = { src, rect, done -> iconScope.launch { done(vm.saveExportIcon(src, rect)) } },
             onClearIcon = { vm.clearExportIcon() },
             onExport = { opts ->
                 showExport = false

@@ -239,4 +239,7 @@
     <string name="signing_restore_confirm">Restaurar</string>
     <string name="signing_restored">Clave restaurada</string>
     <string name="signing_restore_failed">Ese archivo no es un respaldo de clave de R4A</string>
+    <string name="export_icon_crop_title">Recortar ícono</string>
+    <string name="export_icon_crop_hint">Arrastrá el cuadro para elegir qué parte usar. Pellizcá con dos dedos para agrandarlo o achicarlo.</string>
+    <string name="export_icon_crop_use">Usar</string>
 </resources>

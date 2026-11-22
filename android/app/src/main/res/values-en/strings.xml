@@ -235,4 +235,7 @@
     <string name="signing_restore_confirm">Restore</string>
     <string name="signing_restored">Key restored</string>
     <string name="signing_restore_failed">That file is not an R4A key backup</string>
+    <string name="export_icon_crop_title">Crop icon</string>
+    <string name="export_icon_crop_hint">Drag the square to choose which part to use. Pinch with two fingers to make it bigger or smaller.</string>
+    <string name="export_icon_crop_use">Use</string>
 </resources>
