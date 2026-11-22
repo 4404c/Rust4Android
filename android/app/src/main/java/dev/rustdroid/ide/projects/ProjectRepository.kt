@@ -160,7 +160,12 @@ class ProjectRepository(
      * `--vcs none` because the bundle ships no git binary — with the
      * default `vcs = "git"` cargo new fails while trying to run `git init`.
      */
-    suspend fun create(name: String, isLib: Boolean, onLine: (String) -> Unit = {}): File =
+    suspend fun create(
+        name: String,
+        isLib: Boolean,
+        game: Boolean = false,
+        onLine: (String) -> Unit = {},
+    ): File =
         withContext(Dispatchers.IO) {
             require(name.matches(Regex("[a-zA-Z][a-zA-Z0-9_-]*"))) {
                 "project name must start with a letter and contain only letters, digits, - and _"
@@ -189,6 +194,16 @@ class ProjectRepository(
                     if (tail.isEmpty()) "cargo new failed (exit ${result.exitCode})"
                     else "cargo new failed (exit ${result.exitCode}):\n$tail"
                 )
+            }
+            // R4A: game template — macroquad (sound off: smaller and fewer
+            // native pieces) + fontdue pinned, and a small touch demo
+            if (game && !isLib) {
+                val toml = File(dir, "Cargo.toml")
+                // cargo new ends the manifest with an empty [dependencies]
+                val base = toml.readText().trimEnd()
+                val deps = if (base.endsWith("[dependencies]")) "" else "\n[dependencies]"
+                Fs.writeAtomic(toml, base + deps + "\n" + GAME_DEPENDENCIES)
+                Fs.writeAtomic(File(dir, "src/main.rs"), GAME_MAIN_RS)
             }
             dir
         }
@@ -399,6 +414,47 @@ class ProjectRepository(
         /** src/main.rs stub for toolchain-free project scaffolds. */
         const val TEMPLATE_MAIN_RS =
             "fn main() {\n    println!(\"Hello from RustDroid!\");\n}\n"
+
+        /** R4A: dependencies of the game template. */
+        const val GAME_DEPENDENCIES =
+            "macroquad = { version = \"0.4\", default-features = false }\n" +
+                "# fijado: las versiones nuevas de fontdue piden Rust 1.87\n" +
+                "fontdue = \"=0.9.3\"\n"
+
+        /** R4A: game template — a ball that bounces and follows your finger. */
+        val GAME_MAIN_RS = """
+            |use macroquad::prelude::*;
+            |
+            |// Tu juego: la pelota rebota en los bordes y sigue tu dedo.
+            |// ▶ lo compila y lo abre como app. Atrás vuelve al editor.
+            |#[macroquad::main("Mi juego")]
+            |async fn main() {
+            |    let mut pos = vec2(200.0, 300.0);
+            |    let mut vel = vec2(400.0, 500.0);
+            |    let radio = 50.0;
+            |
+            |    loop {
+            |        let dt = get_frame_time();
+            |        let (ancho, alto) = (screen_width(), screen_height());
+            |
+            |        pos += vel * dt;
+            |        if pos.x < radio { vel.x = vel.x.abs(); }
+            |        if pos.x > ancho - radio { vel.x = -vel.x.abs(); }
+            |        if pos.y < radio { vel.y = vel.y.abs(); }
+            |        if pos.y > alto - radio { vel.y = -vel.y.abs(); }
+            |
+            |        // tocá la pantalla para mover la pelota
+            |        for toque in touches() {
+            |            pos = toque.position;
+            |        }
+            |
+            |        clear_background(Color::from_rgba(30, 28, 40, 255));
+            |        draw_circle(pos.x, pos.y, radio, ORANGE);
+            |        draw_text("Hola desde R4A", 40.0, 120.0, 80.0, WHITE);
+            |        next_frame().await
+            |    }
+            |}
+            |""".trimMargin()
 
         /**
          * Maps a SAF tree document id to an absolute filesystem path:

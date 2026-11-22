@@ -187,4 +187,8 @@
     <string name="settings_live_check_desc">Subraya los errores sin compilar (cargo check en segundo plano). Apagalo para ahorrar batería.</string>
     <string name="editor_suggestions_on">Sugerencias activadas</string>
     <string name="editor_suggestions_off">Sugerencias desactivadas</string>
+    <string name="vm_game_note">juego (macroquad): se compila como app en una copia del proyecto — tus archivos no cambian</string>
+    <string name="vm_game_opening">abriendo el juego… (atrás para volver)</string>
+    <string name="vm_game_cannot_build">no se pudo preparar el juego (%1$s)</string>
+    <string name="home_game_checkbox">Juego (macroquad)</string>
 </resources>

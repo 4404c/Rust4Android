@@ -183,4 +183,8 @@
     <string name="settings_live_check_desc">Underlines errors without building (cargo check in the background). Turn off to save battery.</string>
     <string name="editor_suggestions_on">Suggestions on</string>
     <string name="editor_suggestions_off">Suggestions off</string>
+    <string name="vm_game_note">game (macroquad): built as an app from a copy of the project — your files are not changed</string>
+    <string name="vm_game_opening">opening the game… (back to return)</string>
+    <string name="vm_game_cannot_build">could not prepare the game (%1$s)</string>
+    <string name="home_game_checkbox">Game (macroquad)</string>
 </resources>

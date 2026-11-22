@@ -190,8 +190,8 @@ fun HomeScreen(
         NewProjectDialog(
             busy = creating,
             log = createLog,
-            onCreate = { name, isLib ->
-                vm.create(name, isLib) { ok ->
+            onCreate = { name, isLib, game ->
+                vm.create(name, isLib, game) { ok ->
                     if (ok) showNewDialog = false
                 }
             },
@@ -423,11 +423,12 @@ private fun AdoptFolderDialog(
 private fun NewProjectDialog(
     busy: Boolean,
     log: String?,
-    onCreate: (String, Boolean) -> Unit,
+    onCreate: (String, Boolean, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var isLib by remember { mutableStateOf(false) }
+    var isGame by remember { mutableStateOf(false) }
     val nameOk = name.matches(Regex("[a-zA-Z][a-zA-Z0-9_-]*"))
 
     AlertDialog(
@@ -447,8 +448,13 @@ private fun NewProjectDialog(
                     },
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isLib, onCheckedChange = { isLib = it }, enabled = !busy)
+                    Checkbox(checked = isLib, onCheckedChange = { isLib = it; if (it) isGame = false }, enabled = !busy)
                     Text(stringResource(R.string.home_lib_checkbox))
+                }
+                // R4A: game template (macroquad), runs as an app
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = isGame, onCheckedChange = { isGame = it; if (it) isLib = false }, enabled = !busy)
+                    Text(stringResource(R.string.home_game_checkbox))
                 }
                 if (busy) {
                     Text(stringResource(R.string.home_running_cargo_new), style = MaterialTheme.typography.bodySmall)
@@ -465,7 +471,7 @@ private fun NewProjectDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onCreate(name, isLib) },
+                onClick = { onCreate(name, isLib, isGame) },
                 enabled = !busy && nameOk,
             ) { Text(stringResource(R.string.common_create)) }
         },

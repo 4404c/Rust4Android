@@ -43,14 +43,14 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun create(name: String, isLib: Boolean, onDone: (Boolean) -> Unit) {
+    fun create(name: String, isLib: Boolean, game: Boolean, onDone: (Boolean) -> Unit) {
         if (_creating.value) return
         _creating.value = true
         _createLog.value = null
         viewModelScope.launch {
             try {
                 val lines = StringBuilder()
-                val dir = repo.create(name, isLib) { line ->
+                val dir = repo.create(name, isLib, game) { line ->
                     lines.appendLine(line)
                     _createLog.value = lines.toString()
                 }

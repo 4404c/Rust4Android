@@ -15,3 +15,9 @@
 # there are no native-invoked Java callbacks to keep today. If a patch
 # ever adds a JNIEnv callback, its keep rule belongs HERE — review this
 # block when touching terminal-emulator/src/main/jni/.
+
+# --- R4A: game host (miniquad) ---------------------------------------------
+# miniquad's Rust side binds quad_native.QuadNative's natives by name and
+# calls GameActivity methods (showKeyboard, setFullScreen, clipboard) by name.
+-keep class quad_native.QuadNative { native <methods>; }
+-keep class dev.rustdroid.ide.game.GameActivity { public <methods>; }

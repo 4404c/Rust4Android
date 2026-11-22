@@ -160,6 +160,10 @@ class EditorViewModel(
     private var runJob: Job? = null
     private val parser = DiagnosticsParser()
 
+    /** R4A: a game library is built — the screen opens it in GameActivity. */
+    private val _launchGame = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val launchGame: kotlinx.coroutines.flow.SharedFlow<String> = _launchGame
+
     enum class BottomTab { CONSOLE, PROBLEMS }
 
     /**
@@ -440,11 +444,18 @@ class EditorViewModel(
     private val cargoPath: String
         get() = ProcEnv.toolchainCommand(container.toolchainPaths.prefix, "cargo")
 
-    fun run() = startCargo(listOf(cargoPath, "run"))
+    /** R4A: macroquad projects run as an app (GameActivity), not in Console. */
+    fun run() {
+        val manifest = File(projectDir, "Cargo.toml")
+        val game = runCatching { dev.rustdroid.ide.runtime.GameBuild.isGame(manifest.readText()) }
+            .getOrDefault(false)
+        if (game) startCargo(listOf(cargoPath, "build", "--lib"), game = true)
+        else startCargo(listOf(cargoPath, "run"))
+    }
     fun build() = startCargo(listOf(cargoPath, "build"))
     fun clean() = startCargo(listOf(cargoPath, "clean"))
 
-    private fun startCargo(command: List<String>) {
+    private fun startCargo(command: List<String>, game: Boolean = false) {
         if (_running.value) return
         _panelCollapsed.value = false // R4A: show the output of the run
         runJob = viewModelScope.launch {
@@ -463,7 +474,25 @@ class EditorViewModel(
                 // built here (not at class init) so bundle warm-up and the
                 // escape-hatch marker check happen off the main thread and
                 // reflect the state at the moment of invocation
-                val runEnv = withContext(Dispatchers.IO) { buildEnv() }
+                var runEnv = withContext(Dispatchers.IO) { buildEnv() }
+                var cwd = projectDir
+                // R4A: games are built as a library in a copy of the project
+                var gameLib: File? = null
+                if (game) {
+                    val prepared = try {
+                        withContext(Dispatchers.IO) {
+                            dev.rustdroid.ide.runtime.GameBuild.prepare(projectDir, container.context.filesDir)
+                        }
+                    } catch (e: Exception) {
+                        console.system(str(R.string.vm_game_cannot_build, e.message.orEmpty()))
+                        _lastResult.value = null
+                        return@launch
+                    }
+                    console.system(str(R.string.vm_game_note))
+                    cwd = prepared.dir
+                    runEnv = runEnv + ("CARGO_TARGET_DIR" to prepared.targetDir.absolutePath)
+                    gameLib = prepared.library
+                }
                 // the insecure-TLS escape hatch is a global, persistent
                 // footgun — never let it run silently
                 if (runEnv["CARGO_HTTP_DANGER_ACCEPT_INVALID_CERTS"] == "true") {
@@ -476,13 +505,13 @@ class EditorViewModel(
                 // external folder: build output runs from app storage
                 // because shared storage is noexec — say so once per run,
                 // right where "Permission denied (os error 13)" used to be
-                if (runEnv.containsKey("CARGO_TARGET_DIR")) {
+                if (!game && runEnv.containsKey("CARGO_TARGET_DIR")) {
                     console.system(
                         str(R.string.vm_editor_shared_storage_note),
                     )
                 }
                 val result = runner.run(
-                    command, cwd = projectDir, env = runEnv, stdin = stdinPipe,
+                    command, cwd = cwd, env = runEnv, stdin = stdinPipe,
                     onLine = { line ->
                         console.append(line)
                         if (line.stream == dev.rustdroid.ide.model.Stream.STDERR) {
@@ -512,6 +541,14 @@ class EditorViewModel(
                     if (result.cancelled) "(terminated)"
                     else "(exit ${result.exitCode} in ${result.durationMs / 1000.0}s)"
                 )
+                if (gameLib != null && !result.cancelled && result.exitCode == 0) {
+                    if (gameLib.isFile) {
+                        console.system(str(R.string.vm_game_opening))
+                        _launchGame.tryEmit(gameLib.absolutePath)
+                    } else {
+                        console.system(str(R.string.vm_game_cannot_build, gameLib.name))
+                    }
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 console.system("(terminated)")
             } finally {

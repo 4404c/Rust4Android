@@ -269,6 +269,15 @@ fun EditorScreen(
     // setting is switched back on (switching it off clears the squiggles)
     val liveCheckEnabled by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
     LaunchedEffect(liveCheckEnabled) { vm.scheduleLiveCheck(500) }
+    // R4A: a macroquad game finished building — show it full screen
+    LaunchedEffect(vm) {
+        vm.launchGame.collect { library ->
+            appContext.startActivity(
+                android.content.Intent(appContext, dev.rustdroid.ide.game.GameActivity::class.java)
+                    .putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_LIBRARY, library),
+            )
+        }
+    }
     androidx.activity.compose.BackHandler {
         if (drawerState.isOpen) {
             drawerScope.launch { drawerState.close() }
