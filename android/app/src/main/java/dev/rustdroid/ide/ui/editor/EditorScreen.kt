@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -50,6 +51,11 @@ import androidx.compose.material.icons.Icons
 
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -129,6 +135,14 @@ fun EditorScreen(
         key = "editor-$projectName",
         factory = EditorViewModel.factory(container, projectName, initialFile),
     )
+    // R4A: chat con la IA (pestaña Chat del panel de abajo)
+    val chatVm: dev.rustdroid.ide.ui.chat.ChatViewModel = viewModel(
+        key = "chat-$projectName",
+        factory = dev.rustdroid.ide.ui.chat.ChatViewModel.factory(container, projectName),
+    )
+    val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
+    val chatDrawerState = rememberEdgeDrawerState()
+    var moreMenuOpen by remember { mutableStateOf(false) }
     val tabs by vm.tabs.collectAsState()
     val activeIndex by vm.activeIndex.collectAsState()
     val activeText by vm.activeText.collectAsState()
@@ -309,7 +323,9 @@ fun EditorScreen(
         vm.launchGame.collect { launch -> showGame(appContext, launch) }
     }
     androidx.activity.compose.BackHandler {
-        if (drawerState.isOpen) {
+        if (chatDrawerState.isOpen) {
+            drawerScope.launch { chatDrawerState.close() }
+        } else if (drawerState.isOpen) {
             drawerScope.launch { drawerState.close() }
         } else {
             requestExit()
@@ -354,6 +370,20 @@ fun EditorScreen(
     // stole long-presses (text selection never fired) and read scrolling as
     // a horizontal drag. EdgeDrawer only listens on a thin left-edge strip
     // while closed, and the drawer follows the finger.
+    // R4A: el Chat IA es otro EdgeDrawer, desde la derecha, que envuelve al de Files.
+    EdgeDrawer(
+        state = chatDrawerState,
+        fromEnd = true,
+        widthFraction = 0.9f,
+        maxSheetWidth = 460.dp,
+        edgeEnabled = chatEnabled,
+        drawerContent = {
+            ChatDrawerSheet(
+                chatVm = chatVm,
+                onClose = { drawerScope.launch { chatDrawerState.close() } },
+            )
+        },
+    ) {
     EdgeDrawer(
         state = drawerState,
         drawerContent = {
@@ -511,34 +541,31 @@ fun EditorScreen(
                             Icon(RdIcons.Folder, contentDescription = stringResource(R.string.editor_files))
                         }
                     },
-                    title = { Text(projectName.substringAfterLast('/')) },
+                    title = {
+                        Text(
+                            projectName.substringAfterLast('/'),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        )
+                    },
                     actions = {
                         // R4A: Deps and Terminal moved to the Files drawer
+                        // R4A: el Chat IA se abre desde acá (o deslizando desde la derecha).
+                        // Con el chat desactivado queda el hueco del botón, así el
+                        // título no cambia de largo al prender/apagar el chat.
+                        if (chatEnabled) {
+                            IconButton(onClick = {
+                                codeEditor?.hideEditorWindows()
+                                codeEditor?.hideSoftInput()
+                                keyboard?.hide()
+                                drawerScope.launch { chatDrawerState.open() }
+                            }) {
+                                AiBadge(contentDescription = stringResource(R.string.ai_chat_open))
+                            }
+                        } else {
+                            Spacer(Modifier.size(48.dp))
+                        }
                         if (tabs.isNotEmpty()) {
-                            // R4A: find / replace in the open file
-                            IconButton(onClick = {
-                                searchOpen = !searchOpen
-                                if (!searchOpen) codeEditor?.searcher?.stopSearch()
-                            }) {
-                                Icon(
-                                    Icons.Filled.Search,
-                                    contentDescription = stringResource(R.string.search_title),
-                                    tint = if (searchOpen) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            IconButton(onClick = {
-                                dev.rustdroid.ide.util.AppSettings.setAutoComplete(appContext, !autoComplete)
-                            }) {
-                                Icon(
-                                    if (autoComplete) RdIcons.Info else RdIcons.InfoOutline,
-                                    contentDescription = stringResource(
-                                        if (autoComplete) R.string.editor_suggestions_on else R.string.editor_suggestions_off
-                                    ),
-                                    tint = if (autoComplete) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
                             IconButton(onClick = { codeEditor?.undo() }, enabled = canUndo) {
                                 Icon(RdIcons.Undo, contentDescription = stringResource(R.string.editor_undo))
                             }
@@ -568,6 +595,44 @@ fun EditorScreen(
                                 vm.run()
                             }) {
                                 Icon(Icons.Filled.PlayArrow, contentDescription = stringResource(R.string.editor_run), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        // R4A: ⋮ — buscar, Chat IA y ayuda para programar
+                        Box {
+                            IconButton(onClick = { moreMenuOpen = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.editor_more))
+                            }
+                            DropdownMenu(expanded = moreMenuOpen, onDismissRequest = { moreMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.search_title)) },
+                                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                                    enabled = tabs.isNotEmpty(),
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        searchOpen = !searchOpen
+                                        if (!searchOpen) codeEditor?.searcher?.stopSearch()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.ai_chat_menu)) },
+                                    leadingIcon = { AiBadge() },
+                                    trailingIcon = { androidx.compose.material3.Checkbox(checked = chatEnabled, onCheckedChange = null) },
+                                    onClick = {
+                                        val on = !chatEnabled
+                                        dev.rustdroid.ide.util.AppSettings.setAiChatEnabled(appContext, on)
+                                        if (!on) drawerScope.launch { chatDrawerState.close() }
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.editor_coding_help)) },
+                                    leadingIcon = {
+                                        Icon(if (autoComplete) RdIcons.Info else RdIcons.InfoOutline, null)
+                                    },
+                                    trailingIcon = { androidx.compose.material3.Checkbox(checked = autoComplete, onCheckedChange = null) },
+                                    onClick = {
+                                        dev.rustdroid.ide.util.AppSettings.setAutoComplete(appContext, !autoComplete)
+                                    },
+                                )
                             }
                         }
                     },
@@ -725,7 +790,7 @@ fun EditorScreen(
                     Column(Modifier.fillMaxWidth()) {
                         // R4A: folded panel -> neither tab looks selected (no
                         // indicator, unselected colors) until one is tapped
-                        val tabIndex = if (bottomTab == EditorViewModel.BottomTab.CONSOLE) 0 else 1
+                        val tabIndex = bottomTab.ordinal // CONSOLE, PROBLEMS
                         TabRow(
                             selectedTabIndex = tabIndex,
                             indicator = { positions ->
@@ -803,6 +868,7 @@ fun EditorScreen(
             }
         }
     }
+    } // chat drawer
 
     if (showCloseConfirm) {
         AlertDialog(
@@ -1448,4 +1514,59 @@ private fun showGame(context: android.content.Context, launch: EditorViewModel.G
         context, R.anim.r4a_slide_in_right, R.anim.r4a_slide_out_left,
     )
     context.startActivity(intent, slide.toBundle())
+}
+
+/** R4A: el cajón del Chat IA (desde la derecha). */
+@Composable
+private fun ChatDrawerSheet(
+    chatVm: dev.rustdroid.ide.ui.chat.ChatViewModel,
+    onClose: () -> Unit,
+) {
+    val palette = LocalEditorPalette.current
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(palette.consoleBg)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
+            .imePadding(),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AiBadge(color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(R.string.ai_chat_menu),
+                style = MaterialTheme.typography.titleMedium,
+                color = palette.stdout,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = onClose) {
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.ai_chat_close), tint = palette.stdout)
+            }
+        }
+        dev.rustdroid.ide.ui.chat.ChatPanel(vm = chatVm, onInputFocusChanged = {})
+    }
+}
+
+/**
+ * R4A: las letras "AI" en lugar de un ícono (botón del chat, menú ⋮ y
+ * cabecera del cajón). Sin [color] toma el color del ícono (LocalContentColor).
+ */
+@Composable
+private fun AiBadge(
+    color: Color = androidx.compose.material3.LocalContentColor.current,
+    contentDescription: String? = null,
+) {
+    Text(
+        "AI",
+        color = color,
+        fontSize = 15.sp,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+        modifier = if (contentDescription != null) {
+            Modifier.semantics { this.contentDescription = contentDescription }
+        } else Modifier,
+    )
 }

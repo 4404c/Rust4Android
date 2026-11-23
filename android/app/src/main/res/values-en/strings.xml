@@ -310,4 +310,34 @@
         <item>I\'m awake! I was compiling a dream.</item>
         <item>Hmm… what time is it?</item>
     </string-array>
+    <!-- R4A: artificial intelligence (phase 1: chat) -->
+    <string name="ai_chat_menu">AI Chat</string>
+    <string name="ai_chat_open">Open the AI Chat</string>
+    <string name="ai_chat_close">Close the chat</string>
+    <string name="editor_more">More options</string>
+    <string name="editor_coding_help">Coding help</string>
+    <string name="ai_chat_hint">Ask the AI something…</string>
+    <string name="ai_chat_empty">Type to the AI below. For now it can only talk: it cannot touch your files yet.</string>
+    <string name="ai_chat_not_ready">AI not set up</string>
+    <string name="ai_chat_send">Send</string>
+    <string name="ai_chat_stop">Stop</string>
+    <string name="ai_chat_clear">Clear the chat</string>
+    <string name="ai_not_configured">The AI is not set up yet: go to Settings → Artificial intelligence, paste your API key and pick a model.</string>
+    <string name="ai_settings_title">Artificial intelligence</string>
+    <string name="ai_settings_note">Connect an AI with your own API key to use the editor Chat. Needs internet. The key is stored encrypted on the phone.</string>
+    <string name="ai_settings_provider">Provider</string>
+    <string name="ai_provider_custom">Other (own URL, OpenAI-compatible)</string>
+    <string name="ai_settings_url">Base URL</string>
+    <string name="ai_settings_save_url">Save URL</string>
+    <string name="ai_settings_key">API key</string>
+    <string name="ai_settings_key_saved">✓ Key saved</string>
+    <string name="ai_settings_key_remove">Remove key</string>
+    <string name="ai_settings_key_paste">Paste your API key</string>
+    <string name="ai_settings_key_save">Save</string>
+    <string name="ai_settings_key_get">Get a key</string>
+    <string name="ai_settings_model">Model</string>
+    <string name="ai_settings_model_none">None picked</string>
+    <string name="ai_settings_model_pick">Pick model</string>
+    <string name="ai_settings_model_filter">Search model…</string>
+    <string name="ai_settings_model_empty">No matching models.</string>
 </resources>

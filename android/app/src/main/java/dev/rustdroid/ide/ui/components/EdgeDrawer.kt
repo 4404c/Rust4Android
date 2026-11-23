@@ -86,6 +86,8 @@ fun rememberEdgeDrawerState(): EdgeDrawerState = remember { EdgeDrawerState() }
  * full-screen drag detector (see the note in EditorScreen).
  *
  * [edgeTopPadding] keeps the strip below the top bar so its buttons work.
+ * R4A: [fromEnd] = cajón desde la derecha (el Chat IA); [edgeEnabled] false
+ * saca la franja del borde (solo se abre con un botón o no se abre).
  */
 @Composable
 fun EdgeDrawer(
@@ -93,13 +95,17 @@ fun EdgeDrawer(
     drawerContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     edgeTopPadding: Dp = 64.dp,
+    fromEnd: Boolean = false,
+    widthFraction: Float = 0.7f,
+    maxSheetWidth: Dp = 300.dp,
+    edgeEnabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     BoxWithConstraints(modifier.fillMaxSize()) {
         // R4A: narrower than Material's default (up to 360dp, nearly the
         // whole phone): file names and the bottom actions fit in ~70%.
-        val sheetWidth = min(maxWidth * 0.7f, 300.dp)
+        val sheetWidth = min(maxWidth * widthFraction, maxSheetWidth)
         val widthPx = with(LocalDensity.current) { sheetWidth.toPx() }
 
         content()
@@ -107,15 +113,15 @@ fun EdgeDrawer(
         // Edge strip: the only gesture surface while closed. It also asks
         // Android to keep the system back gesture off this edge (honoured
         // for part of the screen height only).
-        Box(
+        if (edgeEnabled) Box(
             Modifier
-                .align(Alignment.CenterStart)
+                .align(if (fromEnd) Alignment.CenterEnd else Alignment.CenterStart)
                 .fillMaxHeight()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = edgeTopPadding)
                 .width(20.dp)
                 .systemGestureExclusion()
-                .drawerDrag(state, widthPx, scope),
+                .drawerDrag(state, widthPx, scope, fromEnd),
         )
 
         // derivedStateOf keeps the editor from recomposing on every drag frame.
@@ -127,7 +133,7 @@ fun EdgeDrawer(
         Box(
             Modifier
                 .fillMaxSize()
-                .then(if (visible) Modifier.drawerDrag(state, widthPx, scope) else Modifier),
+                .then(if (visible) Modifier.drawerDrag(state, widthPx, scope, fromEnd) else Modifier),
         ) {
             if (visible) {
                 Box(
@@ -145,10 +151,12 @@ fun EdgeDrawer(
             // was the main source of jank when opening Files.
             Box(
                 Modifier
+                    .align(if (fromEnd) Alignment.CenterEnd else Alignment.CenterStart)
                     .width(sheetWidth)
                     .fillMaxHeight()
                     .graphicsLayer {
-                        translationX = -widthPx * (1f - state.progress.value)
+                        val hidden = widthPx * (1f - state.progress.value)
+                        translationX = if (fromEnd) hidden else -hidden
                     },
             ) {
                 drawerContent()
@@ -161,19 +169,22 @@ private fun Modifier.drawerDrag(
     state: EdgeDrawerState,
     widthPx: Float,
     scope: CoroutineScope,
-): Modifier = pointerInput(widthPx) {
+    fromEnd: Boolean,
+): Modifier = pointerInput(widthPx, fromEnd) {
+    // desde la derecha, arrastrar hacia la izquierda abre
+    val sign = if (fromEnd) -1f else 1f
     val tracker = VelocityTracker()
     detectHorizontalDragGestures(
         onDragStart = { tracker.resetTracking() },
         onDragEnd = {
-            val v = tracker.calculateVelocity().x / widthPx
+            val v = sign * tracker.calculateVelocity().x / widthPx
             scope.launch { state.settle(v) }
         },
         onDragCancel = { scope.launch { state.settle(0f) } },
         onHorizontalDrag = { change, amount ->
             change.consume()
             tracker.addPosition(change.uptimeMillis, change.position)
-            scope.launch { state.dragBy(amount / widthPx) }
+            scope.launch { state.dragBy(sign * amount / widthPx) }
         },
     )
 }

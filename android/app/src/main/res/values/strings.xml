@@ -314,4 +314,34 @@
         <item>¡Estoy despierto! Estaba compilando un sueño.</item>
         <item>Mmm… ¿qué hora es?</item>
     </string-array>
+    <!-- R4A: inteligencia artificial (fase 1: chat) -->
+    <string name="ai_chat_menu">Chat IA</string>
+    <string name="ai_chat_open">Abrir el Chat IA</string>
+    <string name="ai_chat_close">Cerrar el chat</string>
+    <string name="editor_more">Más opciones</string>
+    <string name="editor_coding_help">Ayuda para programar</string>
+    <string name="ai_chat_hint">Preguntale algo a la IA…</string>
+    <string name="ai_chat_empty">Escribile a la IA abajo. Por ahora solo conversa: todavía no puede tocar tus archivos.</string>
+    <string name="ai_chat_not_ready">IA sin configurar</string>
+    <string name="ai_chat_send">Enviar</string>
+    <string name="ai_chat_stop">Detener</string>
+    <string name="ai_chat_clear">Borrar la charla</string>
+    <string name="ai_not_configured">Falta configurar la IA: andá a Opciones → Inteligencia artificial, pegá tu API key y elegí un modelo.</string>
+    <string name="ai_settings_title">Inteligencia artificial</string>
+    <string name="ai_settings_note">Conectá una IA con tu propia API key para usar el Chat del editor. Hace falta internet. La clave se guarda cifrada en el teléfono.</string>
+    <string name="ai_settings_provider">Proveedor</string>
+    <string name="ai_provider_custom">Otro (URL propia, compatible con OpenAI)</string>
+    <string name="ai_settings_url">URL base</string>
+    <string name="ai_settings_save_url">Guardar URL</string>
+    <string name="ai_settings_key">API key</string>
+    <string name="ai_settings_key_saved">✓ Clave guardada</string>
+    <string name="ai_settings_key_remove">Borrar clave</string>
+    <string name="ai_settings_key_paste">Pegá tu API key</string>
+    <string name="ai_settings_key_save">Guardar</string>
+    <string name="ai_settings_key_get">Conseguir una clave</string>
+    <string name="ai_settings_model">Modelo</string>
+    <string name="ai_settings_model_none">Ninguno elegido</string>
+    <string name="ai_settings_model_pick">Elegir modelo</string>
+    <string name="ai_settings_model_filter">Buscar modelo…</string>
+    <string name="ai_settings_model_empty">No hay modelos que coincidan.</string>
 </resources>

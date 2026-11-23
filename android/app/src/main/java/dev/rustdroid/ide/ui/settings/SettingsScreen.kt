@@ -153,6 +153,9 @@ fun SettingsScreen(
             // ---- appearance (R4A) ----
             AppearanceCard(onOpenCodeThemes)
 
+            // ---- inteligencia artificial (R4A) ----
+            AiSettingsCard(container)
+
             // ---- game signing key (R4A) ----
             SigningKeyCard()
 

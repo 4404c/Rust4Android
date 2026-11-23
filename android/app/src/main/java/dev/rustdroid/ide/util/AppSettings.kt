@@ -19,6 +19,15 @@ object AppSettings {
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_CODE_THEME = "code_theme"
 
+    /** R4A: Chat IA en el editor (cajón a la derecha). Activado por defecto. */
+    private val _aiChatEnabled = MutableStateFlow(true)
+    val aiChatEnabled: StateFlow<Boolean> = _aiChatEnabled.asStateFlow()
+
+    fun setAiChatEnabled(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("ai_chat_enabled", on).apply()
+        _aiChatEnabled.value = on
+    }
+
     /** Ferrdroid (la mascota) en el inicio, y el "blip" al hablar. */
     private val _ferrdroidVisible = MutableStateFlow(true)
     val ferrdroidVisible: StateFlow<Boolean> = _ferrdroidVisible.asStateFlow()
@@ -92,6 +101,7 @@ object AppSettings {
         _codeTheme.value = prefs(context).getString(KEY_CODE_THEME, null) ?: "classic"
         _ferrdroidVisible.value = prefs(context).getBoolean("ferrdroid_visible", true)
         _ferrdroidSound.value = prefs(context).getBoolean("ferrdroid_sound", false)
+        _aiChatEnabled.value = prefs(context).getBoolean("ai_chat_enabled", true)
         prefs(context).let { p ->
             _customColors.value = CustomColors(
                 p.getInt("custom_primary", DEFAULT_CUSTOM.primary),
