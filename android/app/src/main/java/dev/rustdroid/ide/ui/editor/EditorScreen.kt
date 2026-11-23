@@ -74,6 +74,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -209,7 +210,7 @@ fun EditorScreen(
         initialFile?.let { vm.openFile(it) }
     }
 
-    val dark = isSystemInDarkTheme()
+    val dark = dev.rustdroid.ide.ui.theme.LocalDarkTheme.current
     val palette = LocalEditorPalette.current
 
     // IME-aware layout: editor focus + visible keyboard => hide the console
@@ -356,7 +357,11 @@ fun EditorScreen(
     EdgeDrawer(
         state = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
+            // R4A: Files con un verde suave (no blanco) en modo claro
+            ModalDrawerSheet(
+                drawerContainerColor = if (dark) MaterialTheme.colorScheme.surfaceContainerLow
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
                 Column(Modifier.fillMaxHeight()) {
                     Row(
                         Modifier.fillMaxWidth().padding(16.dp),
@@ -477,6 +482,11 @@ fun EditorScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
+                    // R4A: en modo claro la barra de arriba va en verde suave (el código, en blanco)
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (dark) MaterialTheme.colorScheme.surface
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
+                    ),
                     navigationIcon = {
                         IconButton(onClick = {
                             // fresh tree every open: the folder may have

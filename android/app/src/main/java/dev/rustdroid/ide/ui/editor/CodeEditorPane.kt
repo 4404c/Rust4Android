@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -41,19 +43,21 @@ object RustEditor {
             if (grammarReady) return
             val assets = context.assets
             FileProviderRegistry.getInstance().addFileProvider(AssetsFileResolver(assets))
-            // theme(s): load both, switch current later
+            // R4A: un tema de TextMate por cada tema de código × claro/oscuro.
+            // Los colores del editor (fondo, selección…) salen de los JSON base.
+            val base = mapOf(
+                true to assets.open("textmate/theme-dark.json").bufferedReader().use { it.readText() },
+                false to assets.open("textmate/theme-light.json").bufferedReader().use { it.readText() },
+            )
             ThemeRegistry.getInstance().apply {
-                loadTheme(
-                    IThemeSource.fromInputStream(
-                        assets.open("textmate/theme-dark.json"), "theme-dark.json", null
+                for (theme in CodeThemes.all) for (dark in listOf(true, false)) {
+                    val name = theme.registryName(dark)
+                    val json = CodeThemes.buildThemeJson(base.getValue(dark), theme, dark)
+                    loadTheme(
+                        IThemeSource.fromInputStream(json.byteInputStream(), "$name.json", null),
+                        false,
                     )
-                )
-                loadTheme(
-                    IThemeSource.fromInputStream(
-                        assets.open("textmate/theme-light.json"), "theme-light.json", null
-                    ),
-                    false
-                )
+                }
             }
             grammarReady = true
         }
@@ -142,26 +146,29 @@ object RustEditor {
             scheme.setColor(EditorColorScheme.PROBLEM_ERROR, 0xFFFF5C5C.toInt())
             scheme.setColor(EditorColorScheme.PROBLEM_WARNING, 0xFFFFC857.toInt())
             // suggestion list in R4A colors (it was white on the dark theme)
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_BACKGROUND, 0xFF2B2930.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_CORNER, 0xFF4A4458.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_PRIMARY, 0xFFEDE0D4.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_SECONDARY, 0xFF9E96A8.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_ITEM_CURRENT, 0xFF3D3550.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_BACKGROUND, 0xFF252523.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_CORNER, 0xFF333331.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_PRIMARY, 0xFFFFFFFF.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_SECONDARY, 0xFF979797.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_ITEM_CURRENT, 0xFF333331.toInt())
         } else {
             scheme.setColor(EditorColorScheme.PROBLEM_ERROR, 0xFFD32F2F.toInt())
             scheme.setColor(EditorColorScheme.PROBLEM_WARNING, 0xFFB7791F.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_BACKGROUND, 0xFFF3EDF7.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_CORNER, 0xFFCAC4D0.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_PRIMARY, 0xFF201A16.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_SECONDARY, 0xFF6B6375.toInt())
-            scheme.setColor(EditorColorScheme.COMPLETION_WND_ITEM_CURRENT, 0xFFE4DAF5.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_BACKGROUND, 0xFFFAF9F5.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_CORNER, 0xFFDEDCD1.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_PRIMARY, 0xFF141413.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_TEXT_SECONDARY, 0xFF73726C.toInt())
+            scheme.setColor(EditorColorScheme.COMPLETION_WND_ITEM_CURRENT, 0xFFF0EEE6.toInt())
         }
     }
 
-    fun colorScheme(dark: Boolean): EditorColorScheme {
+    fun colorScheme(
+        dark: Boolean,
+        codeTheme: String = dev.rustdroid.ide.util.AppSettings.codeTheme.value,
+    ): EditorColorScheme {
         val registry = ThemeRegistry.getInstance()
         runCatching {
-            registry.setTheme(if (dark) "RustDroid Dark" else "RustDroid Light")
+            registry.setTheme(CodeThemes.byId(codeTheme).registryName(dark))
         }
         // R4A: the matching-bracket color lives in the theme JSONs
         // ("highlightedDelimitersForeground"). Setting it here does not stick:
@@ -412,9 +419,10 @@ fun CodeEditorPane(
         onDispose { flash.cancel() }
     }
 
-    // theme flip: recreate the color scheme in place
-    LaunchedEffect(dark) {
-        editor.setColorScheme(RustEditor.colorScheme(dark))
+    // theme flip (claro/oscuro o tema de código): recreate the color scheme in place
+    val codeTheme by dev.rustdroid.ide.util.AppSettings.codeTheme.collectAsState()
+    LaunchedEffect(dark, codeTheme) {
+        editor.setColorScheme(RustEditor.colorScheme(dark, codeTheme))
         RustEditor.applyProblemColors(editor, dark)
     }
 

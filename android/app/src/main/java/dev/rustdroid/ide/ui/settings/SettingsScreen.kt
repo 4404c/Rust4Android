@@ -17,6 +17,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -50,7 +61,11 @@ private val HealthyGreen = Color(0xFF4CAF50)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
+fun SettingsScreen(
+    container: AppContainer,
+    onOpenLicenses: () -> Unit = {},
+    onOpenCodeThemes: () -> Unit = {},
+) {
     val vm: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container))
     val state by vm.toolchainState.collectAsState()
     val storage by vm.storage.collectAsState()
@@ -136,7 +151,7 @@ fun SettingsScreen(container: AppContainer, onOpenLicenses: () -> Unit = {}) {
             LanguageCard()
 
             // ---- appearance (R4A) ----
-            AppearanceCard()
+            AppearanceCard(onOpenCodeThemes)
 
             // ---- game signing key (R4A) ----
             SigningKeyCard()
@@ -324,13 +339,15 @@ private fun SigningKeyCard() {
 
 /** R4A: appearance / editor toggles. Changes apply right away (AppSettings flows). */
 @Composable
-private fun AppearanceCard() {
+private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
     val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
+            ThemeModeRow()
+            CodeThemeRow(onOpenCodeThemes)
             SwitchRow(
                 title = stringResource(R.string.settings_file_icons),
                 description = stringResource(R.string.settings_file_icons_desc),
@@ -342,6 +359,177 @@ private fun AppearanceCard() {
                 checked = liveCheck,
             ) { dev.rustdroid.ide.util.AppSettings.setLiveCheck(context, it) }
         }
+    }
+}
+
+/** R4A: fila que lleva a la lista de temas de código (para que Opciones no sea eterna). */
+@Composable
+private fun CodeThemeRow(onClick: () -> Unit) {
+    val current by dev.rustdroid.ide.util.AppSettings.codeTheme.collectAsState()
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.settings_code_theme), style = MaterialTheme.typography.bodyMedium)
+            Text(
+                stringResource(codeThemeName(current)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Icon(
+            androidx.compose.material.icons.Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** R4A: tema de la app — Sistema / Claro / Oscuro (se aplica al instante). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThemeModeRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsState()
+    val options = listOf(
+        dev.rustdroid.ide.util.AppSettings.ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
+        dev.rustdroid.ide.util.AppSettings.ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
+        dev.rustdroid.ide.util.AppSettings.ThemeMode.DARK to stringResource(R.string.settings_theme_dark),
+        dev.rustdroid.ide.util.AppSettings.ThemeMode.CUSTOM to stringResource(R.string.settings_theme_custom),
+    )
+    Column(Modifier.padding(vertical = 6.dp)) {
+        Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.height(8.dp))
+        // Estilo de botones segmentados de Material, pero cada botón con el ancho
+        // de su texto: con 4 iguales "Personalizado" no entraba.
+        val shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(shape)
+                .border(1.dp, MaterialTheme.colorScheme.outline, shape),
+        ) {
+            options.forEachIndexed { i, (value, label) ->
+                val selected = mode == value
+                if (i > 0) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outline),
+                    )
+                }
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .weight(label.length * 7f + (if (selected) 24f else 0f) + 14f)
+                        .fillMaxHeight()
+                        .background(
+                            if (selected) MaterialTheme.colorScheme.secondaryContainer
+                            else androidx.compose.ui.graphics.Color.Transparent,
+                        )
+                        .selectable(
+                            selected = selected,
+                            role = androidx.compose.ui.semantics.Role.RadioButton,
+                            onClick = { dev.rustdroid.ide.util.AppSettings.setThemeMode(context, value) },
+                        ),
+                    contentAlignment = androidx.compose.ui.Alignment.Center,
+                ) {
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        if (selected) {
+                            Icon(
+                                androidx.compose.material.icons.Icons.Filled.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1,
+                            color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
+                            else MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+            }
+        }
+        if (mode == dev.rustdroid.ide.util.AppSettings.ThemeMode.CUSTOM) CustomColorsEditor()
+    }
+}
+
+/** R4A: los 4 colores del tema Personalizado; tocar uno abre el selector. */
+@Composable
+private fun CustomColorsEditor() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val colors by dev.rustdroid.ide.util.AppSettings.customColors.collectAsState()
+    var editing by remember { mutableStateOf<Int?>(null) } // 0 principal, 1 secundario, 2 fondo, 3 texto
+    val labels = listOf(
+        stringResource(R.string.custom_primary) to stringResource(R.string.custom_primary_desc),
+        stringResource(R.string.custom_secondary) to stringResource(R.string.custom_secondary_desc),
+        stringResource(R.string.custom_background) to stringResource(R.string.custom_background_desc),
+        stringResource(R.string.custom_text) to stringResource(
+            if (colors.text == null) R.string.custom_text_auto_desc else R.string.custom_text_desc,
+        ),
+    )
+    // el texto automático se muestra con el color que realmente se usa
+    val effectiveText = dev.rustdroid.ide.ui.theme.CustomScheme.textColor(colors).toArgb()
+    val values = listOf(colors.primary, colors.secondary, colors.background, colors.text ?: effectiveText)
+    Column(Modifier.padding(start = 8.dp, top = 4.dp)) {
+        labels.forEachIndexed { i, (title, desc) ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { editing = i }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(androidx.compose.ui.graphics.Color(values[i]))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, androidx.compose.foundation.shape.CircleShape),
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.bodyMedium)
+                    Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    if (i == 3 && colors.text == null) stringResource(R.string.custom_text_auto) else values[i].toHex(),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+    editing?.let { i ->
+        ColorPickerDialog(
+            title = labels[i].first,
+            initial = values[i],
+            onDismiss = { editing = null },
+            onAuto = if (i == 3) {
+                {
+                    dev.rustdroid.ide.util.AppSettings.setCustomColors(context, colors.copy(text = null))
+                    editing = null
+                }
+            } else null,
+            onPick = { picked ->
+                val next = when (i) {
+                    0 -> colors.copy(primary = picked)
+                    1 -> colors.copy(secondary = picked)
+                    2 -> colors.copy(background = picked)
+                    else -> colors.copy(text = picked)
+                }
+                dev.rustdroid.ide.util.AppSettings.setCustomColors(context, next)
+                editing = null
+            },
+        )
     }
 }
 

@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Matches md_light_background in ui/theme/Color.kt -->
-    <color name="rd_window_background">#FFF8F4</color>
+    <!-- Matches md_light_background (ClaudeLightBg) -->
+    <color name="rd_window_background">#FAF9F5</color>
+    <!-- Fondo del ícono adaptativo: el mismo del logo -->
+    <color name="r4a_icon_background">#171B24</color>
 </resources>

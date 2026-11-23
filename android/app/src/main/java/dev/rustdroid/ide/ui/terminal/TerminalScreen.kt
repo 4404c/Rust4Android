@@ -506,7 +506,7 @@ private fun TerminalPane(
 }
 
 /** Same dark tone as the editor console. */
-private val TerminalBackground = Color(0xFF141311)
+private val TerminalBackground = Color(0xFF0E0E0E)
 
 /**
  * v0.2 input fix, shared by the pane attach and the view client's tap

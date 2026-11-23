@@ -120,7 +120,13 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("R4A") },
+                title = {
+                    Text(
+                        "R4A",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    )
+                },
                 actions = {
                     IconButton(onClick = openFolderPicker) {
                         Icon(RdIcons.FolderOpen, contentDescription = stringResource(R.string.home_open_folder_cd))
@@ -140,6 +146,9 @@ fun HomeScreen(
                     onClick = { showNewDialog = true },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.home_new_project)) },
+                    // R4A: el verde de la marca vive acá (en Personalizado, el color principal)
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 )
             }
         },

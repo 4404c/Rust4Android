@@ -64,6 +64,7 @@ object Routes {
     const val DEPS = "deps/{project}"
     const val SETTINGS = "settings"
     const val LICENSES = "licenses"
+    const val CODE_THEMES = "code_themes"
 
     fun editor(project: String, file: String = ""): String =
         "editor/${android.net.Uri.encode(project)}?file=${android.net.Uri.encode(file)}"
@@ -242,7 +243,14 @@ fun AppRoot(
                     nav.popBackStack()
                 }
             }
-            SettingsScreen(container, onOpenLicenses = { nav.navigate(Routes.LICENSES) })
+            SettingsScreen(
+                container,
+                onOpenLicenses = { nav.navigate(Routes.LICENSES) },
+                onOpenCodeThemes = { nav.navigate(Routes.CODE_THEMES) },
+            )
+        }
+        composable(Routes.CODE_THEMES) {
+            dev.rustdroid.ide.ui.settings.CodeThemesScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.LICENSES) {
             // Plan §7.5: the in-app license surface — the BusyBox GPL
