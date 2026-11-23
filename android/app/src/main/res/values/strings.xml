@@ -202,10 +202,10 @@
     <string name="settings_code_theme">Colores del código</string>
     <string name="settings_code_theme_desc">Cómo se pintan las letras en el editor. El fondo sigue al tema claro u oscuro.</string>
     <string name="code_theme_classic">Clásico</string>
-    <string name="code_theme_crab">Cangrejo</string>
-    <string name="code_theme_sunset">Atardecer</string>
-    <string name="code_theme_ocean">Océano</string>
-    <string name="code_theme_plain">Sobrio</string>
+    <string name="code_theme_solarized">Solarized</string>
+    <string name="code_theme_tokyo">Tokyo Night</string>
+    <string name="code_theme_rosepine">Rosé Pine</string>
+    <string name="code_theme_ayu">Ayu</string>
     <string name="settings_file_icons">Íconos de tipo de archivo</string>
     <string name="settings_file_icons_desc">Muestra un dibujito según el tipo de archivo en Files y en las pestañas.</string>
     <string name="editor_undo">Deshacer</string>

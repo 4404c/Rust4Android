@@ -57,10 +57,10 @@ fun CodeThemesScreen(onBack: () -> Unit) {
 
 /** Nombre visible de un tema de código. */
 fun codeThemeName(id: String): Int = when (id) {
-    "crab" -> R.string.code_theme_crab
-    "sunset" -> R.string.code_theme_sunset
-    "ocean" -> R.string.code_theme_ocean
-    "plain" -> R.string.code_theme_plain
+    "solarized" -> R.string.code_theme_solarized
+    "tokyo" -> R.string.code_theme_tokyo
+    "rosepine" -> R.string.code_theme_rosepine
+    "ayu" -> R.string.code_theme_ayu
     else -> R.string.code_theme_classic
 }
 

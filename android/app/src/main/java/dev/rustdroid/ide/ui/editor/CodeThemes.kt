@@ -5,6 +5,10 @@ import org.json.JSONObject
 
 /**
  * R4A: temas de colores del código (Opciones → Colores del código).
+ * Los colores salen de los temas publicados de VS Code (todos con licencia MIT):
+ * Clásico = Dark+/Light+ de VS Code; los demás, de los archivos oficiales de
+ * cada tema (ver el comentario de cada uno). Las letras semitransparentes de
+ * Ayu se mezclaron con el fondo del editor de R4A.
  * Sólo cambian el color de las letras; el fondo del editor sigue al modo
  * claro/oscuro de la app (sale de assets/textmate/theme-{dark,light}.json).
  */
@@ -52,64 +56,68 @@ object CodeThemes {
                 lifetime = 0xFF795E26, punctuation = 0xFF3B3B3B, invalid = 0xFFCD3131, plain = 0xFF3B3B3B,
             ),
         ),
+        // Solarized (microsoft/vscode, MIT)
         CodeTheme(
-            "crab",
+            "solarized",
             dark = SyntaxColors(
-                comment = 0xFF6F8A55, string = 0xFFE8D47A, constant = 0xFFC4E88A, number = 0xFFF0B86E,
-                keyword = 0xFF9CD634, operator = 0xFFD8E6C8, function = 0xFF7FE0B0, type = 0xFF5FD0C0,
-                enumMember = 0xFFA6E3E9, macro = 0xFFD4F28C, variable = 0xFFE6F0D6, attribute = 0xFFB5C98E,
-                lifetime = 0xFFF0B86E, punctuation = 0xFFA9B89A, invalid = 0xFFFF5C5C, plain = 0xFFE6F0D6,
+                comment = 0xFF586E75, string = 0xFF2AA198, constant = 0xFFB58900, number = 0xFFD33682,
+                keyword = 0xFF859900, operator = 0xFF859900, function = 0xFF268BD2, type = 0xFFCB4B16,
+                enumMember = 0xFF268BD2, macro = 0xFF268BD2, variable = 0xFF268BD2, attribute = 0xFF93A1A1,
+                lifetime = 0xFF93A1A1, punctuation = 0xFF839496, invalid = 0xFFDC322F, plain = 0xFF839496,
             ),
             light = SyntaxColors(
-                comment = 0xFF7A8A68, string = 0xFF9A6B00, constant = 0xFF2F5214, number = 0xFFB5541A,
-                keyword = 0xFF3F6E14, operator = 0xFF3A4A2A, function = 0xFF1F7A5A, type = 0xFF0E7C70,
-                enumMember = 0xFF116A80, macro = 0xFF5C941E, variable = 0xFF1E360C, attribute = 0xFF6B7A2E,
-                lifetime = 0xFFB5541A, punctuation = 0xFF4A5A3A, invalid = 0xFFC62828, plain = 0xFF1E2A14,
+                comment = 0xFF93A1A1, string = 0xFF2AA198, constant = 0xFFB58900, number = 0xFFD33682,
+                keyword = 0xFF859900, operator = 0xFF859900, function = 0xFF268BD2, type = 0xFFCB4B16,
+                enumMember = 0xFF268BD2, macro = 0xFF268BD2, variable = 0xFF268BD2, attribute = 0xFF93A1A1,
+                lifetime = 0xFF586E75, punctuation = 0xFF657B83, invalid = 0xFFDC322F, plain = 0xFF657B83,
             ),
         ),
+        // Tokyo Night / Tokyo Night Light (enkia/tokyo-night-vscode-theme, MIT)
         CodeTheme(
-            "sunset",
+            "tokyo",
             dark = SyntaxColors(
-                comment = 0xFF8C7A6B, string = 0xFFF2C46D, constant = 0xFFFF9E64, number = 0xFFFF9E64,
-                keyword = 0xFFFF6F91, operator = 0xFFE8D5C4, function = 0xFFFFC371, type = 0xFFF7A072,
-                enumMember = 0xFFFFB4A2, macro = 0xFFFF8FA3, variable = 0xFFF2E2D2, attribute = 0xFFD4A373,
-                lifetime = 0xFFF7A072, punctuation = 0xFFBFAE9F, invalid = 0xFFFF5555, plain = 0xFFF2E2D2,
+                comment = 0xFF51597D, string = 0xFF9ECE6A, constant = 0xFFFF9E64, number = 0xFFFF9E64,
+                keyword = 0xFFBB9AF7, operator = 0xFF89DDFF, function = 0xFF7AA2F7, type = 0xFFC0CAF5,
+                enumMember = 0xFF7AA2F7, macro = 0xFF7AA2F7, variable = 0xFFC0CAF5, attribute = 0xFFBB9AF7,
+                lifetime = 0xFF9D7CD8, punctuation = 0xFF89DDFF, invalid = 0xFFFF5370, plain = 0xFFA9B1D6,
             ),
             light = SyntaxColors(
-                comment = 0xFF9C8574, string = 0xFFA0522D, constant = 0xFFC2410C, number = 0xFFC2410C,
-                keyword = 0xFFBE185D, operator = 0xFF4A3B30, function = 0xFFB45309, type = 0xFF9A3412,
-                enumMember = 0xFF9D174D, macro = 0xFFDB2777, variable = 0xFF3F2A1E, attribute = 0xFF92400E,
-                lifetime = 0xFF9A3412, punctuation = 0xFF5C4A3D, invalid = 0xFFDC2626, plain = 0xFF2E2018,
+                comment = 0xFF888B94, string = 0xFF385F0D, constant = 0xFF965027, number = 0xFF965027,
+                keyword = 0xFF65359D, operator = 0xFF006C86, function = 0xFF2959AA, type = 0xFF343B58,
+                enumMember = 0xFF2959AA, macro = 0xFF2959AA, variable = 0xFF343B58, attribute = 0xFF65359D,
+                lifetime = 0xFF7B43BA, punctuation = 0xFF006C86, invalid = 0xFF942F2F, plain = 0xFF343B59,
             ),
         ),
+        // Rosé Pine / Rosé Pine Dawn (rose-pine/vscode, MIT)
         CodeTheme(
-            "ocean",
+            "rosepine",
             dark = SyntaxColors(
-                comment = 0xFF5C7C8A, string = 0xFF7FD1B9, constant = 0xFF82AAFF, number = 0xFFF78C6C,
-                keyword = 0xFF4FC3F7, operator = 0xFFB0C4D0, function = 0xFF82AAFF, type = 0xFFFFCB6B,
-                enumMember = 0xFF89DDFF, macro = 0xFF80CBC4, variable = 0xFFD6E4EC, attribute = 0xFF80CBC4,
-                lifetime = 0xFFFFCB6B, punctuation = 0xFF8FA5B2, invalid = 0xFFFF5370, plain = 0xFFD6E4EC,
+                comment = 0xFF6E6A86, string = 0xFFF6C177, constant = 0xFFEBBCBA, number = 0xFFEBBCBA,
+                keyword = 0xFF31748F, operator = 0xFF31748F, function = 0xFFEBBCBA, type = 0xFF9CCFD8,
+                enumMember = 0xFFE0DEF4, macro = 0xFFEBBCBA, variable = 0xFFE0DEF4, attribute = 0xFFC4A7E7,
+                lifetime = 0xFF31748F, punctuation = 0xFF908CAA, invalid = 0xFFEB6F92, plain = 0xFFE0DEF4,
             ),
             light = SyntaxColors(
-                comment = 0xFF6A8794, string = 0xFF0F766E, constant = 0xFF1D4ED8, number = 0xFFC2410C,
-                keyword = 0xFF0369A1, operator = 0xFF334155, function = 0xFF1E40AF, type = 0xFFA16207,
-                enumMember = 0xFF0E7490, macro = 0xFF0F766E, variable = 0xFF0F2A3A, attribute = 0xFF0F766E,
-                lifetime = 0xFFA16207, punctuation = 0xFF475569, invalid = 0xFFDC2626, plain = 0xFF0F172A,
+                comment = 0xFF9893A5, string = 0xFFEA9D34, constant = 0xFFD7827E, number = 0xFFD7827E,
+                keyword = 0xFF286983, operator = 0xFF286983, function = 0xFFD7827E, type = 0xFF56949F,
+                enumMember = 0xFF575279, macro = 0xFFD7827E, variable = 0xFF575279, attribute = 0xFF907AA9,
+                lifetime = 0xFF286983, punctuation = 0xFF797593, invalid = 0xFFB4637A, plain = 0xFF575279,
             ),
         ),
+        // Ayu Dark / Ayu Light (ayu-theme/vscode-ayu, MIT)
         CodeTheme(
-            "plain",
+            "ayu",
             dark = SyntaxColors(
-                comment = 0xFF6B6B6B, string = 0xFFBDBDBD, constant = 0xFFE0E0E0, number = 0xFFE0E0E0,
-                keyword = 0xFF9CD634, operator = 0xFF9E9E9E, function = 0xFFFFFFFF, type = 0xFFD0D0D0,
-                enumMember = 0xFFD0D0D0, macro = 0xFF9CD634, variable = 0xFFCFCFCF, attribute = 0xFF8A8A8A,
-                lifetime = 0xFFBDBDBD, punctuation = 0xFF8A8A8A, invalid = 0xFFFF5C5C, plain = 0xFFE0E0E0,
+                comment = 0xFF5A6673, string = 0xFFAAD94C, constant = 0xFFD2A6FF, number = 0xFFD2A6FF,
+                keyword = 0xFFFF8F40, operator = 0xFFF29668, function = 0xFFFFB454, type = 0xFF59C2FF,
+                enumMember = 0xFFC0BDB4, macro = 0xFFFFB454, variable = 0xFFC0BDB4, attribute = 0xFFFFB454,
+                lifetime = 0xFFFF8F40, punctuation = 0xFFC0BDB4, invalid = 0xFFD95757, plain = 0xFFC0BDB4,
             ),
             light = SyntaxColors(
-                comment = 0xFF9E9E9E, string = 0xFF555555, constant = 0xFF222222, number = 0xFF222222,
-                keyword = 0xFF5C941E, operator = 0xFF666666, function = 0xFF000000, type = 0xFF333333,
-                enumMember = 0xFF333333, macro = 0xFF5C941E, variable = 0xFF2A2A2A, attribute = 0xFF777777,
-                lifetime = 0xFF555555, punctuation = 0xFF777777, invalid = 0xFFC62828, plain = 0xFF1A1A1A,
+                comment = 0xFFADAEB1, string = 0xFF86B300, constant = 0xFFA37ACC, number = 0xFFA37ACC,
+                keyword = 0xFFFA8532, operator = 0xFFF2A191, function = 0xFFEBA400, type = 0xFF22A4E6,
+                enumMember = 0xFF5D6268, macro = 0xFFEBA400, variable = 0xFF5D6268, attribute = 0xFFEBA400,
+                lifetime = 0xFFFA8532, punctuation = 0xFF5D6268, invalid = 0xFFE65050, plain = 0xFF5D6268,
             ),
         ),
     )
