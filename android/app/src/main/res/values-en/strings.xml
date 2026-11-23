@@ -278,4 +278,10 @@
     <string name="files_path">Path in the project</string>
     <string name="files_apply">Apply</string>
     <string name="vm_editor_cannot_move">could not move %1$s</string>
+    <string name="folders_title">Choose a folder</string>
+    <string name="folders_storage">Storage</string>
+    <string name="folders_up">Up one folder</string>
+    <string name="folders_empty">No folders here.</string>
+    <string name="folders_new">New folder</string>
+    <string name="folders_use_this">Use this folder</string>
 </resources>

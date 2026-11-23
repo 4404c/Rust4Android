@@ -123,13 +123,30 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
      */
     fun linkFolder(treeUri: Uri, onReady: (File) -> Unit, onError: (String) -> Unit) {
         viewModelScope.launch {
+            val dir = withContext(Dispatchers.IO) { container.folderLink.toFolder(treeUri) }
+            if (dir == null) {
+                onError(
+                    "that location is not a folder on this device's storage — " +
+                        "pick from Downloads or the internal storage view",
+                )
+            } else {
+                useFolder(dir, onReady, onError)
+            }
+        }
+    }
+
+    /** R4A: where R4A's own folder picker starts (internal shared storage). */
+    val storageRoot: File get() = android.os.Environment.getExternalStorageDirectory()
+
+    /**
+     * R4A: same checks as [linkFolder] for a folder chosen in R4A's own
+     * picker (no system picker involved).
+     */
+    fun useFolder(folder: File, onReady: (File) -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    val dir = container.folderLink.toFolder(treeUri)
-                        ?: throw IOException(
-                            "that location is not a folder on this device's storage — " +
-                                "pick from Downloads or the internal storage view",
-                        )
+                    val dir = folder
                     if (!dir.isDirectory) throw IOException("'${dir.name}' is not a folder")
                     if (!dir.canRead()) {
                         throw IOException("cannot read '${dir.path}' — storage permission missing")

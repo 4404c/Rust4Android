@@ -410,71 +410,84 @@ fun EditorScreen(
                             )
                         }
                     }
-                    // R4A: project tools (moved here from the top bar)
+                    // R4A: project tools (moved here from the top bar). Each
+                    // group is a Column with one fixed gap between rows, so
+                    // the spacing stays even whether or not Export shows up.
+                    val rowMod = Modifier.padding(horizontal = 12.dp).height(40.dp)
                     androidx.compose.material3.HorizontalDivider()
-                    androidx.compose.material3.NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.editor_deps), fontSize = 12.sp) },
-                        icon = { Icon(RdIcons.Package, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        selected = false,
-                        onClick = {
-                            drawerScope.launch { drawerState.close() }
-                            onOpenDeps(projectName)
-                        },
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp).height(40.dp),
-                    )
-                    androidx.compose.material3.NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.terminal_title), fontSize = 12.sp) },
-                        icon = { Icon(RdIcons.Console, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        selected = false,
-                        onClick = {
-                            drawerScope.launch { drawerState.close() }
-                            // the session starts IN this project's directory
-                            onOpenTerminal(projectName)
-                        },
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(40.dp),
-                    )
-                    // R4A: games can be exported as an installable APK
-                    if (isGame) {
+                    Column(
+                        Modifier.padding(vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        // games can be exported as an installable APK
+                        if (isGame) {
+                            androidx.compose.material3.NavigationDrawerItem(
+                                label = { Text(stringResource(R.string.export_apk_title), fontSize = 12.sp) },
+                                icon = { Icon(RdIcons.Android, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                selected = false,
+                                onClick = {
+                                    drawerScope.launch { drawerState.close() }
+                                    showExport = true
+                                },
+                                modifier = rowMod,
+                            )
+                        }
                         androidx.compose.material3.NavigationDrawerItem(
-                            label = { Text(stringResource(R.string.export_apk_title), fontSize = 12.sp) },
-                            icon = { Icon(RdIcons.Android, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            label = { Text(stringResource(R.string.editor_deps), fontSize = 12.sp) },
+                            icon = { Icon(RdIcons.Package, contentDescription = null, modifier = Modifier.size(18.dp)) },
                             selected = false,
                             onClick = {
                                 drawerScope.launch { drawerState.close() }
-                                showExport = true
+                                onOpenDeps(projectName)
                             },
-                            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(40.dp),
+                            modifier = rowMod,
+                        )
+                        androidx.compose.material3.NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.terminal_title), fontSize = 12.sp) },
+                            icon = { Icon(RdIcons.Console, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            selected = false,
+                            onClick = {
+                                drawerScope.launch { drawerState.close() }
+                                // the session starts IN this project's directory
+                                onOpenTerminal(projectName)
+                            },
+                            modifier = rowMod,
                         )
                     }
                     // R4A: project actions pinned to the bottom of the drawer
                     androidx.compose.material3.HorizontalDivider(Modifier.padding(horizontal = 24.dp))
-                    androidx.compose.material3.NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.common_settings), fontSize = 12.sp) },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        selected = false,
-                        onClick = {
-                            drawerScope.launch { drawerState.close() }
-                            onOpenSettings()
-                        },
-                        // R4A: compact rows (Material default is 56dp each)
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp).height(40.dp),
-                    )
-                    androidx.compose.material3.NavigationDrawerItem(
-                        label = { Text(stringResource(R.string.editor_exit_project), fontSize = 12.sp) },
-                        icon = {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        },
-                        selected = false,
-                        onClick = {
-                            drawerScope.launch { drawerState.close() }
-                            requestExit()
-                        },
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp).height(40.dp),
-                    )
+                    Column(
+                        Modifier.padding(top = 6.dp, bottom = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        androidx.compose.material3.NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.common_settings), fontSize = 12.sp) },
+                            icon = { Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                            selected = false,
+                            onClick = {
+                                drawerScope.launch { drawerState.close() }
+                                onOpenSettings()
+                            },
+                            // compact rows (Material default is 56dp each)
+                            modifier = rowMod,
+                        )
+                        androidx.compose.material3.NavigationDrawerItem(
+                            label = { Text(stringResource(R.string.editor_exit_project), fontSize = 12.sp) },
+                            icon = {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ExitToApp,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            selected = false,
+                            onClick = {
+                                drawerScope.launch { drawerState.close() }
+                                requestExit()
+                            },
+                            modifier = rowMod,
+                        )
+                    }
                 }
             }
         },

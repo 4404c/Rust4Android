@@ -282,4 +282,10 @@
     <string name="files_path">Ruta en el proyecto</string>
     <string name="files_apply">Aplicar</string>
     <string name="vm_editor_cannot_move">no se pudo mover %1$s</string>
+    <string name="folders_title">Elegir carpeta</string>
+    <string name="folders_storage">Almacenamiento</string>
+    <string name="folders_up">Carpeta de arriba</string>
+    <string name="folders_empty">No hay carpetas acá.</string>
+    <string name="folders_new">Nueva carpeta</string>
+    <string name="folders_use_this">Usar esta carpeta</string>
 </resources>

@@ -79,42 +79,44 @@ fun HomeScreen(
     var renameTarget by remember { mutableStateOf<ProjectSummary?>(null) }
     var folderCandidate by remember { mutableStateOf<File?>(null) }
     var adopting by remember { mutableStateOf(false) }
+    var showFolderPicker by remember { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.refresh() }
 
     // ---- open folder in place ----
     // Permission first (legacy storage model at targetSdk 28 — see
-    // build.gradle.kts), then the system folder picker; the picked tree
-    // is translated to a real path and validated by the VM.
-    val folderPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            vm.linkFolder(
-                uri,
-                onReady = { folderCandidate = it },
-                onError = { vm.reportError(it) },
-            )
-        }
-    }
+    // build.gradle.kts), then R4A's own folder picker (FolderPickerDialog):
+    // the system one refused ordinary folders on some phones.
     val storageRequiredMsg = stringResource(R.string.home_storage_required)
     val genericFailedMsg = stringResource(R.string.common_failed)
     val storagePermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            folderPicker.launch(null)
+            showFolderPicker = true
         } else {
             vm.reportError(
                 storageRequiredMsg,
             )
         }
     }
+    // R4A: R4A's own folder picker (the system one refuses some folders
+    // "to protect your privacy"); the system picker stays as a fallback
     val openFolderPicker = {
         when (val perm = vm.storagePermissionToRequest()) {
-            null -> folderPicker.launch(null)
+            null -> showFolderPicker = true
             else -> storagePermission.launch(perm)
         }
+    }
+    if (showFolderPicker) {
+        FolderPickerDialog(
+            root = vm.storageRoot,
+            onPick = { dir ->
+                showFolderPicker = false
+                vm.useFolder(dir, onReady = { folderCandidate = it }, onError = { vm.reportError(it) })
+            },
+            onDismiss = { showFolderPicker = false },
+        )
     }
 
     Scaffold(
@@ -309,16 +311,15 @@ private fun ProjectCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (project.external) {
-                    // opened in place: show where it lives on storage
-                    Text(
-                        project.dir.parent ?: project.dir.path,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                // R4A: every project shows where it lives (folders opened in
+                // place AND projects inside R4A's own storage)
+                Text(
+                    project.dir.path,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             if (!project.external) {
                 IconButton(onClick = onRename) {
