@@ -5,6 +5,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.Font
+import dev.rustdroid.ide.R
+
+/** R4A: Press Start 2P (OFL), la letra pixel del globo de Ferrdroid. */
+val PixelFamily = FontFamily(Font(R.font.press_start_2p, FontWeight.Normal))
+
 
 val AppTypography = Typography(
     headlineSmall = TextStyle(

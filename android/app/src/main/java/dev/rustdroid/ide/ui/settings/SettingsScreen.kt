@@ -343,6 +343,8 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
     val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
+    val ferrdroidVisible by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsState()
+    val ferrdroidSound by dev.rustdroid.ide.util.AppSettings.ferrdroidSound.collectAsState()
     Card {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
@@ -358,6 +360,18 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
                 description = stringResource(R.string.settings_live_check_desc),
                 checked = liveCheck,
             ) { dev.rustdroid.ide.util.AppSettings.setLiveCheck(context, it) }
+            SwitchRow(
+                title = stringResource(R.string.settings_ferrdroid),
+                description = stringResource(R.string.settings_ferrdroid_desc),
+                checked = ferrdroidVisible,
+            ) { dev.rustdroid.ide.util.AppSettings.setFerrdroidVisible(context, it) }
+            if (ferrdroidVisible) {
+                SwitchRow(
+                    title = stringResource(R.string.settings_ferrdroid_sound),
+                    description = stringResource(R.string.settings_ferrdroid_sound_desc),
+                    checked = ferrdroidSound,
+                ) { dev.rustdroid.ide.util.AppSettings.setFerrdroidSound(context, it) }
+            }
         }
     }
 }

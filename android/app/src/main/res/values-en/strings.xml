@@ -284,4 +284,30 @@
     <string name="folders_empty">No folders here.</string>
     <string name="folders_new">New folder</string>
     <string name="folders_use_this">Use this folder</string>
+    <!-- R4A: Ferrdroid, the mascot -->
+    <string name="ferrdroid_cd">Ferrdroid</string>
+    <string name="settings_ferrdroid">Show Ferrdroid</string>
+    <string name="settings_ferrdroid_desc">The home screen mascot: talks, looks around and falls asleep if you don\'t touch anything.</string>
+    <string name="settings_ferrdroid_sound">Talking sound</string>
+    <string name="settings_ferrdroid_sound_desc">A \"blip\" for every letter Ferrdroid says.</string>
+    <string name="ferrdroid_morning">Good morning! What are we coding today?</string>
+    <string name="ferrdroid_afternoon">Good afternoon! Shall we keep going?</string>
+    <string name="ferrdroid_night">Good evening! A bit of Rust and off to bed.</string>
+    <string name="ferrdroid_empty">No projects yet. Tap New project and let\'s get started.</string>
+    <string name="ferrdroid_created">Project created! Tap it to open it.</string>
+    <string-array name="ferrdroid_tips">
+        <item>Hi! I\'m Ferrdroid.</item>
+        <item>Long-press a file to rename or delete it.</item>
+        <item>Use the editor\'s magnifier to find and replace text.</item>
+        <item>With macroquad you can make games and export them as APKs.</item>
+        <item>You can change the code colors in Settings.</item>
+        <item>Each project has a terminal button that opens one right there.</item>
+        <item>If you stay still for a while, I fall asleep. Zzz…</item>
+        <item>That tickles!</item>
+    </string-array>
+    <string-array name="ferrdroid_wake">
+        <item>Oops! I fell asleep…</item>
+        <item>I\'m awake! I was compiling a dream.</item>
+        <item>Hmm… what time is it?</item>
+    </string-array>
 </resources>

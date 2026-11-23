@@ -56,5 +56,12 @@
     "file": "Apache-2.0.txt",
     "url": "https://developer.android.com/jetpack/androidx",
     "pin": "see android/gradle/libs.versions.toml"
+  },
+  {
+    "component": "Press Start 2P (fuente del globo de Ferrdroid)",
+    "license": "OFL-1.1",
+    "file": "press-start-2p-OFL-1.1.txt",
+    "url": "https://github.com/google/fonts/tree/main/ofl/pressstart2p",
+    "pin": "google/fonts ofl/pressstart2p (archivo original sin modificar)"
   }
 ]

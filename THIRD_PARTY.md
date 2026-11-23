@@ -19,6 +19,7 @@ The companion plan for the Phase 4 additions is
 | XZ for Java | Public Domain (0BSD) | Maven 1.10 | tar.xz extraction |
 | tomlj | MIT | Maven 1.1.1 | Cargo.toml parsing |
 | Mozilla CA root store | MPL-2.0 | `assets/ssl/cacert.pem` (from https://curl.se/ca/cacert.pem, periodically refreshed) | cargo TLS trust |
+| Press Start 2P | OFL-1.1 (Reserved Font Name "Press Start 2P") | google/fonts `ofl/pressstart2p`, shipped unmodified | `res/font/press_start_2p.ttf`, Ferrdroid's speech bubble |
 
 Test-only (not shipped): JUnit 4 (EPL-2.0).
 

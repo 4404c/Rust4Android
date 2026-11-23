@@ -55,6 +55,7 @@ import dev.rustdroid.ide.projects.RsImport
 import dev.rustdroid.ide.ui.components.ConfirmDialog
 import dev.rustdroid.ide.ui.components.EmptyState
 import dev.rustdroid.ide.ui.components.RdIcons
+import dev.rustdroid.ide.ui.components.ferrdroidActivity
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -82,6 +83,45 @@ fun HomeScreen(
     var showFolderPicker by remember { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.refresh() }
+
+    // ---- R4A: Ferrdroid, la mascota ----
+    val ferrdroidOn by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsState()
+    val ferrdroidSound by dev.rustdroid.ide.util.AppSettings.ferrdroidSound.collectAsState()
+    val ferrdroid = dev.rustdroid.ide.ui.components.rememberFerrdroidState()
+    val res = androidx.compose.ui.platform.LocalContext.current.resources
+    val tips = remember { res.getStringArray(R.array.ferrdroid_tips).toList() }
+    val wakeLines = remember { res.getStringArray(R.array.ferrdroid_wake).toList() }
+    val createdMsg = stringResource(R.string.ferrdroid_created)
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        // saluda una vez por sesión de la app; sin proyectos, explica cómo empezar
+        kotlinx.coroutines.delay(400)
+        if (projects.isEmpty()) {
+            ferrdroid.say(res.getString(R.string.ferrdroid_empty))
+        } else if (!FerrdroidGreeting.done) {
+            val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+            ferrdroid.say(
+                res.getString(
+                    when (hour) {
+                        in 6..12 -> R.string.ferrdroid_morning
+                        in 13..19 -> R.string.ferrdroid_afternoon
+                        else -> R.string.ferrdroid_night
+                    },
+                ),
+            )
+        }
+        FerrdroidGreeting.done = true
+    }
+    val ferrdroidHeader: @Composable () -> Unit = {
+        if (ferrdroidOn) {
+            dev.rustdroid.ide.ui.components.Ferrdroid(
+                state = ferrdroid,
+                tips = tips,
+                wakeLines = wakeLines,
+                soundOn = ferrdroidSound,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
+    }
 
     // ---- open folder in place ----
     // Permission first (legacy storage model at targetSdk 28 — see
@@ -120,6 +160,7 @@ fun HomeScreen(
     }
 
     Scaffold(
+        modifier = Modifier.ferrdroidActivity(ferrdroid),
         topBar = {
             TopAppBar(
                 title = {
@@ -130,9 +171,6 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = openFolderPicker) {
-                        Icon(RdIcons.FolderOpen, contentDescription = stringResource(R.string.home_open_folder_cd))
-                    }
                     // v0.2: the terminal moved OUT of the Home toolbar and
                     // ONTO each project card (plus the editor toolbar) — it
                     // is a per-project tool, not a global menu entry.
@@ -143,7 +181,16 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            if (!creating) {
+            if (!creating) Row(verticalAlignment = Alignment.CenterVertically) {
+                // R4A: abrir carpeta, abajo junto a Nuevo proyecto
+                androidx.compose.material3.SmallFloatingActionButton(
+                    onClick = openFolderPicker,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ) {
+                    Icon(RdIcons.FolderOpen, contentDescription = stringResource(R.string.home_open_folder_cd))
+                }
+                Spacer(Modifier.width(12.dp))
                 ExtendedFloatingActionButton(
                     onClick = { showNewDialog = true },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -156,7 +203,9 @@ fun HomeScreen(
         },
     ) { padding ->
         if (projects.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.padding(horizontal = 16.dp)) { ferrdroidHeader() }
+            Box(Modifier.fillMaxWidth().weight(1f)) {
                 Column(
                     Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -174,12 +223,14 @@ fun HomeScreen(
                     }
                 }
             }
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                item(key = "ferrdroid") { ferrdroidHeader() }
                 items(projects, key = { it.dir.absolutePath }) { project ->
                     ProjectCard(
                         project = project,
@@ -203,7 +254,11 @@ fun HomeScreen(
             log = createLog,
             onCreate = { name, isLib, game ->
                 vm.create(name, isLib, game) { ok ->
-                    if (ok) showNewDialog = false
+                    if (ok) {
+                        showNewDialog = false
+                        ferrdroid.cheer(2500)
+                        ferrdroid.say(createdMsg)
+                    }
                 }
             },
             onDismiss = { if (!creating) showNewDialog = false },
@@ -510,3 +565,6 @@ private fun RenameDialog(initial: String, onRename: (String) -> Unit, onDismiss:
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
 }
+
+/** R4A: Ferrdroid saluda una sola vez por sesión de la app (no cada vez que volvés al inicio). */
+private object FerrdroidGreeting { var done = false }

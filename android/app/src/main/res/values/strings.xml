@@ -288,4 +288,30 @@
     <string name="folders_empty">No hay carpetas acá.</string>
     <string name="folders_new">Nueva carpeta</string>
     <string name="folders_use_this">Usar esta carpeta</string>
+    <!-- R4A: Ferrdroid, la mascota -->
+    <string name="ferrdroid_cd">Ferrdroid</string>
+    <string name="settings_ferrdroid">Mostrar a Ferrdroid</string>
+    <string name="settings_ferrdroid_desc">La mascota del inicio: habla, mira a los lados y se duerme si no tocás nada.</string>
+    <string name="settings_ferrdroid_sound">Sonido al hablar</string>
+    <string name="settings_ferrdroid_sound_desc">Un \"blip\" por cada letra que dice Ferrdroid.</string>
+    <string name="ferrdroid_morning">¡Buen día! ¿Qué programamos hoy?</string>
+    <string name="ferrdroid_afternoon">¡Buenas tardes! ¿Seguimos con algo?</string>
+    <string name="ferrdroid_night">¡Buenas noches! Un rato de Rust y a dormir.</string>
+    <string name="ferrdroid_empty">Todavía no tenés proyectos. Tocá Nuevo proyecto y arrancamos.</string>
+    <string name="ferrdroid_created">¡Proyecto creado! Tocalo para abrirlo.</string>
+    <string-array name="ferrdroid_tips">
+        <item>¡Hola! Soy Ferrdroid.</item>
+        <item>Mantené apretado un archivo para renombrarlo o borrarlo.</item>
+        <item>Con la lupa del editor buscás y reemplazás texto.</item>
+        <item>Con macroquad podés hacer juegos y exportarlos como APK.</item>
+        <item>En Opciones podés cambiar los colores del código.</item>
+        <item>Cada proyecto tiene su botón de terminal, que la abre ahí mismo.</item>
+        <item>Si te quedás quieto un rato, me duermo. Zzz…</item>
+        <item>¡Eso me hizo cosquillas!</item>
+    </string-array>
+    <string-array name="ferrdroid_wake">
+        <item>¡Uy! Me dormí…</item>
+        <item>¡Estoy despierto! Estaba compilando un sueño.</item>
+        <item>Mmm… ¿qué hora es?</item>
+    </string-array>
 </resources>
