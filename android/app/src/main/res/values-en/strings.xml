@@ -103,6 +103,11 @@
     <string name="editor_files">Files</string>
     <string name="editor_new_file">New file</string>
     <string name="editor_new_folder">New folder</string>
+    <string name="editor_import_files">Import files…</string>
+    <string name="editor_import_title">Which folder do the %1$d files go to?</string>
+    <string name="editor_import_root">Project root</string>
+    <string name="editor_import_done">Copied %1$d files into %2$s</string>
+    <string name="editor_import_partial">Copied %1$d; could not copy: %2$s</string>
     <string name="editor_new_item">New file or folder</string>
     <string name="editor_new_folder_hint">Path relative to the project root, for example assets or src/game</string>
     <string name="editor_folder_name">Folder name</string>

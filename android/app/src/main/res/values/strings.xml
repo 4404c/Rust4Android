@@ -107,6 +107,11 @@
     <string name="editor_files">Files</string>
     <string name="editor_new_file">New file</string>
     <string name="editor_new_folder">New folder</string>
+    <string name="editor_import_files">Importar archivos…</string>
+    <string name="editor_import_title">¿A qué carpeta van los %1$d archivos?</string>
+    <string name="editor_import_root">Raíz del proyecto</string>
+    <string name="editor_import_done">Se copiaron %1$d archivos en %2$s</string>
+    <string name="editor_import_partial">Se copiaron %1$d; no se pudieron copiar: %2$s</string>
     <string name="editor_new_item">Nuevo archivo o carpeta</string>
     <string name="editor_new_folder_hint">Ruta relativa a la raíz del proyecto, por ejemplo assets o src/juego</string>
     <string name="editor_folder_name">Nombre de la carpeta</string>

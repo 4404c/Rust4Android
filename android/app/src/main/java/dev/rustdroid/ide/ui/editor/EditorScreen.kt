@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
@@ -204,6 +205,11 @@ fun EditorScreen(
     // R4A: el + pregunta: archivo o carpeta
     var newIsFolder by remember { mutableStateOf(false) }
     var newMenuOpen by remember { mutableStateOf(false) }
+    // R4A: importar archivos del teléfono → elegir carpeta del proyecto
+    var pendingImport by remember { mutableStateOf<List<android.net.Uri>?>(null) }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris -> if (uris.isNotEmpty()) pendingImport = uris }
 
     // delete-file dialog state: the row long-press picks the target; the
     // VM's one-shot deletedFile closes the dialog, deleteFileError shows
@@ -442,6 +448,11 @@ fun EditorScreen(
                                     text = { Text(stringResource(R.string.editor_new_folder)) },
                                     leadingIcon = { Icon(RdIcons.Folder, null) },
                                     onClick = { newMenuOpen = false; newIsFolder = true; showNewFile = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.editor_import_files)) },
+                                    leadingIcon = { Icon(Icons.Filled.Add, null) },
+                                    onClick = { newMenuOpen = false; importLauncher.launch(arrayOf("*/*")) },
                                 )
                             }
                         }
@@ -940,6 +951,22 @@ fun EditorScreen(
                     }) { Text(stringResource(R.string.editor_dont_save)) }
                 }
             },
+        )
+    }
+
+    pendingImport?.let { uris ->
+        ImportFolderDialog(
+            count = uris.size,
+            folders = listOf("") + tree.filter { it.isDirectory }.map { it.relativePath },
+            onPick = { folder ->
+                pendingImport = null
+                vm.importFiles(uris, folder) { copied, failed ->
+                    val msg = if (failed.isEmpty()) appContext.getString(R.string.editor_import_done, copied, folder.ifBlank { "/" })
+                    else appContext.getString(R.string.editor_import_partial, copied, failed.joinToString(", "))
+                    android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_LONG).show()
+                }
+            },
+            onDismiss = { pendingImport = null },
         )
     }
 
@@ -1545,4 +1572,42 @@ private fun showGame(context: android.content.Context, launch: EditorViewModel.G
         context, R.anim.r4a_slide_in_right, R.anim.r4a_slide_out_left,
     )
     context.startActivity(intent, slide.toBundle())
+}
+
+
+/** R4A: a qué carpeta del proyecto van los archivos importados. */
+@Composable
+private fun ImportFolderDialog(
+    count: Int,
+    folders: List<String>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.editor_import_title, count)) },
+        text = {
+            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                items(folders.size) { i ->
+                    val f = folders[i]
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable { onPick(f) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(RdIcons.Folder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            if (f.isEmpty()) stringResource(R.string.editor_import_root) else f,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }

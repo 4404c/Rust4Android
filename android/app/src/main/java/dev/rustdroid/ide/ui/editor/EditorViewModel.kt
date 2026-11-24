@@ -331,6 +331,45 @@ class EditorViewModel(
      * in a new tab. Path safety lives in the repository (Fs.resolveChild);
      * existing files are never overwritten.
      */
+    /**
+     * R4A: copia archivos del teléfono (elegidos con el selector de Android)
+     * a [folder] del proyecto ("" = raíz). Si ya existe uno con el mismo
+     * nombre, se agrega " (2)", " (3)"… — nunca se pisa nada.
+     * Devuelve por [onDone] cuántos se copiaron y cuáles fallaron.
+     */
+    fun importFiles(uris: List<android.net.Uri>, folder: String, onDone: (Int, List<String>) -> Unit) {
+        viewModelScope.launch {
+            val failed = ArrayList<String>()
+            var copied = 0
+            withContext(Dispatchers.IO) {
+                val cr = container.context.contentResolver
+                val dir = if (folder.isBlank()) projectDir else dev.rustdroid.ide.util.Fs.resolveChild(projectDir, folder.trim('/'))
+                dir.mkdirs()
+                for (uri in uris) {
+                    val name = runCatching {
+                        cr.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                            if (c.moveToFirst()) c.getString(0) else null
+                        }
+                    }.getOrNull()?.replace('/', '_')?.takeIf { it.isNotBlank() } ?: (uri.lastPathSegment?.substringAfterLast('/') ?: "archivo")
+                    runCatching {
+                        var dest = File(dir, name)
+                        var n = 2
+                        while (dest.exists()) {
+                            val base = name.substringBeforeLast('.', name)
+                            val ext = name.substringAfterLast('.', "").let { if (it.isEmpty() || it == name) "" else ".$it" }
+                            dest = File(dir, "$base ($n)$ext"); n++
+                        }
+                        cr.openInputStream(uri)?.use { input -> dest.outputStream().use { input.copyTo(it) } }
+                            ?: error("no se pudo leer")
+                        copied++
+                    }.onFailure { failed += name }
+                }
+            }
+            refreshTree()
+            onDone(copied, failed)
+        }
+    }
+
     fun createFile(relativePath: String, folder: Boolean = false) {
         viewModelScope.launch {
             val rel = relativePath.trim()
