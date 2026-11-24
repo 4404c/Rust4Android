@@ -1,8 +1,6 @@
 package dev.rustdroid.ide.ui.components
 
 import android.content.Context
-import android.media.AudioAttributes
-import android.media.SoundPool
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
@@ -136,21 +134,6 @@ private fun animationsOff(context: Context): Boolean =
         context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
     ) == 0f
 
-/** "Blip" por letra (opcional, Opciones → Apariencia). */
-private class Blipper(context: Context) {
-    private val pool = SoundPool.Builder()
-        .setMaxStreams(2)
-        .setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build(),
-        ).build()
-    private val sound = pool.load(context, R.raw.ferrdroid_blip, 1)
-    fun play() { pool.play(sound, 0.35f, 0.35f, 0, 0, Random.nextDouble(0.9, 1.15).toFloat()) }
-    fun release() = pool.release()
-}
-
 /**
  * Ferrdroid con su globo a la derecha. Tocarlo lo pone contento y le hace
  * decir uno de [tips]. Dormido, cualquier toque lo despierta con [wakeLines].
@@ -160,7 +143,6 @@ fun Ferrdroid(
     state: FerrdroidState,
     tips: List<String>,
     wakeLines: List<String>,
-    soundOn: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -174,9 +156,6 @@ fun Ferrdroid(
     var look by remember { mutableStateOf(Look.CENTER) }
     var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     state.wakeText = remember(wakeLines) { wakeLines.randomOrNull().orEmpty() }
-
-    val blipper = remember(soundOn) { if (soundOn) Blipper(context) else null }
-    DisposableEffect(blipper) { onDispose { blipper?.release() } }
 
     // reloj: se duerme tras un rato sin actividad; el globo se esconde solo
     LaunchedEffect(Unit) {
@@ -231,7 +210,6 @@ fun Ferrdroid(
                 shown += ch
                 if (ch.isLetterOrDigit()) {
                     hop = true
-                    blipper?.play()
                     delay(45)
                     hop = false
                     delay(15)

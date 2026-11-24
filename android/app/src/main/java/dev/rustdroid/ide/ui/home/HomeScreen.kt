@@ -86,7 +86,6 @@ fun HomeScreen(
 
     // ---- R4A: Ferrdroid, la mascota ----
     val ferrdroidOn by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsState()
-    val ferrdroidSound by dev.rustdroid.ide.util.AppSettings.ferrdroidSound.collectAsState()
     val ferrdroid = dev.rustdroid.ide.ui.components.rememberFerrdroidState()
     val res = androidx.compose.ui.platform.LocalContext.current.resources
     val tips = remember { res.getStringArray(R.array.ferrdroid_tips).toList() }
@@ -117,7 +116,6 @@ fun HomeScreen(
                 state = ferrdroid,
                 tips = tips,
                 wakeLines = wakeLines,
-                soundOn = ferrdroidSound,
                 modifier = Modifier.padding(bottom = 6.dp),
             )
         }
@@ -168,6 +166,8 @@ fun HomeScreen(
                         "R4A",
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontFamily = dev.rustdroid.ide.ui.theme.TitleFamily,
+                        fontSize = androidx.compose.ui.unit.TextUnit(30f, androidx.compose.ui.unit.TextUnitType.Sp),
                     )
                 },
                 actions = {

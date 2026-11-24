@@ -346,6 +346,16 @@ class ProjectRepository(
         return file
     }
 
+    /** R4A: crea una carpeta vacía (y las de arriba) dentro del proyecto. */
+    fun createFolder(projectDir: File, relativePath: String): File {
+        val rel = relativePath.trim().trimEnd('/')
+        if (rel.isEmpty()) throw IOException("folder name is empty")
+        val dir = Fs.resolveChild(projectDir, rel)
+        if (dir.exists()) throw IOException("'$rel' already exists")
+        if (!dir.mkdirs()) throw IOException("could not create '$rel'")
+        return dir
+    }
+
     /**
      * Deletes a file — or a whole directory tree — at [relativePath] inside
      * [projectDir]. Same safety envelope as [createFile]: traversal/escape

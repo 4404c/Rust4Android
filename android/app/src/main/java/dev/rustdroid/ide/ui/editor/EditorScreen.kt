@@ -188,7 +188,6 @@ fun EditorScreen(
     val showFileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
     val jump by vm.jump.collectAsState()
     val showCloseConfirm by vm.showCloseConfirm.collectAsState()
-    val allFiles by vm.treeAllFiles.collectAsState()
     val consoleLines by vm.console.lines.collectAsState()
 
     // new-file dialog state: name lives locally; success/error come from the
@@ -196,6 +195,9 @@ fun EditorScreen(
     val createdFile by vm.createdFile.collectAsState()
     val createFileError by vm.createFileError.collectAsState()
     var showNewFile by remember { mutableStateOf(false) }
+    // R4A: el + pregunta: archivo o carpeta
+    var newIsFolder by remember { mutableStateOf(false) }
+    var newMenuOpen by remember { mutableStateOf(false) }
 
     // delete-file dialog state: the row long-press picks the target; the
     // VM's one-shot deletedFile closes the dialog, deleteFileError shows
@@ -401,20 +403,30 @@ fun EditorScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.editor_files), style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.weight(1f))
-                        IconButton(
-                            onClick = { showNewFile = true },
-                            modifier = Modifier.size(32.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.Add,
-                                contentDescription = stringResource(R.string.editor_new_file),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(4.dp))
-                        TextButton(onClick = { vm.toggleAllFiles() }) {
-                            Text(if (allFiles) stringResource(R.string.editor_sources) else stringResource(R.string.editor_all_files))
+                        Box {
+                            IconButton(
+                                onClick = { newMenuOpen = true },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = stringResource(R.string.editor_new_item),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                            DropdownMenu(expanded = newMenuOpen, onDismissRequest = { newMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.editor_new_file)) },
+                                    leadingIcon = { Icon(RdIcons.FileGeneric, null) },
+                                    onClick = { newMenuOpen = false; newIsFolder = false; showNewFile = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.editor_new_folder)) },
+                                    leadingIcon = { Icon(RdIcons.Folder, null) },
+                                    onClick = { newMenuOpen = false; newIsFolder = true; showNewFile = true },
+                                )
+                            }
                         }
                     }
                     // R4A: tree-style guides + collapsible folders
@@ -916,8 +928,9 @@ fun EditorScreen(
 
     if (showNewFile) {
         NewFileDialog(
+            folder = newIsFolder,
             error = createFileError,
-            onCreate = { vm.createFile(it) },
+            onCreate = { vm.createFile(it, folder = newIsFolder) },
             onDismiss = {
                 vm.clearNewFileSignals()
                 showNewFile = false
@@ -966,6 +979,7 @@ fun EditorScreen(
  */
 @Composable
 private fun NewFileDialog(
+    folder: Boolean = false,
     error: String?,
     onCreate: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -974,11 +988,11 @@ private fun NewFileDialog(
     val trimmed = name.trim()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.editor_new_file)) },
+        title = { Text(stringResource(if (folder) R.string.editor_new_folder else R.string.editor_new_file)) },
         text = {
             Column {
                 Text(
-                    stringResource(R.string.editor_new_file_hint),
+                    stringResource(if (folder) R.string.editor_new_folder_hint else R.string.editor_new_file_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -987,7 +1001,7 @@ private fun NewFileDialog(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    label = { Text(stringResource(R.string.editor_file_name)) },
+                    label = { Text(stringResource(if (folder) R.string.editor_folder_name else R.string.editor_file_name)) },
                     isError = error != null,
                     supportingText = if (error != null) {
                         { Text(error, color = MaterialTheme.colorScheme.error) }

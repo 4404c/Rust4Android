@@ -24,7 +24,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +64,8 @@ fun ChatPanel(
 ) {
     val messages by vm.messages.collectAsState()
     val busy by vm.busy.collectAsState()
-    val config by AiSettings.config.collectAsState()
+    val aiState by AiSettings.state.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val listState = rememberLazyListState()
 
     // seguir el final mientras llega texto
@@ -75,14 +80,43 @@ fun ChatPanel(
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                if (config.ready) "${config.provider.label} · ${config.model}"
-                else stringResource(R.string.ai_chat_not_ready),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                modifier = Modifier.weight(1f),
-            )
+            // tocar el nombre → elegir otra API key guardada
+            val active = aiState.active
+            var pickerOpen by remember { mutableStateOf(false) }
+            Box(Modifier.weight(1f)) {
+                Text(
+                    if (active?.ready == true) "${active.name} · ${active.model}  ▾"
+                    else stringResource(R.string.ai_chat_not_ready),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clickable(enabled = !busy && aiState.connections.size > 1) { pickerOpen = true }
+                        .padding(vertical = 6.dp),
+                )
+                DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+                    aiState.connections.forEach { c ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(c.name, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        "${c.provider.label} · ${c.model.ifBlank { stringResource(R.string.ai_settings_model_none) }}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            leadingIcon = { RadioButton(selected = c.id == active?.id, onClick = null) },
+                            onClick = {
+                                AiSettings.setActive(context, c.id)
+                                pickerOpen = false
+                            },
+                        )
+                    }
+                }
+            }
             if (busy) {
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))

@@ -7,18 +7,23 @@ import android.util.Base64
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONArray
+import org.json.JSONObject
 import java.security.KeyStore
+import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * R4A: ajustes de la IA (proveedor, modelo y API key).
+ * R4A: ajustes de la IA. El usuario guarda varias API keys ("conexiones"),
+ * cada una con un nombre, su proveedor y el modelo elegido; una está activa
+ * y es la que usa el Chat.
  *
  * Todos los proveedores hablan el formato "compatible con OpenAI"
  * (/models y /chat/completions), así que solo cambia la URL base.
- * La API key se guarda cifrada con una clave del Android Keystore: nunca
+ * Cada API key se guarda cifrada con una clave del Android Keystore: nunca
  * queda en texto plano en las preferencias.
  */
 object AiSettings {
@@ -28,78 +33,144 @@ object AiSettings {
         OPENROUTER("OpenRouter", "https://openrouter.ai/api/v1", "https://openrouter.ai/keys"),
         GEMINI("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "https://aistudio.google.com/apikey"),
         OPENAI("OpenAI", "https://api.openai.com/v1", "https://platform.openai.com/api-keys"),
-        CUSTOM("Otro (URL propia)", "", null),
+        CUSTOM("URL propia", "", null),
     }
 
-    data class Config(
+    /** Una API key guardada. La clave en sí no está acá: ver [apiKey]. */
+    data class Connection(
+        val id: String,
+        val name: String,
         val provider: Provider,
         val customUrl: String,
         val model: String,
-        val hasKey: Boolean,
     ) {
         val baseUrl: String get() =
             (if (provider == Provider.CUSTOM) customUrl else provider.baseUrl).trim().trimEnd('/')
-        val ready: Boolean get() = hasKey && model.isNotBlank() && baseUrl.isNotBlank()
+        val ready: Boolean get() = model.isNotBlank() && baseUrl.isNotBlank()
+    }
+
+    data class State(val connections: List<Connection>, val activeId: String?) {
+        val active: Connection? get() =
+            connections.firstOrNull { it.id == activeId } ?: connections.firstOrNull()
     }
 
     private const val PREFS = "r4a_ai"
     private const val KEYSTORE_ALIAS = "r4a_ai_api_key"
 
-    private val _config = MutableStateFlow(Config(Provider.GROQ, "", "", false))
-    val config: StateFlow<Config> = _config.asStateFlow()
+    private val _state = MutableStateFlow(State(emptyList(), null))
+    val state: StateFlow<State> = _state.asStateFlow()
 
     /** Llamar una vez al arrancar la app (RustDroidApp.onCreate). */
     fun init(context: Context) {
         val p = prefs(context)
-        val provider = p.getString("provider", null)
-            ?.let { name -> Provider.entries.firstOrNull { it.name == name } } ?: Provider.GROQ
-        _config.value = Config(
+        if (!p.contains("connections")) migrateSingleKeys(context)
+        val list = runCatching { parse(p.getString("connections", "[]") ?: "[]") }.getOrDefault(emptyList())
+        _state.value = State(list, p.getString("active_id", null))
+    }
+
+    fun add(context: Context, name: String, provider: Provider, customUrl: String, key: String): Connection {
+        val c = Connection(
+            id = UUID.randomUUID().toString(),
+            name = name.trim().ifBlank { provider.label },
             provider = provider,
-            customUrl = p.getString("custom_url", "") ?: "",
-            model = p.getString(modelKey(provider), "") ?: "",
-            hasKey = p.contains(keyPref(provider)),
+            customUrl = customUrl.trim(),
+            model = "",
         )
+        prefs(context).edit().putString(keyPref(c.id), encrypt(key.trim())).apply()
+        save(context, State(_state.value.connections + c, c.id))
+        return c
     }
 
-    fun setProvider(context: Context, provider: Provider) {
-        val p = prefs(context)
-        p.edit().putString("provider", provider.name).apply()
-        // cada proveedor recuerda su propia clave y su modelo
-        _config.value = _config.value.copy(
-            provider = provider,
-            model = p.getString(modelKey(provider), "") ?: "",
-            hasKey = p.contains(keyPref(provider)),
-        )
-    }
+    fun rename(context: Context, id: String, name: String) =
+        update(context, id) { it.copy(name = name.trim().ifBlank { it.provider.label }) }
 
-    fun setCustomUrl(context: Context, url: String) {
-        prefs(context).edit().putString("custom_url", url.trim()).apply()
-        _config.value = _config.value.copy(customUrl = url.trim())
-    }
+    fun setModel(context: Context, id: String, model: String) =
+        update(context, id) { it.copy(model = model) }
 
-    fun setModel(context: Context, model: String) {
-        prefs(context).edit().putString(modelKey(_config.value.provider), model).apply()
-        _config.value = _config.value.copy(model = model)
-    }
+    fun setActive(context: Context, id: String) =
+        save(context, _state.value.copy(activeId = id))
 
-    fun setApiKey(context: Context, key: String) {
-        val pref = keyPref(_config.value.provider)
-        if (key.isBlank()) {
-            prefs(context).edit().remove(pref).apply()
-            _config.value = _config.value.copy(hasKey = false)
-        } else {
-            prefs(context).edit().putString(pref, encrypt(key.trim())).apply()
-            _config.value = _config.value.copy(hasKey = true)
-        }
+    fun remove(context: Context, id: String) {
+        prefs(context).edit().remove(keyPref(id)).apply()
+        val rest = _state.value.connections.filterNot { it.id == id }
+        val active = _state.value.activeId.takeIf { it != id } ?: rest.firstOrNull()?.id
+        save(context, State(rest, active))
     }
 
     /** La clave descifrada, solo para armar la llamada HTTP. Nunca mostrarla. */
-    fun apiKey(context: Context): String? =
-        prefs(context).getString(keyPref(_config.value.provider), null)
+    fun apiKey(context: Context, id: String): String? =
+        prefs(context).getString(keyPref(id), null)
             ?.let { runCatching { decrypt(it) }.getOrNull() }
 
-    private fun modelKey(p: Provider) = "model_${p.name}"
-    private fun keyPref(p: Provider) = "key_${p.name}"
+    private fun update(context: Context, id: String, f: (Connection) -> Connection) =
+        save(context, _state.value.copy(connections = _state.value.connections.map { if (it.id == id) f(it) else it }))
+
+    private fun save(context: Context, s: State) {
+        val arr = JSONArray()
+        s.connections.forEach { c ->
+            arr.put(
+                JSONObject()
+                    .put("id", c.id)
+                    .put("name", c.name)
+                    .put("provider", c.provider.name)
+                    .put("custom_url", c.customUrl)
+                    .put("model", c.model),
+            )
+        }
+        prefs(context).edit()
+            .putString("connections", arr.toString())
+            .apply { if (s.activeId == null) remove("active_id") else putString("active_id", s.activeId) }
+            .apply()
+        _state.value = s
+    }
+
+    private fun parse(json: String): List<Connection> {
+        val arr = JSONArray(json)
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.getJSONObject(i)
+            val provider = Provider.entries.firstOrNull { it.name == o.optString("provider") } ?: return@mapNotNull null
+            Connection(
+                id = o.getString("id"),
+                name = o.optString("name", provider.label),
+                provider = provider,
+                customUrl = o.optString("custom_url", ""),
+                model = o.optString("model", ""),
+            )
+        }
+    }
+
+    /**
+     * Antes había una sola clave por proveedor (key_GROQ, model_GROQ…).
+     * Cada una pasa a ser una conexión con el nombre del proveedor.
+     */
+    private fun migrateSingleKeys(context: Context) {
+        val p = prefs(context)
+        val edit = p.edit()
+        val arr = JSONArray()
+        var activeId: String? = null
+        val oldActive = p.getString("provider", null)
+        Provider.entries.forEach { prov ->
+            val stored = p.getString("key_${prov.name}", null) ?: return@forEach
+            val id = UUID.randomUUID().toString()
+            arr.put(
+                JSONObject()
+                    .put("id", id)
+                    .put("name", prov.label)
+                    .put("provider", prov.name)
+                    .put("custom_url", p.getString("custom_url", "") ?: "")
+                    .put("model", p.getString("model_${prov.name}", "") ?: ""),
+            )
+            edit.putString(keyPref(id), stored) // ya está cifrada, se copia tal cual
+            edit.remove("key_${prov.name}").remove("model_${prov.name}")
+            if (prov.name == oldActive || activeId == null) activeId = id
+        }
+        edit.remove("provider").remove("custom_url")
+        edit.putString("connections", arr.toString())
+        activeId?.let { edit.putString("active_id", it) }
+        edit.apply()
+    }
+
+    private fun keyPref(id: String) = "apikey_$id"
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

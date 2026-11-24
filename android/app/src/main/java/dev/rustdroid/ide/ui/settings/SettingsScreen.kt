@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -91,9 +90,8 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // ---- toolchain ----
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.settings_toolchain), style = MaterialTheme.typography.titleMedium)
+            ExpandableCard(stringResource(R.string.settings_toolchain)) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when (state) {
                         is ToolchainState.Ready -> {
                             Text(
@@ -160,9 +158,8 @@ fun SettingsScreen(
             SigningKeyCard()
 
             // ---- storage ----
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.settings_storage), style = MaterialTheme.typography.titleMedium)
+            ExpandableCard(stringResource(R.string.settings_storage)) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Spacer(Modifier.height(4.dp))
                     storage.forEach { (label, bytes) -> StorageRow(label, bytes) }
                     Spacer(Modifier.height(8.dp))
@@ -173,9 +170,8 @@ fun SettingsScreen(
             }
 
             // ---- about ----
-            Card {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(stringResource(R.string.settings_about), style = MaterialTheme.typography.titleMedium)
+            ExpandableCard(stringResource(R.string.settings_about)) {
+                Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.settings_about_app), style = MaterialTheme.typography.bodySmall)
                     Text(
                         stringResource(R.string.settings_about_toolchain, ToolchainDistro.RUST_VERSION),
@@ -206,9 +202,8 @@ fun SettingsScreen(
 private fun LanguageCard() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val current = remember { dev.rustdroid.ide.util.AppLanguage.get(context) }
-    Card {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.settings_language), style = MaterialTheme.typography.titleMedium)
+    ExpandableCard(stringResource(R.string.settings_language)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf(
                 dev.rustdroid.ide.util.AppLanguage.Option.ES to R.string.lang_es,
                 dev.rustdroid.ide.util.AppLanguage.Option.EN to R.string.lang_en,
@@ -315,9 +310,8 @@ private fun SigningKeyCard() {
         )
     }
 
-    Card {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(R.string.signing_title), style = MaterialTheme.typography.titleMedium)
+    ExpandableCard(stringResource(R.string.signing_title)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 fingerprint?.let { stringResource(R.string.signing_current, it) }
                     ?: stringResource(R.string.signing_none),
@@ -347,10 +341,8 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
     val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
     val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
     val ferrdroidVisible by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsState()
-    val ferrdroidSound by dev.rustdroid.ide.util.AppSettings.ferrdroidSound.collectAsState()
-    Card {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(stringResource(R.string.settings_appearance), style = MaterialTheme.typography.titleMedium)
+    ExpandableCard(stringResource(R.string.settings_appearance)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ThemeModeRow()
             CodeThemeRow(onOpenCodeThemes)
             SwitchRow(
@@ -368,13 +360,6 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
                 description = stringResource(R.string.settings_ferrdroid_desc),
                 checked = ferrdroidVisible,
             ) { dev.rustdroid.ide.util.AppSettings.setFerrdroidVisible(context, it) }
-            if (ferrdroidVisible) {
-                SwitchRow(
-                    title = stringResource(R.string.settings_ferrdroid_sound),
-                    description = stringResource(R.string.settings_ferrdroid_sound_desc),
-                    checked = ferrdroidSound,
-                ) { dev.rustdroid.ide.util.AppSettings.setFerrdroidSound(context, it) }
-            }
         }
     }
 }

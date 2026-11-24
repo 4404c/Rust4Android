@@ -28,21 +28,15 @@ object AppSettings {
         _aiChatEnabled.value = on
     }
 
-    /** Ferrdroid (la mascota) en el inicio, y el "blip" al hablar. */
+    /** Ferrdroid (la mascota) en el inicio. */
     private val _ferrdroidVisible = MutableStateFlow(true)
     val ferrdroidVisible: StateFlow<Boolean> = _ferrdroidVisible.asStateFlow()
-    private val _ferrdroidSound = MutableStateFlow(false)
-    val ferrdroidSound: StateFlow<Boolean> = _ferrdroidSound.asStateFlow()
 
     fun setFerrdroidVisible(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("ferrdroid_visible", on).apply()
         _ferrdroidVisible.value = on
     }
 
-    fun setFerrdroidSound(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean("ferrdroid_sound", on).apply()
-        _ferrdroidSound.value = on
-    }
 
     /** Colores de las letras en el editor (id de CodeThemes). */
     private val _codeTheme = MutableStateFlow("classic")
@@ -100,7 +94,6 @@ object AppSettings {
             ?: ThemeMode.SYSTEM
         _codeTheme.value = prefs(context).getString(KEY_CODE_THEME, null) ?: "classic"
         _ferrdroidVisible.value = prefs(context).getBoolean("ferrdroid_visible", true)
-        _ferrdroidSound.value = prefs(context).getBoolean("ferrdroid_sound", false)
         _aiChatEnabled.value = prefs(context).getBoolean("ai_chat_enabled", true)
         prefs(context).let { p ->
             _customColors.value = CustomColors(

@@ -63,5 +63,12 @@
     "file": "press-start-2p-OFL-1.1.txt",
     "url": "https://github.com/google/fonts/tree/main/ofl/pressstart2p",
     "pin": "google/fonts ofl/pressstart2p (archivo original sin modificar)"
+  },
+  {
+    "component": "Courier Prime (fuente del título R4A)",
+    "license": "OFL-1.1",
+    "file": "courier-prime-OFL-1.1.txt",
+    "url": "https://github.com/google/fonts/tree/main/ofl/courierprime",
+    "pin": "google/fonts ofl/courierprime, CourierPrime-Bold.ttf (archivo original sin modificar)"
   }
 ]

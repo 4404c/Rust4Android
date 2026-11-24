@@ -39,9 +39,10 @@ class ChatViewModel(
     fun send(text: String) {
         val prompt = text.trim()
         if (prompt.isEmpty() || _busy.value) return
-        val cfg = AiSettings.config.value
-        val key = AiSettings.apiKey(container.context)
-        if (!cfg.ready || key == null) {
+        // la API key activa (se puede cambiar desde la cabecera del chat)
+        val cfg = AiSettings.state.value.active
+        val key = cfg?.let { AiSettings.apiKey(container.context, it.id) }
+        if (cfg == null || !cfg.ready || key == null) {
             _messages.update { it + ChatMessage(Role.ERROR, container.context.getString(dev.rustdroid.ide.R.string.ai_not_configured)) }
             return
         }

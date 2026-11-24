@@ -132,8 +132,6 @@ class EditorViewModel(
     private val _tree = MutableStateFlow<List<FileNode>>(emptyList())
     val tree: StateFlow<List<FileNode>> = _tree.asStateFlow()
 
-    private val _treeAllFiles = MutableStateFlow(false)
-    val treeAllFiles: StateFlow<Boolean> = _treeAllFiles.asStateFlow()
 
     // ---- run state ----
     // scope-owned: the buffer's trailing-line publish is a child of the
@@ -333,14 +331,16 @@ class EditorViewModel(
      * in a new tab. Path safety lives in the repository (Fs.resolveChild);
      * existing files are never overwritten.
      */
-    fun createFile(relativePath: String) {
+    fun createFile(relativePath: String, folder: Boolean = false) {
         viewModelScope.launch {
             val rel = relativePath.trim()
             try {
-                withContext(Dispatchers.IO) { repo.createFile(projectDir, rel) }
+                withContext(Dispatchers.IO) {
+                    if (folder) repo.createFolder(projectDir, rel) else repo.createFile(projectDir, rel)
+                }
                 _createFileError.value = null
                 refreshTree()
-                openFile(rel)
+                if (!folder) openFile(rel) // R4A: una carpeta nueva solo aparece en Files
                 _createdFile.value = rel
             } catch (e: Exception) {
                 _createFileError.value = e.message ?: str(R.string.vm_editor_cannot_create, rel)
@@ -546,13 +546,8 @@ class EditorViewModel(
 
     fun refreshTree() {
         viewModelScope.launch {
-            _tree.value = withContext(Dispatchers.IO) { repo.fileTree(projectDir, _treeAllFiles.value) }
+            _tree.value = withContext(Dispatchers.IO) { repo.fileTree(projectDir, allFiles = false) }
         }
-    }
-
-    fun toggleAllFiles() {
-        _treeAllFiles.value = !_treeAllFiles.value
-        refreshTree()
     }
 
     // ---------------- runs ----------------

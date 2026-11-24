@@ -3,6 +3,7 @@ package dev.rustdroid.ide.ui.settings
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,12 +14,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,8 +45,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.rustdroid.ide.R
 import dev.rustdroid.ide.ai.AiClient
@@ -47,211 +57,349 @@ import dev.rustdroid.ide.di.AppContainer
 import kotlinx.coroutines.launch
 
 /**
- * R4A: Opciones → Inteligencia artificial. Proveedor, API key (se guarda
- * cifrada) y modelo, que se elige de la lista que devuelve el proveedor.
+ * R4A: Opciones → Inteligencia artificial. Lista de API keys guardadas
+ * (cada una con nombre, proveedor y modelo); la marcada es la que usa el
+ * Chat. Se pueden agregar más, renombrarlas, cambiarles el modelo y borrarlas.
  */
 @Composable
 fun AiSettingsCard(container: AppContainer) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val config by AiSettings.config.collectAsState()
+    val state by AiSettings.state.collectAsState()
     val client = remember { AiClient(container.http) }
 
-    var keyInput by remember { mutableStateOf("") }
-    var urlInput by remember(config.provider) { mutableStateOf(config.customUrl) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf<AiSettings.Connection?>(null) }
+    var deleting by remember { mutableStateOf<AiSettings.Connection?>(null) }
+    // modelos: para qué conexión, la lista (null = cargando) y el error
+    var modelsFor by remember { mutableStateOf<AiSettings.Connection?>(null) }
     var models by remember { mutableStateOf<List<String>?>(null) }
+    var modelsError by remember { mutableStateOf<String?>(null) }
 
-    fun loadModels() {
-        val key = AiSettings.apiKey(context) ?: return
-        loading = true
-        error = null
+    fun openModels(c: AiSettings.Connection) {
+        modelsFor = c
+        models = null
+        modelsError = null
+        val key = AiSettings.apiKey(context, c.id)
+        if (key == null) {
+            modelsError = context.getString(R.string.ai_settings_key_unreadable)
+            return
+        }
         scope.launch {
             try {
-                models = client.listModels(AiSettings.config.value.baseUrl, key)
+                models = client.listModels(c.baseUrl, key)
             } catch (e: Exception) {
-                error = e.message ?: e.toString()
-            } finally {
-                loading = false
+                modelsError = e.message ?: e.toString()
             }
         }
     }
 
-    Card {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(R.string.ai_settings_title), style = MaterialTheme.typography.titleMedium)
+    ExpandableCard(stringResource(R.string.ai_settings_title)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 stringResource(R.string.ai_settings_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            // ---- proveedor ----
-            Text(stringResource(R.string.ai_settings_provider), style = MaterialTheme.typography.labelLarge)
-            AiSettings.Provider.entries.forEach { p ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = p == config.provider,
-                            role = Role.RadioButton,
-                            onClick = {
-                                AiSettings.setProvider(context, p)
-                                keyInput = ""
-                                error = null
-                                models = null
-                            },
-                        )
-                        .padding(vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = p == config.provider, onClick = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (p == AiSettings.Provider.CUSTOM) stringResource(R.string.ai_provider_custom) else p.label,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+            if (state.connections.isEmpty()) {
+                Text(stringResource(R.string.ai_settings_no_keys), style = MaterialTheme.typography.bodySmall)
             }
+            state.connections.forEach { c ->
+                ConnectionRow(
+                    c = c,
+                    active = c.id == state.active?.id,
+                    onSelect = { AiSettings.setActive(context, c.id) },
+                    onModels = { openModels(c) },
+                    onRename = { renaming = c },
+                    onDelete = { deleting = c },
+                )
+            }
+            OutlinedButton(onClick = { adding = true }) {
+                Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.ai_settings_add_key))
+            }
+        }
+    }
 
-            if (config.provider == AiSettings.Provider.CUSTOM) {
+    if (adding) {
+        AddKeyDialog(
+            onSave = { name, provider, url, key ->
+                adding = false
+                val c = AiSettings.add(context, name, provider, url, key)
+                openModels(c) // elegir el modelo enseguida
+            },
+            onDismiss = { adding = false },
+        )
+    }
+
+    renaming?.let { c ->
+        RenameDialog(
+            current = c.name,
+            onSave = { AiSettings.rename(context, c.id, it); renaming = null },
+            onDismiss = { renaming = null },
+        )
+    }
+
+    deleting?.let { c ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text(stringResource(R.string.ai_settings_delete_title)) },
+            text = { Text(stringResource(R.string.ai_settings_delete_text, c.name)) },
+            confirmButton = {
+                TextButton(onClick = { AiSettings.remove(context, c.id); deleting = null }) {
+                    Text(stringResource(R.string.ai_settings_delete_confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+
+    modelsFor?.let { c ->
+        ModelPickerDialog(
+            connection = c,
+            models = models,
+            error = modelsError,
+            onPick = {
+                AiSettings.setModel(context, c.id, it)
+                AiSettings.setActive(context, c.id)
+                modelsFor = null
+            },
+            onDismiss = { modelsFor = null },
+        )
+    }
+}
+
+@Composable
+private fun ConnectionRow(
+    c: AiSettings.Connection,
+    active: Boolean,
+    onSelect: () -> Unit,
+    onModels: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .selectable(selected = active, role = Role.RadioButton, onClick = onSelect)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = active, onClick = null)
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                c.name,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (active) FontWeight.Bold else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${c.provider.label} · ${c.model.ifBlank { stringResource(R.string.ai_settings_model_none) }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (c.model.isBlank()) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.editor_more))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ai_settings_model_pick)) },
+                    onClick = { menu = false; onModels() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ai_settings_rename)) },
+                    onClick = { menu = false; onRename() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ai_settings_delete_confirm), color = MaterialTheme.colorScheme.error) },
+                    onClick = { menu = false; onDelete() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddKeyDialog(
+    onSave: (name: String, provider: AiSettings.Provider, url: String, key: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    var provider by remember { mutableStateOf(AiSettings.Provider.GROQ) }
+    var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
+    val canSave = key.isNotBlank() && (provider != AiSettings.Provider.CUSTOM || url.isNotBlank())
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ai_settings_add_key)) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 OutlinedTextField(
-                    value = urlInput,
-                    onValueChange = { urlInput = it },
-                    label = { Text(stringResource(R.string.ai_settings_url)) },
-                    placeholder = { Text("http://192.168.0.10:11434/v1") },
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.ai_settings_key_name)) },
+                    placeholder = { Text(stringResource(R.string.ai_settings_key_name_hint)) },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (urlInput.trim() != config.customUrl) {
-                    OutlinedButton(onClick = { AiSettings.setCustomUrl(context, urlInput) }) {
-                        Text(stringResource(R.string.ai_settings_save_url))
+                Text(stringResource(R.string.ai_settings_provider), style = MaterialTheme.typography.labelLarge)
+                AiSettings.Provider.entries.forEach { p ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = p == provider, role = Role.RadioButton, onClick = { provider = p })
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = p == provider, onClick = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (p == AiSettings.Provider.CUSTOM) stringResource(R.string.ai_provider_custom) else p.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
-            }
-
-            // ---- API key ----
-            Text(stringResource(R.string.ai_settings_key), style = MaterialTheme.typography.labelLarge)
-            if (config.hasKey) {
-                Text(
-                    stringResource(R.string.ai_settings_key_saved),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                OutlinedButton(onClick = {
-                    AiSettings.setApiKey(context, "")
-                    models = null
-                }) { Text(stringResource(R.string.ai_settings_key_remove)) }
-            } else {
+                if (provider == AiSettings.Provider.CUSTOM) {
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = { Text(stringResource(R.string.ai_settings_url)) },
+                        placeholder = { Text("http://192.168.0.10:11434/v1") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 OutlinedTextField(
-                    value = keyInput,
-                    onValueChange = { keyInput = it },
+                    value = key,
+                    onValueChange = { key = it },
                     label = { Text(stringResource(R.string.ai_settings_key_paste)) },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = {
-                            AiSettings.setApiKey(context, keyInput)
-                            keyInput = ""
-                            loadModels()
-                        },
-                        enabled = keyInput.isNotBlank(),
-                    ) { Text(stringResource(R.string.ai_settings_key_save)) }
-                    config.provider.keyUrl?.let { url ->
-                        TextButton(onClick = {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        }) { Text(stringResource(R.string.ai_settings_key_get)) }
-                    }
+                provider.keyUrl?.let { link ->
+                    TextButton(onClick = {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    }) { Text(stringResource(R.string.ai_settings_key_get)) }
                 }
             }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name, provider, url, key) }, enabled = canSave) {
+                Text(stringResource(R.string.ai_settings_key_save))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
+}
 
-            // ---- modelo ----
-            Text(stringResource(R.string.ai_settings_model), style = MaterialTheme.typography.labelLarge)
-            Text(
-                config.model.ifBlank { stringResource(R.string.ai_settings_model_none) },
-                style = MaterialTheme.typography.bodySmall,
+@Composable
+private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.ai_settings_rename)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.ai_settings_key_name)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(
-                    onClick = { loadModels() },
-                    enabled = config.hasKey && config.baseUrl.isNotBlank() && !loading,
-                ) { Text(stringResource(R.string.ai_settings_model_pick)) }
-                if (loading) {
-                    Spacer(Modifier.width(12.dp))
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) {
+                Text(stringResource(R.string.ai_settings_key_save))
             }
-            error?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            }
-        }
-    }
-
-    models?.let { list ->
-        ModelPickerDialog(
-            models = list,
-            current = config.model,
-            onPick = {
-                AiSettings.setModel(context, it)
-                models = null
-            },
-            onDismiss = { models = null },
-        )
-    }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
+    )
 }
 
 @Composable
 private fun ModelPickerDialog(
-    models: List<String>,
-    current: String,
+    connection: AiSettings.Connection,
+    models: List<String>?,
+    error: String?,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var filter by remember { mutableStateOf("") }
     val shown = remember(models, filter) {
-        if (filter.isBlank()) models else models.filter { it.contains(filter.trim(), ignoreCase = true) }
+        val list = models.orEmpty()
+        if (filter.isBlank()) list else list.filter { it.contains(filter.trim(), ignoreCase = true) }
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.ai_settings_model)) },
+        title = {
+            Column {
+                Text(stringResource(R.string.ai_settings_models_of, connection.name))
+                Text(
+                    connection.provider.label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = filter,
-                    onValueChange = { filter = it },
-                    placeholder = { Text(stringResource(R.string.ai_settings_model_filter)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (shown.isEmpty()) {
-                    Text(
-                        stringResource(R.string.ai_settings_model_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                    items(shown) { id ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .selectable(selected = id == current, role = Role.RadioButton, onClick = { onPick(id) })
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = id == current, onClick = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(id, style = MaterialTheme.typography.bodySmall)
+                when {
+                    error != null -> Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    models == null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.ai_settings_models_loading), style = MaterialTheme.typography.bodySmall)
+                    }
+                    else -> {
+                        OutlinedTextField(
+                            value = filter,
+                            onValueChange = { filter = it },
+                            placeholder = { Text(stringResource(R.string.ai_settings_model_filter)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (shown.isEmpty()) {
+                            Text(
+                                stringResource(R.string.ai_settings_model_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                            items(shown) { id ->
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .selectable(selected = id == connection.model, role = Role.RadioButton, onClick = { onPick(id) })
+                                        .padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    RadioButton(selected = id == connection.model, onClick = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(id, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         }
                     }
                 }

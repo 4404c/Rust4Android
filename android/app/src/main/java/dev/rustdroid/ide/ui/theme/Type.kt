@@ -11,6 +11,9 @@ import dev.rustdroid.ide.R
 /** R4A: Press Start 2P (OFL), la letra pixel del globo de Ferrdroid. */
 val PixelFamily = FontFamily(Font(R.font.press_start_2p, FontWeight.Normal))
 
+/** R4A: Courier Prime Bold (OFL), monoespaciada tipo máquina de escribir para el título. */
+val TitleFamily = FontFamily(Font(R.font.courier_prime_bold, FontWeight.Bold))
+
 
 val AppTypography = Typography(
     headlineSmall = TextStyle(
