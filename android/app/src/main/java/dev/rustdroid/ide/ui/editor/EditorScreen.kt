@@ -391,7 +391,7 @@ fun EditorScreen(
                 onOpenProject = { ref ->
                     // la charla sigue en el proyecto nuevo; se guarda todo antes de salir
                     val dir = container.projectRepository.resolve(ref)
-                    container.chatStore.copyTo(chat, dir, dir.name)
+                    container.chatStore.copyTo(chat.current.value, dir, dir.name)
                     vm.saveAllThen { onOpenProject(ref) }
                 },
             )
@@ -1544,7 +1544,7 @@ private fun showGame(context: android.content.Context, launch: EditorViewModel.G
 /** R4A: el cajón del Chat IA (desde la derecha). */
 @Composable
 private fun ChatDrawerSheet(
-    chat: dev.rustdroid.ide.ai.ChatSession,
+    chat: dev.rustdroid.ide.ai.ProjectChats,
     onClose: () -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenProject: (String) -> Unit,
@@ -1575,7 +1575,7 @@ private fun ChatDrawerSheet(
             }
         }
         dev.rustdroid.ide.ui.chat.ChatPanel(
-            vm = chat,
+            chats = chat,
             onInputFocusChanged = {},
             onOpenFile = onOpenFile,
             onOpenProject = onOpenProject,

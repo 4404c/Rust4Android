@@ -24,6 +24,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.gestures.animateScrollBy
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -64,11 +70,14 @@ import dev.rustdroid.ide.ui.theme.LocalEditorPalette
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPanel(
-    vm: ChatSession,
+    chats: dev.rustdroid.ide.ai.ProjectChats,
     onInputFocusChanged: (Boolean) -> Unit,
     onOpenFile: (String) -> Unit = {},
     onOpenProject: (String) -> Unit = {},
 ) {
+    // la charla actual del proyecto (cambia con "Nueva charla" o la lista)
+    val vm by chats.current.collectAsState()
+    val chatList by chats.list.collectAsState()
     val allMessages by vm.messages.collectAsState()
     val hiddenBefore by vm.hiddenBefore.collectAsState()
     // lo de visitas anteriores queda oculto hasta deslizar hacia abajo
@@ -78,14 +87,18 @@ fun ChatPanel(
     val context = androidx.compose.ui.platform.LocalContext.current
     val listState = rememberLazyListState()
 
+    // charla anterior: cargando (ruedita) y dónde quedó la separación
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var loadingOlder by remember(vm) { mutableStateOf(false) }
+    var dividerAt by remember(vm) { mutableStateOf<Int?>(null) }
+
     // seguir el final mientras llega texto
     val lastLen = messages.lastOrNull()?.text?.length ?: 0
-    // (no depende de hiddenBefore: al revelar lo anterior la lista queda arriba de todo)
+    // (no depende de hiddenBefore: al revelar lo anterior la vista no salta al final)
     LaunchedEffect(allMessages.size, lastLen) {
         if (messages.isEmpty()) return@LaunchedEffect
-        // el aviso de "charla anterior" ocupa el primer lugar
-        val last = messages.lastIndex + if (hiddenBefore > 0) 1 else 0
-        listState.scrollToItem(last, Int.MAX_VALUE)
+        val extra = (if (hiddenBefore > 0) 1 else 0) + (if (dividerAt != null) 1 else 0)
+        listState.scrollToItem(messages.lastIndex + extra, Int.MAX_VALUE)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -135,46 +148,161 @@ fun ChatPanel(
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
             }
-            IconButton(onClick = { vm.clear() }, enabled = allMessages.isNotEmpty(), modifier = Modifier.size(32.dp)) {
+            // charlas de este proyecto: retomar o borrar
+            var listOpen by remember { mutableStateOf(false) }
+            var toDelete by remember { mutableStateOf<dev.rustdroid.ide.ai.ProjectChats.Summary?>(null) }
+            Box {
+                IconButton(onClick = { listOpen = true }, enabled = chatList.isNotEmpty(), modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.List,
+                        contentDescription = stringResource(R.string.ai_chat_list),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DropdownMenu(expanded = listOpen, onDismissRequest = { listOpen = false }) {
+                    val fmt = remember { java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()) }
+                    chatList.forEach { c ->
+                        DropdownMenuItem(
+                            text = {
+                                Column(Modifier.widthIn(max = 240.dp)) {
+                                    Text(
+                                        c.title.ifBlank { "…" },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        stringResource(R.string.ai_chat_list_item, fmt.format(java.util.Date(c.updatedAt)), c.messages),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            },
+                            leadingIcon = { RadioButton(selected = c.id == vm.id, onClick = null) },
+                            trailingIcon = {
+                                IconButton(onClick = { listOpen = false; toDelete = c }, enabled = !busy) {
+                                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.ai_chat_delete), modifier = Modifier.size(18.dp))
+                                }
+                            },
+                            enabled = !busy,
+                            onClick = { listOpen = false; chats.open(c.id) },
+                        )
+                    }
+                }
+            }
+            toDelete?.let { c ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { toDelete = null },
+                    title = { Text(stringResource(R.string.ai_chat_delete_title)) },
+                    text = { Text(stringResource(R.string.ai_chat_delete_text, c.title.ifBlank { "…" })) },
+                    confirmButton = {
+                        TextButton(onClick = { chats.delete(c.id); toDelete = null }) {
+                            Text(stringResource(R.string.ai_chat_delete), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = { TextButton(onClick = { toDelete = null }) { Text(stringResource(R.string.common_cancel)) } },
+                )
+            }
+            // nueva charla: la actual queda en la lista y la IA arranca de cero
+            IconButton(onClick = { chats.newChat() }, enabled = !busy && allMessages.isNotEmpty(), modifier = Modifier.size(32.dp)) {
                 Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = stringResource(R.string.ai_chat_clear),
-                    modifier = Modifier.size(16.dp),
+                    Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.ai_chat_new),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
 
-        // deslizar hacia abajo (estando arriba de todo) muestra la charla anterior
+        // deslizar hacia abajo (estando arriba de todo) muestra la charla anterior:
+        // aparece un círculo con una flecha que sigue al dedo, al soltar gira
+        // una ruedita y los mensajes viejos entran por arriba con un fundido
         val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+        val pulledEnough = pullState.distanceFraction >= 1f
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-            isRefreshing = false,
-            onRefresh = { vm.revealOlder() },
+            isRefreshing = loadingOlder,
+            onRefresh = {
+                if (hiddenBefore > 0 && !loadingOlder) scope.launch {
+                    loadingOlder = true
+                    kotlinx.coroutines.delay(450)
+                    val h = hiddenBefore
+                    dividerAt = h
+                    vm.revealOlder()
+                    loadingOlder = false
+                    // queda la separación arriba y se asoma un poco de lo anterior
+                    androidx.compose.runtime.withFrameNanos { }
+                    listState.scrollToItem(h)
+                    listState.animateScrollBy(-260f)
+                }
+            },
             state = pullState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            indicator = {},
+            indicator = {
+                if (hiddenBefore > 0 || loadingOlder) {
+                    val frac = if (loadingOlder) 1f else pullState.distanceFraction.coerceIn(0f, 1.4f)
+                    val arrow by androidx.compose.animation.core.animateFloatAsState(
+                        if (pulledEnough) 180f else 0f, label = "arrow",
+                    )
+                    androidx.compose.material3.Surface(
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .size(36.dp)
+                            .graphicsLayer {
+                                translationY = (frac * 56.dp.toPx()) - 44.dp.toPx()
+                                alpha = frac.coerceAtMost(1f)
+                                scaleX = 0.6f + 0.4f * frac.coerceAtMost(1f)
+                                scaleY = scaleX
+                            },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            if (loadingOlder) {
+                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(
+                                    Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.graphicsLayer { rotationZ = arrow },
+                                )
+                            }
+                        }
+                    }
+                }
+            },
         ) {
             SelectionContainer {
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier.fillMaxSize(),
+                    // la lista baja con el dedo y deja lugar al círculo de arriba
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        val f = if (loadingOlder) 1f
+                        else if (hiddenBefore > 0) pullState.distanceFraction.coerceIn(0f, 1.4f) else 0f
+                        translationY = f * 56.dp.toPx()
+                    },
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (hiddenBefore > 0) {
-                        item {
+                        item(key = "hint") {
                             Text(
-                                stringResource(R.string.ai_chat_pull_older, hiddenBefore),
+                                if (pulledEnough) stringResource(R.string.ai_chat_release_older)
+                                else stringResource(R.string.ai_chat_pull_older, hiddenBefore),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (pulledEnough) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .graphicsLayer { alpha = 0.4f + 0.6f * pullState.distanceFraction.coerceIn(0f, 1f) }
+                                    .graphicsLayer {
+                                        alpha = 0.6f + 0.4f * pullState.distanceFraction.coerceIn(0f, 1f)
+                                    }
                                     .padding(vertical = 8.dp),
                             )
                         }
                     }
                     if (messages.isEmpty()) {
-                        item {
+                        item(key = "empty") {
                             Text(
                                 stringResource(R.string.ai_chat_empty),
                                 style = MaterialTheme.typography.bodySmall,
@@ -183,17 +311,27 @@ fun ChatPanel(
                             )
                         }
                     }
-                    itemsIndexed(messages) { _, m ->
-                        if (m.role == ChatSession.Role.CHANGE) {
-                            ChangeCard(
-                                m,
-                                busy = busy,
-                                onOpen = { m.path?.let(onOpenFile) },
-                                onUndo = { m.changeId?.let { vm.undo(it) } },
-                                onOpenProject = { m.projectRef?.let(onOpenProject) },
-                            )
-                        } else {
-                            MessageBubble(m)
+                    // la clave es la posición en TODA la charla: así los mensajes
+                    // viejos que aparecen son "nuevos" para la lista y entran con fundido
+                    messages.forEachIndexed { i, m ->
+                        val abs = hiddenBefore + i
+                        if (dividerAt != null && abs == dividerAt) {
+                            item(key = "divider") { OlderDivider(Modifier.animateItem()) }
+                        }
+                        item(key = abs) {
+                            Box(Modifier.animateItem(fadeInSpec = androidx.compose.animation.core.tween(350))) {
+                                if (m.role == ChatSession.Role.CHANGE) {
+                                    ChangeCard(
+                                        m,
+                                        busy = busy,
+                                        onOpen = { m.path?.let(onOpenFile) },
+                                        onUndo = { m.changeId?.let { vm.undo(it) } },
+                                        onOpenProject = { m.projectRef?.let(onOpenProject) },
+                                    )
+                                } else {
+                                    MessageBubble(m)
+                                }
+                            }
                         }
                     }
                 }
@@ -267,6 +405,25 @@ private fun MessageBubble(m: ChatSession.ChatMessage) {
                 }
             }
         }
+    }
+}
+
+/** R4A: separa lo que se habló antes (arriba) de esta visita (abajo). */
+@Composable
+private fun OlderDivider(modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val line = MaterialTheme.colorScheme.outlineVariant
+        Box(Modifier.weight(1f).height(1.dp).background(line))
+        Text(
+            stringResource(R.string.ai_chat_divider_now),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        Box(Modifier.weight(1f).height(1.dp).background(line))
     }
 }
 

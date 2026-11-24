@@ -16,42 +16,6 @@ import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.security.MessageDigest
-
-/**
- * R4A: las charlas con la IA, UNA POR PROYECTO, guardadas en
- * files/chats/ para recuperarlas al volver a abrir el proyecto (aunque se
- * cierre la app). Una por proceso, en AppContainer.
- */
-class ChatStore(
-    private val context: Context,
-    private val http: OkHttpClient,
-    private val repo: dev.rustdroid.ide.projects.ProjectRepository,
-) {
-    private val dir = File(context.filesDir, "chats")
-    private val sessions = HashMap<String, ChatSession>()
-
-    /** La charla del proyecto en [projectDir] (la carga del disco la primera vez). */
-    fun session(projectDir: File, projectName: String): ChatSession =
-        sessions.getOrPut(key(projectDir)) {
-            ChatSession(context, http, repo, projectName, file(projectDir)).also { it.load() }
-        }
-
-    /** La IA creó un proyecto y el usuario lo abre: la charla sigue allá. */
-    fun copyTo(from: ChatSession, projectDir: File, projectName: String) {
-        val to = session(projectDir, projectName)
-        if (!to.isEmpty()) return // ya tenía su propia charla: no se pisa
-        to.adopt(from, projectName)
-    }
-
-    private fun key(projectDir: File) = runCatching { projectDir.canonicalPath }.getOrDefault(projectDir.absolutePath)
-
-    private fun file(projectDir: File): File {
-        val hash = MessageDigest.getInstance("SHA-1").digest(key(projectDir).toByteArray())
-            .joinToString("") { "%02x".format(it) }
-        return File(dir, "$hash.json")
-    }
-}
 
 /**
  * Una charla con la IA sobre un proyecto.
@@ -69,6 +33,10 @@ class ChatSession(
     private val repo: dev.rustdroid.ide.projects.ProjectRepository,
     private var projectName: String,
     private val saveFile: File,
+    /** Identifica la charla dentro del proyecto (nombre del archivo). */
+    val id: String = saveFile.nameWithoutExtension,
+    /** Avisa a [ProjectChats] que cambió (para la lista de charlas). */
+    private val onSaved: (ChatSession) -> Unit = {},
 ) {
     /** TOOL = línea chiquita ("Leyó src/main.rs"); CHANGE = tarjeta con Abrir/Deshacer. */
     enum class Role { USER, ASSISTANT, TOOL, CHANGE, ERROR }
@@ -110,6 +78,16 @@ class ChatSession(
     private var job: Job? = null
 
     fun isEmpty() = _messages.value.isEmpty()
+
+    /** Para la lista de charlas: el primer mensaje del usuario. */
+    val title: String get() =
+        _messages.value.firstOrNull { it.role == Role.USER }?.text?.lineSequence()?.firstOrNull().orEmpty()
+
+    /** Última vez que se guardó (ms). */
+    var updatedAt: Long = saveFile.takeIf { it.isFile }?.lastModified() ?: System.currentTimeMillis()
+        private set
+
+    val busyNow: Boolean get() = _busy.value
 
     /**
      * Los primeros [hiddenBefore] mensajes son de visitas anteriores al
@@ -293,11 +271,14 @@ class ChatSession(
     private fun save() {
         val msgs = _messages.value
         val api = apiHistory.toList()
+        updatedAt = System.currentTimeMillis()
+        onSaved(this)
         scope.launch(Dispatchers.IO) {
             runCatching {
                 if (msgs.isEmpty()) { saveFile.delete(); return@runCatching }
                 val root = JSONObject()
                     .put("project", projectName)
+                    .put("title", title)
                     .put("messages", JSONArray().apply {
                         msgs.forEach { m ->
                             put(JSONObject().put("role", m.role.name).put("text", m.text)

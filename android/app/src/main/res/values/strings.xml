@@ -322,7 +322,15 @@
     <string name="editor_coding_help">Ayuda para programar</string>
     <string name="ai_chat_hint">Preguntale algo a la IA…</string>
     <string name="ai_chat_empty">Escribile a la IA abajo. Puede leer y cambiar los archivos de este proyecto y crear proyectos nuevos. Cada cambio aparece como una tarjeta que podés deshacer.</string>
-    <string name="ai_chat_pull_older">↓ Deslizá hacia abajo para ver la charla anterior (%1$d mensajes)</string>
+    <string name="ai_chat_pull_older">Deslizá hacia abajo para ver la charla anterior (%1$d mensajes)</string>
+    <string name="ai_chat_new">Nueva charla</string>
+    <string name="ai_chat_list">Charlas de este proyecto</string>
+    <string name="ai_chat_list_item">%1$s · %2$d mensajes</string>
+    <string name="ai_chat_delete">Borrar</string>
+    <string name="ai_chat_delete_title">¿Borrar esta charla?</string>
+    <string name="ai_chat_delete_text">Se borra «%1$s» del teléfono. Los cambios que hizo la IA en los archivos quedan como están.</string>
+    <string name="ai_chat_release_older">Soltá para ver la charla anterior</string>
+    <string name="ai_chat_divider_now">antes ↑  ·  ahora ↓</string>
     <string name="ai_change_open">Abrir</string>
     <string name="ai_change_undo">Deshacer</string>
     <string name="ai_change_open_project">Abrir proyecto</string>
