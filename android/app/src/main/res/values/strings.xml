@@ -346,6 +346,15 @@
     <string name="ai_settings_provider">Proveedor</string>
     <string name="ai_provider_custom">Otro (URL propia, compatible con OpenAI)</string>
     <string name="ai_settings_url">URL base</string>
+    <string name="ai_provider_chatgpt">ChatGPT (tu plan) · experimental</string>
+    <string name="ai_chatgpt_note">Usás tu plan de ChatGPT (Plus, Pro…) en vez de una API key. Se abre el navegador para iniciar sesión en OpenAI; al terminar, volvé a R4A. Lo que uses descuenta del límite de tu plan. Es experimental: OpenAI lo tiene en prueba.</string>
+    <string name="ai_chatgpt_continue">Continuar con ChatGPT</string>
+    <string name="ai_chatgpt_waiting_title">Iniciando sesión con ChatGPT</string>
+    <string name="ai_chatgpt_waiting_text">Terminá en el navegador y volvé a R4A.</string>
+    <string name="ai_chatgpt_error_title">No se pudo conectar con ChatGPT</string>
+    <string name="ai_chatgpt_using_plan">Usando tu plan de ChatGPT</string>
+    <string name="ai_chatgpt_manage_usage">Administrar uso</string>
+    <string name="ai_chatgpt_sign_out">Cerrar sesión y borrar</string>
     <string name="ai_settings_no_keys">Todavía no agregaste ninguna API key.</string>
     <string name="ai_settings_add_key">Agregar API key</string>
     <string name="ai_settings_key_name">Nombre</string>

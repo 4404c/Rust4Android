@@ -68,6 +68,15 @@ fun AiSettingsCard(container: AppContainer) {
     val state by AiSettings.state.collectAsState()
     val client = remember { AiClient(container.http) }
     val claude = remember { dev.rustdroid.ide.ai.AnthropicChat() }
+    val chatgpt = remember { dev.rustdroid.ide.ai.ChatGptClient(container.http) }
+    val chatgptAuth = remember { dev.rustdroid.ide.ai.ChatGptAuth(container.http) }
+    // inicio de sesión con ChatGPT en curso (el diálogo de espera) y su error
+    var signInJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var signInError by remember { mutableStateOf<String?>(null) }
+
+    fun openUrl(url: String) = runCatching {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
 
     var adding by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<AiSettings.Connection?>(null) }
@@ -88,8 +97,11 @@ fun AiSettingsCard(container: AppContainer) {
         }
         scope.launch {
             try {
-                models = if (c.provider == AiSettings.Provider.ANTHROPIC) claude.listModels(key).sorted()
-                else client.listModels(c.baseUrl, key)
+                models = when (c.provider) {
+                    AiSettings.Provider.ANTHROPIC -> claude.listModels(key).sorted()
+                    AiSettings.Provider.CHATGPT -> chatgpt.listModels(chatgptAuth.accessToken(context, c.id))
+                    else -> client.listModels(c.baseUrl, key)
+                }
             } catch (e: Exception) {
                 modelsError = e.message ?: e.toString()
             }
@@ -114,6 +126,7 @@ fun AiSettingsCard(container: AppContainer) {
                     onModels = { openModels(c) },
                     onRename = { renaming = c },
                     onDelete = { deleting = c },
+                    onManageUsage = { openUrl(dev.rustdroid.ide.ai.ChatGptAuth.USAGE_URL) },
                 )
             }
             OutlinedButton(onClick = { adding = true }) {
@@ -130,6 +143,24 @@ fun AiSettingsCard(container: AppContainer) {
                 adding = false
                 val c = AiSettings.add(context, name, provider, url, key)
                 openModels(c) // elegir el modelo enseguida
+            },
+            // ChatGPT: en vez de una clave, se inicia sesión en el navegador
+            onChatGpt = { name ->
+                adding = false
+                signInError = null
+                signInJob = scope.launch {
+                    try {
+                        val tokens = chatgptAuth.signIn(context) { uri -> openUrl(uri.toString()) }
+                        val c = AiSettings.add(context, name, AiSettings.Provider.CHATGPT, "", tokens)
+                        openModels(c)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        signInError = e.message ?: e.toString()
+                    } finally {
+                        signInJob = null
+                    }
+                }
             },
             onDismiss = { adding = false },
         )
@@ -149,11 +180,43 @@ fun AiSettingsCard(container: AppContainer) {
             title = { Text(stringResource(R.string.ai_settings_delete_title)) },
             text = { Text(stringResource(R.string.ai_settings_delete_text, c.name)) },
             confirmButton = {
-                TextButton(onClick = { AiSettings.remove(context, c.id); deleting = null }) {
+                TextButton(onClick = {
+                    deleting = null
+                    scope.launch {
+                        // ChatGPT: avisar a OpenAI que se cierra la sesión
+                        if (c.provider == AiSettings.Provider.CHATGPT) chatgptAuth.signOut(context, c.id)
+                        AiSettings.remove(context, c.id)
+                    }
+                }) {
                     Text(stringResource(R.string.ai_settings_delete_confirm), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+
+    if (signInJob != null) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.ai_chatgpt_waiting_title)) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(stringResource(R.string.ai_chatgpt_waiting_text), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { signInJob?.cancel() }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+    signInError?.let { err ->
+        AlertDialog(
+            onDismissRequest = { signInError = null },
+            title = { Text(stringResource(R.string.ai_chatgpt_error_title)) },
+            text = { Text(err) },
+            confirmButton = { TextButton(onClick = { signInError = null }) { Text("OK") } },
         )
     }
 
@@ -180,6 +243,7 @@ private fun ConnectionRow(
     onModels: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    onManageUsage: () -> Unit = {},
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
@@ -200,7 +264,8 @@ private fun ConnectionRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "${c.provider.label} · ${c.model.ifBlank { stringResource(R.string.ai_settings_model_none) }}",
+                (if (c.provider == AiSettings.Provider.CHATGPT) stringResource(R.string.ai_chatgpt_using_plan) else c.provider.label) +
+                    " · ${c.model.ifBlank { stringResource(R.string.ai_settings_model_none) }}",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (c.model.isBlank()) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -221,8 +286,22 @@ private fun ConnectionRow(
                     text = { Text(stringResource(R.string.ai_settings_rename)) },
                     onClick = { menu = false; onRename() },
                 )
+                if (c.provider == AiSettings.Provider.CHATGPT) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ai_chatgpt_manage_usage)) },
+                        onClick = { menu = false; onManageUsage() },
+                    )
+                }
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.ai_settings_delete_confirm), color = MaterialTheme.colorScheme.error) },
+                    text = {
+                        Text(
+                            stringResource(
+                                if (c.provider == AiSettings.Provider.CHATGPT) R.string.ai_chatgpt_sign_out
+                                else R.string.ai_settings_delete_confirm,
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    },
                     onClick = { menu = false; onDelete() },
                 )
             }
@@ -233,6 +312,7 @@ private fun ConnectionRow(
 @Composable
 private fun AddKeyDialog(
     onSave: (name: String, provider: AiSettings.Provider, url: String, key: String) -> Unit,
+    onChatGpt: (name: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -240,7 +320,8 @@ private fun AddKeyDialog(
     var name by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
     var key by remember { mutableStateOf("") }
-    val canSave = key.isNotBlank() && (provider != AiSettings.Provider.CUSTOM || url.isNotBlank())
+    val isChatGpt = provider == AiSettings.Provider.CHATGPT
+    val canSave = isChatGpt || key.isNotBlank() && (provider != AiSettings.Provider.CUSTOM || url.isNotBlank())
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -270,7 +351,11 @@ private fun AddKeyDialog(
                         RadioButton(selected = p == provider, onClick = null)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (p == AiSettings.Provider.CUSTOM) stringResource(R.string.ai_provider_custom) else p.label,
+                            when (p) {
+                                AiSettings.Provider.CUSTOM -> stringResource(R.string.ai_provider_custom)
+                                AiSettings.Provider.CHATGPT -> stringResource(R.string.ai_provider_chatgpt)
+                                else -> p.label
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
@@ -286,7 +371,13 @@ private fun AddKeyDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                OutlinedTextField(
+                if (isChatGpt) {
+                    Text(
+                        stringResource(R.string.ai_chatgpt_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else OutlinedTextField(
                     value = key,
                     onValueChange = { key = it },
                     label = { Text(stringResource(R.string.ai_settings_key_paste)) },
@@ -307,8 +398,11 @@ private fun AddKeyDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(name, provider, url, key) }, enabled = canSave) {
-                Text(stringResource(R.string.ai_settings_key_save))
+            TextButton(
+                onClick = { if (isChatGpt) onChatGpt(name) else onSave(name, provider, url, key) },
+                enabled = canSave,
+            ) {
+                Text(stringResource(if (isChatGpt) R.string.ai_chatgpt_continue else R.string.ai_settings_key_save))
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },

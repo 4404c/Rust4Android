@@ -59,6 +59,8 @@ class ChatSession(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val client = AiClient(http)
     private val claude = AnthropicChat()
+    private val chatgpt = ChatGptClient(http)
+    private val chatgptAuth = ChatGptAuth(http)
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -218,9 +220,16 @@ class ChatSession(
         }
         val baseUrl = cfg.baseUrl
         val model = cfg.model
+        // plan de ChatGPT: API de Responses con el token de la sesión (se renueva solo)
+        val stream: suspend (kotlinx.serialization.json.JsonArray?) -> AiClient.Reply =
+            if (cfg.provider == AiSettings.Provider.CHATGPT) {
+                { t -> chatgpt.chatStream(chatgptAuth.accessToken(context, cfg.id), model, messages, t) { appendToLast(it) } }
+            } else {
+                { t -> client.chatStream(baseUrl, key, model, messages, t) { appendToLast(it) } }
+            }
         if (toolsSupported) {
             try {
-                return client.chatStream(baseUrl, key, model, messages, tools.definitions) { appendToLast(it) }
+                return stream(tools.definitions)
             } catch (e: AiClient.AiException) {
                 val msg = e.message.orEmpty().lowercase()
                 if (!("tool" in msg || "function" in msg)) throw e
@@ -230,7 +239,7 @@ class ChatSession(
                 }
             }
         }
-        return client.chatStream(baseUrl, key, model, messages, null) { appendToLast(it) }
+        return stream(null)
     }
 
     /**

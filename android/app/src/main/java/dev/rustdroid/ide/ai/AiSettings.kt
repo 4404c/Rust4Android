@@ -33,6 +33,12 @@ object AiSettings {
         OPENROUTER("OpenRouter", "https://openrouter.ai/api/v1", "https://openrouter.ai/keys"),
         GEMINI("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "https://aistudio.google.com/apikey"),
         OPENAI("OpenAI", "https://api.openai.com/v1", "https://platform.openai.com/api-keys"),
+        /**
+         * Tu plan de ChatGPT (Plus/Pro…) en vez de una API key: se inicia sesión
+         * con la cuenta ([ChatGptAuth]) y se usa la API de Responses ([ChatGptClient]).
+         * Experimental: OpenAI lo tiene en "preview".
+         */
+        CHATGPT("ChatGPT (tu plan)", "https://api.openai.com/v1", null),
         /** Claude: usa el SDK oficial ([AnthropicChat]), no el formato de OpenAI. */
         ANTHROPIC("Anthropic (Claude)", "https://api.anthropic.com", "https://console.anthropic.com/settings/keys"),
         CUSTOM("URL propia", "", null),
@@ -98,6 +104,11 @@ object AiSettings {
         val rest = _state.value.connections.filterNot { it.id == id }
         val active = _state.value.activeId.takeIf { it != id } ?: rest.firstOrNull()?.id
         save(context, State(rest, active))
+    }
+
+    /** Reemplaza el secreto guardado (para ChatGPT: los tokens renovados). */
+    fun setSecret(context: Context, id: String, value: String) {
+        prefs(context).edit().putString(keyPref(id), encrypt(value)).commit()
     }
 
     /** La clave descifrada, solo para armar la llamada HTTP. Nunca mostrarla. */

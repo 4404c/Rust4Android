@@ -152,11 +152,16 @@ fun ChatPanel(
             // charlas de este proyecto: retomar o borrar
             var listOpen by remember { mutableStateOf(false) }
             var toDelete by remember { mutableStateOf<dev.rustdroid.ide.ai.ProjectChats.Summary?>(null) }
+            // botones de la cabecera en blanco (el color de texto del chat);
+            // apagados quedan un poco transparentes, pero siempre claros
+            val headerIcon = LocalEditorPalette.current.stdout
             Box {
-                IconButton(onClick = { listOpen = true }, enabled = chatList.isNotEmpty(), modifier = Modifier.size(32.dp)) {
+                val listEnabled = chatList.isNotEmpty()
+                IconButton(onClick = { listOpen = true }, enabled = listEnabled, modifier = Modifier.size(32.dp)) {
                     Icon(
                         Icons.AutoMirrored.Filled.List,
                         contentDescription = stringResource(R.string.ai_chat_list),
+                        tint = headerIcon.copy(alpha = if (listEnabled) 1f else 0.55f),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -205,10 +210,12 @@ fun ChatPanel(
                 )
             }
             // nueva charla: la actual queda en la lista y la IA arranca de cero
-            IconButton(onClick = { chats.newChat() }, enabled = !busy && allMessages.isNotEmpty(), modifier = Modifier.size(32.dp)) {
+            val newEnabled = !busy && allMessages.isNotEmpty()
+            IconButton(onClick = { chats.newChat() }, enabled = newEnabled, modifier = Modifier.size(32.dp)) {
                 Icon(
                     Icons.Filled.Add,
                     contentDescription = stringResource(R.string.ai_chat_new),
+                    tint = headerIcon.copy(alpha = if (newEnabled) 1f else 0.55f),
                     modifier = Modifier.size(20.dp),
                 )
             }
