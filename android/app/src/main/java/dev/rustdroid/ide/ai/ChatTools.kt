@@ -25,6 +25,24 @@ interface ChatTools {
     /** Definiciones en formato OpenAI (`type: function`). */
     val definitions: JsonArray
     suspend fun execute(name: String, arguments: String): ProjectTools.Outcome
+
+    /** Herramientas permitidas en modo Plan (solo mirar, nada que cambie archivos). */
+    val planTools: Set<String> get() = emptySet()
+
+    /** [definitions] filtradas por nombre. */
+    fun definitionsFor(names: Set<String>): JsonArray = JsonArray(
+        definitions.filter { def ->
+            def.jsonObject["function"]?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull in names
+        },
+    )
+}
+
+/** R4A: las charlas del proyecto, para que la IA pueda leer las anteriores. */
+interface ChatHistory {
+    fun chats(): List<ProjectChats.Summary>
+    fun currentChatId(): String?
+    /** La charla como texto (Usuario / IA / pasos), o null si no existe. */
+    fun transcript(id: String): String?
 }
 
 /**

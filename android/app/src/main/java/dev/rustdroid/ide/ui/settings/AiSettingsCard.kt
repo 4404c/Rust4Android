@@ -79,6 +79,7 @@ fun AiSettingsCard(container: AppContainer) {
     }
 
     var adding by remember { mutableStateOf(false) }
+    var editingRule by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<AiSettings.Connection?>(null) }
     var deleting by remember { mutableStateOf<AiSettings.Connection?>(null) }
     // modelos: para qué conexión, la lista (null = cargando) y el error
@@ -90,18 +91,9 @@ fun AiSettingsCard(container: AppContainer) {
         modelsFor = c
         models = null
         modelsError = null
-        val key = AiSettings.apiKey(context, c.id)
-        if (key == null) {
-            modelsError = context.getString(R.string.ai_settings_key_unreadable)
-            return
-        }
         scope.launch {
             try {
-                models = when (c.provider) {
-                    AiSettings.Provider.ANTHROPIC -> claude.listModels(key).sorted()
-                    AiSettings.Provider.CHATGPT -> chatgpt.listModels(chatgptAuth.accessToken(context, c.id))
-                    else -> client.listModels(c.baseUrl, key)
-                }
+                models = dev.rustdroid.ide.ai.ModelCatalog.list(context, container.http, c)
             } catch (e: Exception) {
                 modelsError = e.message ?: e.toString()
             }
@@ -134,7 +126,44 @@ fun AiSettingsCard(container: AppContainer) {
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.ai_settings_add_key))
             }
+            // regla universal: va en el prompt de todos los modelos
+            Spacer(Modifier.size(4.dp))
+            Text(stringResource(R.string.ai_rule_title), style = MaterialTheme.typography.labelLarge)
+            Text(
+                stringResource(R.string.ai_rule_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = { editingRule = true }) { Text(stringResource(R.string.ai_rule_edit)) }
         }
+    }
+
+    if (editingRule) {
+        val current by AiSettings.rule.collectAsState()
+        var text by remember { mutableStateOf(current) }
+        AlertDialog(
+            onDismissRequest = { editingRule = false },
+            title = { Text(stringResource(R.string.ai_rule_title)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 420.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { AiSettings.setRule(context, text); editingRule = false }) {
+                    Text(stringResource(R.string.ai_settings_key_save))
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { text = AiSettings.DEFAULT_RULE }) { Text(stringResource(R.string.ai_rule_reset)) }
+                    TextButton(onClick = { editingRule = false }) { Text(stringResource(R.string.common_cancel)) }
+                }
+            },
+        )
     }
 
     if (adding) {
@@ -434,7 +463,7 @@ private fun RenameDialog(current: String, onSave: (String) -> Unit, onDismiss: (
 }
 
 @Composable
-private fun ModelPickerDialog(
+internal fun ModelPickerDialog(
     connection: AiSettings.Connection,
     models: List<String>?,
     error: String?,

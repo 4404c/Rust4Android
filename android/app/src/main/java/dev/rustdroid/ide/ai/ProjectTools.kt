@@ -29,7 +29,17 @@ import java.io.File
  * Fase 4: compilar (cargo check) y ejecutar (cargo run) en una copia.
  * Crear proyectos NO va acá: eso es del chat de Inicio ([HomeTools]).
  */
-class ProjectTools(val bridge: Bridge) : ChatTools {
+class ProjectTools(
+    val bridge: Bridge,
+    /** Las charlas del proyecto (read_chat); null = no se ofrecen esas herramientas. */
+    private val history: ChatHistory? = null,
+) : ChatTools {
+
+    /** En modo Plan: mirar, compilar para ver errores y leer charlas; nada que cambie archivos. */
+    override val planTools = setOf(
+        "list_files", "read_file", "search_text", "get_problems", "get_editor_state",
+        "cargo_check", "list_chats", "read_chat",
+    )
 
     /** Lo que las herramientas necesitan del editor. */
     interface Bridge {
@@ -104,6 +114,16 @@ class ProjectTools(val bridge: Bridge) : ChatTools {
             "get_editor_state",
             "Qué archivo está mirando el usuario en el editor y qué archivos tienen cambios sin guardar.",
         )
+        // ---- charlas anteriores del proyecto ----
+        tool(
+            "list_chats",
+            "Lista las OTRAS charlas de este proyecto (id, título, fecha, cantidad de mensajes), por si el usuario se refiere a algo que hablaron antes.",
+        )
+        tool(
+            "read_chat",
+            "Lee el texto de otra charla de este proyecto (usá un id de list_chats).",
+            "id" to "Id de la charla",
+        )
         // ---- fase 4: compilar y probar ----
         tool(
             "cargo_check",
@@ -155,6 +175,8 @@ class ProjectTools(val bridge: Bridge) : ChatTools {
                 "edit_file" -> editFile(arg("path"), raw("old_text"), raw("new_text"))
                 "create_folder" -> createFolder(arg("path"))
                 "delete_file" -> deleteFile(arg("path"))
+                "list_chats" -> listChats()
+                "read_chat" -> readChat(arg("id"))
                 "cargo_check" -> cargoCheck()
                 "run_program" -> runProgram()
                 else -> Outcome("Error: la herramienta '$name' no existe.", "Pidió una herramienta desconocida ($name)")
@@ -248,6 +270,24 @@ class ProjectTools(val bridge: Bridge) : ChatTools {
             appendLine("Sin guardar: ${if (unsaved.isEmpty()) "(ninguno)" else unsaved.joinToString(", ")}")
         }
         return Outcome(text, "Miró qué archivo tenés abierto")
+    }
+
+    // ---------------- charlas anteriores ----------------
+
+    private fun listChats(): Outcome {
+        val h = history ?: return Outcome("No hay charlas guardadas.", "Miró las charlas (no hay)")
+        val others = h.chats().filter { it.id != h.currentChatId() }
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.ROOT)
+        val text = if (others.isEmpty()) "No hay otras charlas en este proyecto."
+        else others.joinToString("\n") { "${it.id} · ${fmt.format(java.util.Date(it.updatedAt))} · ${it.messages} mensajes · ${it.title.take(80)}" }
+        return Outcome(text, "Miró las otras charlas (${others.size})")
+    }
+
+    private fun readChat(id: String): Outcome {
+        val h = history ?: return Outcome("Error: no hay charlas guardadas.", "Quiso leer una charla (no hay)")
+        val text = h.transcript(id) ?: return Outcome("Error: no existe la charla '$id'. Usá list_chats.", "Quiso leer una charla que no existe")
+        val title = h.chats().firstOrNull { it.id == id }?.title.orEmpty().take(40)
+        return Outcome(clip(text), "Leyó la charla «$title»")
     }
 
     // ---------------- fase 4: compilar y probar ----------------

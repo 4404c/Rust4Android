@@ -157,7 +157,10 @@ fun EdgeDrawer(
                     .graphicsLayer {
                         val hidden = widthPx * (1f - state.progress.value)
                         translationX = if (fromEnd) hidden else -hidden
-                    },
+                    }
+                    // R4A: un toque en una parte vacía del cajón (debajo del cuadro
+                    // del chat, por ejemplo) no debe pasar al fondo y cerrarlo
+                    .pointerInput(Unit) { detectTapGestures { } },
             ) {
                 drawerContent()
             }

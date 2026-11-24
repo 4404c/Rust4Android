@@ -51,10 +51,43 @@ object AiSettings {
         val provider: Provider,
         val customUrl: String,
         val model: String,
+        /** Esfuerzo de razonamiento ("" = el del modelo). Ver [effortOptions]. */
+        val effort: String = "",
     ) {
         val baseUrl: String get() =
             (if (provider == Provider.CUSTOM) customUrl else provider.baseUrl).trim().trimEnd('/')
         val ready: Boolean get() = model.isNotBlank() && baseUrl.isNotBlank()
+    }
+
+    /**
+     * Niveles de esfuerzo que se pueden pedir a cada proveedor ("" = automático).
+     * Si el modelo elegido no acepta elegirlo, el chat sigue sin él.
+     */
+    fun effortOptions(p: Provider): List<String> = when (p) {
+        Provider.ANTHROPIC -> listOf("", "low", "medium", "high", "xhigh", "max")
+        else -> listOf("", "low", "medium", "high")
+    }
+
+    fun setEffort(context: Context, id: String, effort: String) =
+        update(context, id) { it.copy(effort = effort) }
+
+    // ---- regla universal: va en el prompt de todos los modelos ----
+
+    val DEFAULT_RULE = """
+        Cómo mostrar tu trabajo en R4A:
+        - Los cambios que hacés con herramientas ya se ven en la app: cada archivo modificado aparece como una tarjeta con las líneas agregadas (verde) y borradas (rojo), y el usuario lo puede abrir en el editor. NO pegues en el chat el código que ya escribiste con herramientas.
+        - Al terminar, resumí en 1 a 3 líneas qué cambiaste y por qué, nombrando los archivos.
+        - Mostrá código en el chat solo si el usuario lo pide o si es un fragmento chico (menos de 10 líneas) para explicar algo.
+        - Usá markdown simple (negrita, listas, `código`) y respuestas cortas: la pantalla del celular es chica.
+    """.trimIndent()
+
+    private val _rule = MutableStateFlow(DEFAULT_RULE)
+    val rule: StateFlow<String> = _rule.asStateFlow()
+
+    fun setRule(context: Context, text: String) {
+        val t = text.trim()
+        prefs(context).edit().apply { if (t.isEmpty() || t == DEFAULT_RULE) remove("universal_rule") else putString("universal_rule", t) }.apply()
+        _rule.value = t.ifEmpty { DEFAULT_RULE }
     }
 
     data class State(val connections: List<Connection>, val activeId: String?) {
@@ -70,6 +103,7 @@ object AiSettings {
 
     /** Llamar una vez al arrancar la app (RustDroidApp.onCreate). */
     fun init(context: Context) {
+        _rule.value = prefs(context).getString("universal_rule", null) ?: DEFAULT_RULE
         val p = prefs(context)
         if (!p.contains("connections")) migrateSingleKeys(context)
         val list = runCatching { parse(p.getString("connections", "[]") ?: "[]") }.getOrDefault(emptyList())
@@ -128,7 +162,8 @@ object AiSettings {
                     .put("name", c.name)
                     .put("provider", c.provider.name)
                     .put("custom_url", c.customUrl)
-                    .put("model", c.model),
+                    .put("model", c.model)
+                    .put("effort", c.effort),
             )
         }
         prefs(context).edit()
@@ -149,6 +184,7 @@ object AiSettings {
                 provider = provider,
                 customUrl = o.optString("custom_url", ""),
                 model = o.optString("model", ""),
+                effort = o.optString("effort", ""),
             )
         }
     }

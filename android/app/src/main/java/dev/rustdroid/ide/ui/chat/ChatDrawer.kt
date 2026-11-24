@@ -71,6 +71,7 @@ fun ChatDrawerSheet(
             onOpenFile = onOpenFile,
             onOpenProject = onOpenProject,
             emptyText = if (home) stringResource(R.string.ai_home_empty) else null,
+            home = home,
         )
     }
 }

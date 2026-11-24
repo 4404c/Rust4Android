@@ -61,6 +61,7 @@ class AnthropicChat {
         model: String,
         messages: List<AiClient.Message>,
         tools: JsonArray?,
+        effort: String = "",
         onDelta: (String) -> Unit,
     ): AiClient.Reply = withContext(Dispatchers.IO) {
         val system = messages.filter { it.role == "system" }.joinToString("\n\n") { it.content.orEmpty() }
@@ -71,6 +72,13 @@ class AnthropicChat {
             // el prompt de sistema y las herramientas no cambian: se cachean
             .cacheControl(CacheControlEphemeral.builder().build())
         if (system.isNotBlank()) builder.system(system)
+        if (effort.isNotEmpty()) {
+            builder.outputConfig(
+                com.anthropic.models.messages.OutputConfig.builder()
+                    .effort(com.anthropic.models.messages.OutputConfig.Effort.of(effort))
+                    .build(),
+            )
+        }
         tools?.forEach { builder.addTool(toTool(it.jsonObject)) }
         // si el modelo se niega por un filtro de seguridad, la API reintenta con
         // el modelo que Anthropic recomienda para ese caso (solo en estos modelos)

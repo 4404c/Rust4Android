@@ -159,7 +159,7 @@ fun HomeScreen(
     }
 
     // R4A: chat de Inicio (crear proyectos con la IA), en un cajón desde la derecha
-    val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
+    // el chat de Inicio está siempre: la casilla "Chat IA" del editor solo esconde el del editor
     val homeChats = remember { container.chatStore.home }
     val homeTools = remember { dev.rustdroid.ide.ai.HomeTools(container.projectRepository) }
     androidx.compose.runtime.DisposableEffect(homeChats) {
@@ -177,7 +177,7 @@ fun HomeScreen(
         fromEnd = true,
         widthFraction = 0.9f,
         maxSheetWidth = 460.dp,
-        edgeEnabled = chatEnabled,
+        edgeEnabled = true,
         drawerContent = {
             dev.rustdroid.ide.ui.chat.ChatDrawerSheet(
                 chat = homeChats,
@@ -213,10 +213,8 @@ fun HomeScreen(
                     // v0.2: the terminal moved OUT of the Home toolbar and
                     // ONTO each project card (plus the editor toolbar) — it
                     // is a per-project tool, not a global menu entry.
-                    if (chatEnabled) {
-                        IconButton(onClick = { chatScope.launch { chatDrawerState.open() } }) {
-                            dev.rustdroid.ide.ui.chat.AiBadge(contentDescription = stringResource(R.string.ai_chat_open))
-                        }
+                    IconButton(onClick = { chatScope.launch { chatDrawerState.open() } }) {
+                        dev.rustdroid.ide.ui.chat.AiBadge(contentDescription = stringResource(R.string.ai_chat_open))
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.common_settings))

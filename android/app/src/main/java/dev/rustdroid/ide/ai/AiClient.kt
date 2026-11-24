@@ -110,6 +110,8 @@ class AiClient(baseHttp: OkHttpClient) {
         model: String,
         messages: List<Message>,
         tools: JsonArray? = null,
+        /** "" = no se manda. OpenRouter lo recibe como reasoning.effort. */
+        effort: String = "",
         onDelta: (String) -> Unit,
     ): Reply = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
@@ -119,6 +121,10 @@ class AiClient(baseHttp: OkHttpClient) {
                 messages.forEach { m -> add(m.toJson()) }
             }
             if (tools != null && tools.isNotEmpty()) put("tools", tools)
+            if (effort.isNotEmpty()) {
+                if ("openrouter.ai" in baseUrl) putJsonObject("reasoning") { put("effort", effort) }
+                else put("reasoning_effort", effort)
+            }
         }
         val req = Request.Builder()
             .url("$baseUrl/chat/completions")

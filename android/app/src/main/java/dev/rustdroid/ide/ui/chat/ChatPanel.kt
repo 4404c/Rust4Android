@@ -31,6 +31,9 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,6 +56,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
@@ -75,6 +80,8 @@ fun ChatPanel(
     onOpenFile: (String) -> Unit = {},
     onOpenProject: (String) -> Unit = {},
     emptyText: String? = null,
+    /** Chat de Inicio: sin modo Plan/Build. */
+    home: Boolean = false,
 ) {
     // la charla actual del proyecto (cambia con "Nueva charla" o la lista)
     val vm by chats.current.collectAsState()
@@ -93,13 +100,23 @@ fun ChatPanel(
     var loadingOlder by remember(vm) { mutableStateOf(false) }
     var dividerAt by remember(vm) { mutableStateOf<Int?>(null) }
 
-    // seguir el final mientras llega texto
+    // los mensajes viejos entran con fundido SOLO un momento después de revelarlos
+    // (antes cada mensaje nuevo entraba con fundido: eso era el parpadeo)
+    var revealAnim by remember(vm) { mutableStateOf(false) }
+
+    // seguir el final mientras llega texto, salvo que el usuario haya subido a leer
+    var follow by remember(vm) { mutableStateOf(true) }
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) follow = !listState.canScrollForward
+    }
     val lastLen = messages.lastOrNull()?.text?.length ?: 0
-    // (no depende de hiddenBefore: al revelar lo anterior la vista no salta al final)
-    LaunchedEffect(allMessages.size, lastLen) {
-        if (messages.isEmpty()) return@LaunchedEffect
-        val extra = (if (hiddenBefore > 0) 1 else 0) + (if (dividerAt != null) 1 else 0)
-        listState.scrollToItem(messages.lastIndex + extra, Int.MAX_VALUE)
+    // (no depende de hiddenBefore: al revelar lo anterior la vista se queda en lo último)
+    LaunchedEffect(allMessages.size, lastLen, busy) {
+        if (messages.isEmpty() || !follow) return@LaunchedEffect
+        val count = (if (hiddenBefore > 0) 1 else 0) + messages.size +
+            (if (dividerAt != null && dividerAt!! < allMessages.size) 1 else 0) +
+            (if (busy && messages.lastOrNull()?.role != ChatSession.Role.ASSISTANT) 1 else 0)
+        listState.scrollToItem(count - 1, Int.MAX_VALUE)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -108,22 +125,32 @@ fun ChatPanel(
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // tocar el nombre → elegir otra API key guardada
+            // tocar el nombre → elegir clave/proveedor, modelo y esfuerzo para ESTA charla
             val active = aiState.active
             var pickerOpen by remember { mutableStateOf(false) }
+            var modelsFor by remember { mutableStateOf<AiSettings.Connection?>(null) }
+            var models by remember { mutableStateOf<List<String>?>(null) }
+            var modelsError by remember { mutableStateOf<String?>(null) }
+            val effortLabel = active?.effort?.takeIf { it.isNotEmpty() }?.let { " · ${effortName(it)}" }.orEmpty()
             Box(Modifier.weight(1f)) {
                 Text(
-                    if (active?.ready == true) "${active.name} · ${active.model}  ▾"
+                    if (active?.ready == true) "${active.name} · ${active.model}$effortLabel  ▾"
                     else stringResource(R.string.ai_chat_not_ready),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .clickable(enabled = !busy && aiState.connections.size > 1) { pickerOpen = true }
+                        .clickable(enabled = !busy && aiState.connections.isNotEmpty()) { pickerOpen = true }
                         .padding(vertical = 6.dp),
                 )
                 DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+                    Text(
+                        stringResource(R.string.ai_chat_pick_provider),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
                     aiState.connections.forEach { c ->
                         DropdownMenuItem(
                             text = {
@@ -143,7 +170,76 @@ fun ChatPanel(
                             },
                         )
                     }
+                    if (active != null) {
+                        androidx.compose.material3.HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ai_chat_change_model)) },
+                            onClick = {
+                                pickerOpen = false
+                                modelsFor = active
+                                models = null
+                                modelsError = null
+                                scope.launch {
+                                    try { models = chats.listModels(active) } catch (e: Exception) { modelsError = e.message ?: e.toString() }
+                                }
+                            },
+                        )
+                        androidx.compose.material3.HorizontalDivider()
+                        Text(
+                            stringResource(R.string.ai_chat_effort),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                        )
+                        AiSettings.effortOptions(active.provider).forEach { e ->
+                            DropdownMenuItem(
+                                text = { Text(if (e.isEmpty()) stringResource(R.string.ai_chat_effort_auto) else effortName(e)) },
+                                leadingIcon = { RadioButton(selected = active.effort == e, onClick = null) },
+                                onClick = {
+                                    AiSettings.setEffort(context, active.id, e)
+                                    pickerOpen = false
+                                },
+                            )
+                        }
+                    }
                 }
+            }
+            modelsFor?.let { c ->
+                dev.rustdroid.ide.ui.settings.ModelPickerDialog(
+                    connection = c,
+                    models = models,
+                    error = modelsError,
+                    onPick = {
+                        AiSettings.setModel(context, c.id, it)
+                        modelsFor = null
+                    },
+                    onDismiss = { modelsFor = null },
+                )
+            }
+            // modo Plan (solo mira y propone) / Build (cambia archivos); no en Inicio
+            if (!home) {
+                val mode by vm.mode.collectAsState()
+                val plan = mode == ChatSession.Mode.PLAN
+                // PLAN va en el color complementario del principal (BUILD usa el principal)
+                val chipColor = if (plan) complementary(MaterialTheme.colorScheme.primary) else MaterialTheme.colorScheme.primary
+                Text(
+                    if (plan) "PLAN" else "BUILD",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = chipColor,
+                    modifier = Modifier
+                        .padding(horizontal = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .border(
+                            1.dp,
+                            chipColor.copy(alpha = 0.6f),
+                            RoundedCornerShape(6.dp),
+                        )
+                        .clickable(enabled = !busy) {
+                            vm.setMode(if (plan) ChatSession.Mode.BUILD else ChatSession.Mode.PLAN)
+                        }
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                )
             }
             if (busy) {
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
@@ -232,14 +328,13 @@ fun ChatPanel(
                 if (hiddenBefore > 0 && !loadingOlder) scope.launch {
                     loadingOlder = true
                     kotlinx.coroutines.delay(450)
-                    val h = hiddenBefore
-                    dividerAt = h
+                    dividerAt = hiddenBefore
+                    revealAnim = true
                     vm.revealOlder()
                     loadingOlder = false
-                    // queda la separación arriba y se asoma un poco de lo anterior
-                    androidx.compose.runtime.withFrameNanos { }
-                    listState.scrollToItem(h)
-                    listState.animateScrollBy(-260f)
+                    // la vista se queda en los últimos mensajes; lo anterior queda arriba
+                    kotlinx.coroutines.delay(600)
+                    revealAnim = false
                 }
             },
             state = pullState,
@@ -280,7 +375,7 @@ fun ChatPanel(
                 }
             },
         ) {
-            SelectionContainer {
+            run {
                 LazyColumn(
                     state = listState,
                     // la lista baja con el dedo y deja lugar al círculo de arriba
@@ -319,15 +414,21 @@ fun ChatPanel(
                             )
                         }
                     }
-                    // la clave es la posición en TODA la charla: así los mensajes
-                    // viejos que aparecen son "nuevos" para la lista y entran con fundido
+                    // clave estable por mensaje: agregar texto o revelar lo anterior no
+                    // redibuja los demás; sin animación de lugar (eso hacía saltar todo)
                     messages.forEachIndexed { i, m ->
                         val abs = hiddenBefore + i
                         if (dividerAt != null && abs == dividerAt) {
-                            item(key = "divider") { OlderDivider(Modifier.animateItem()) }
+                            item(key = "divider") { OlderDivider() }
                         }
-                        item(key = abs) {
-                            Box(Modifier.animateItem(fadeInSpec = androidx.compose.animation.core.tween(350))) {
+                        item(key = m.id) {
+                            Box(
+                                Modifier.animateItem(
+                                    fadeInSpec = if (revealAnim) androidx.compose.animation.core.tween(350) else null,
+                                    placementSpec = null,
+                                    fadeOutSpec = null,
+                                ),
+                            ) {
                                 if (m.role == ChatSession.Role.CHANGE) {
                                     ChangeCard(
                                         m,
@@ -337,26 +438,47 @@ fun ChatPanel(
                                         onOpenProject = { m.projectRef?.let(onOpenProject) },
                                     )
                                 } else {
-                                    MessageBubble(m)
+                                    MessageBubble(
+                                        m,
+                                        streaming = busy && m.role == ChatSession.Role.ASSISTANT && i == messages.lastIndex,
+                                    )
                                 }
                             }
+                        }
+                    }
+                    // entre paso y paso (usando herramientas) también se ve que sigue trabajando
+                    if (busy && messages.lastOrNull()?.role != ChatSession.Role.ASSISTANT) {
+                        item(key = "working") {
+                            Box(Modifier.padding(horizontal = 14.dp)) { TypingDots() }
                         }
                     }
                 }
             }
         }
 
-        ChatInput(
-            busy = busy,
-            onSend = { vm.send(it) },
-            onStop = { vm.stop() },
-            onFocusChanged = onInputFocusChanged,
-        )
+        // key: cada charla tiene su propio borrador
+        androidx.compose.runtime.key(vm) {
+            ChatInput(
+                busy = busy,
+                initialText = remember(vm) { vm.draft() },
+                onDraft = { vm.saveDraft(it) },
+                onSend = { follow = true; vm.saveDraft(""); vm.send(it) },
+                onStop = { vm.stop() },
+                onFocusChanged = onInputFocusChanged,
+            )
+        }
     }
 }
 
+/**
+ * Un mensaje. [streaming] = la IA lo está escribiendo ahora: el texto aparece
+ * letra por letra (con un ritmo parejo aunque lleguen pedazos grandes) y,
+ * mientras está vacío, se ven los puntos de "escribiendo…". Mantener apretado
+ * → Copiar.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(m: ChatSession.ChatMessage) {
+private fun MessageBubble(m: ChatSession.ChatMessage, streaming: Boolean = false) {
     val palette = LocalEditorPalette.current
     // R4A fase 2: lo que hizo la IA con el proyecto, como una línea chiquita
     if (m.role == ChatSession.Role.TOOL) {
@@ -375,43 +497,89 @@ private fun MessageBubble(m: ChatSession.ChatMessage) {
         return
     }
     val isUser = m.role == ChatSession.Role.USER
+    val shownText = if (streaming) typewriter(m.text) else m.text
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var menu by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-        Column(
-            Modifier
-                .align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)
-                .widthIn(max = 520.dp)
-                .background(
-                    when (m.role) {
-                        ChatSession.Role.USER -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                        ChatSession.Role.ASSISTANT -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                        ChatSession.Role.ERROR -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
-                        ChatSession.Role.TOOL, ChatSession.Role.CHANGE -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    RoundedCornerShape(10.dp),
-                )
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            val color = if (m.role == ChatSession.Role.ERROR) MaterialTheme.colorScheme.error else palette.stdout
-            // ```bloques``` en monoespaciado; el resto como texto normal
-            splitCodeBlocks(m.text.ifEmpty { "…" }).forEach { (isCode, part) ->
-                if (isCode) {
-                    Text(
-                        part,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = palette.stdout,
-                        softWrap = false,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(palette.consoleBg, RoundedCornerShape(6.dp))
-                            .horizontalScroll(rememberScrollState())
-                            .padding(8.dp),
+        Box(Modifier.align(if (isUser) Alignment.CenterEnd else Alignment.CenterStart)) {
+            Column(
+                Modifier
+                    .widthIn(max = 520.dp)
+                    .background(
+                        when (m.role) {
+                            ChatSession.Role.USER -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                            ChatSession.Role.ASSISTANT -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                            ChatSession.Role.ERROR -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                            ChatSession.Role.TOOL, ChatSession.Role.CHANGE -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        RoundedCornerShape(10.dp),
                     )
-                } else if (part.isNotBlank()) {
-                    Text(part.trim('\n'), style = MaterialTheme.typography.bodySmall, color = color)
-                }
+                    .clip(RoundedCornerShape(10.dp))
+                    .combinedClickable(
+                        enabled = m.text.isNotEmpty(),
+                        onClick = {},
+                        onLongClick = { menu = true },
+                    )
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                val color = if (m.role == ChatSession.Role.ERROR) MaterialTheme.colorScheme.error else palette.stdout
+                if (shownText.isEmpty()) TypingDots()
+                else ChatMarkdown(shownText, color)
             }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.ai_chat_copy)) },
+                    onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(m.text))
+                        menu = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Muestra [full] de a poco: avanza hacia el final con un paso que crece si
+ * quedó mucho por mostrar (así nunca se atrasa demasiado).
+ */
+@Composable
+private fun typewriter(full: String): String {
+    var shown by remember { mutableStateOf(0) }
+    val target = full.length
+    LaunchedEffect(target) {
+        while (shown < target) {
+            val left = target - shown
+            shown = (shown + maxOf(1, left / 12)).coerceAtMost(target)
+            kotlinx.coroutines.delay(16)
+        }
+    }
+    if (shown > target) shown = target
+    return full.substring(0, shown)
+}
+
+/** Tres puntos que suben y bajan: la IA está pensando o por escribir. */
+@Composable
+fun TypingDots(modifier: Modifier = Modifier) {
+    val color = LocalEditorPalette.current.stdout
+    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "dots")
+    Row(modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        repeat(3) { i ->
+            val a by t.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.tween(450, delayMillis = i * 150),
+                    androidx.compose.animation.core.RepeatMode.Reverse,
+                ),
+                label = "dot$i",
+            )
+            Box(
+                Modifier
+                    .size(7.dp)
+                    .graphicsLayer { alpha = a; translationY = (1f - a) * 3.dp.toPx() }
+                    .background(color, androidx.compose.foundation.shape.CircleShape),
+            )
         }
     }
 }
@@ -475,29 +643,30 @@ private fun ChangeCard(
     }
 }
 
-/** Parte el texto en (esCódigo, texto) según los ``` de markdown. */
-private fun splitCodeBlocks(text: String): List<Pair<Boolean, String>> {
-    val parts = text.split("```")
-    return parts.mapIndexed { i, part ->
-        if (i % 2 == 1) {
-            // primera línea = lenguaje (```rust); si el bloque sigue abierto, igual se muestra
-            true to part.substringAfter('\n', part).trimEnd('\n')
-        } else {
-            false to part
-        }
-    }
-}
 
 @Composable
 private fun ChatInput(
     busy: Boolean,
+    initialText: String,
+    onDraft: (String) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
 ) {
     val palette = LocalEditorPalette.current
-    var input by rememberSaveable { mutableStateOf("") }
-    DisposableEffect(Unit) { onDispose { onFocusChanged(false) } }
+    var input by rememberSaveable { mutableStateOf(initialText) }
+    // el borrador se guarda un ratito después de dejar de escribir, y al salir
+    LaunchedEffect(input) {
+        kotlinx.coroutines.delay(400)
+        onDraft(input)
+    }
+    val latest by androidx.compose.runtime.rememberUpdatedState(input)
+    DisposableEffect(Unit) {
+        onDispose {
+            onDraft(latest)
+            onFocusChanged(false)
+        }
+    }
 
     fun submit() {
         if (input.isNotBlank() && !busy) {
@@ -560,4 +729,23 @@ private fun ChatInput(
             }
         }
     }
+}
+
+/** Nombre corto del nivel de esfuerzo. */
+@Composable
+private fun effortName(e: String): String = when (e) {
+    "low" -> stringResource(R.string.ai_effort_low)
+    "medium" -> stringResource(R.string.ai_effort_medium)
+    "high" -> stringResource(R.string.ai_effort_high)
+    "xhigh" -> stringResource(R.string.ai_effort_xhigh)
+    "max" -> stringResource(R.string.ai_effort_max)
+    else -> e
+}
+
+/** El color opuesto en la rueda de colores (mismo brillo y saturación). */
+private fun complementary(c: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(c.toArgb(), hsv)
+    hsv[0] = (hsv[0] + 180f) % 360f
+    return Color(android.graphics.Color.HSVToColor(hsv))
 }

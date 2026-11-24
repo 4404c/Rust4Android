@@ -40,6 +40,9 @@ class ChatSession(
     /** Avisa a [ProjectChats] que cambió (para la lista de charlas). */
     private val onSaved: (ChatSession) -> Unit = {},
 ) {
+    /** PLAN = solo mira y propone un plan; BUILD = puede cambiar archivos. */
+    enum class Mode { PLAN, BUILD }
+
     /** TOOL = línea chiquita ("Leyó src/main.rs"); CHANGE = tarjeta con Abrir/Deshacer. */
     enum class Role { USER, ASSISTANT, TOOL, CHANGE, ERROR }
 
@@ -54,7 +57,23 @@ class ChatSession(
         val changeId: Int? = null,
         val undone: Boolean = false,
         val projectRef: String? = null,
+        /** Clave estable para la lista (no cambia al agregar texto ni al revelar lo anterior). */
+        val id: Long = nextMessageId.incrementAndGet(),
     )
+
+    /**
+     * Borrador: lo escrito en el cuadro y no enviado. Se guarda aparte (no en
+     * el archivo de la charla, que no existe mientras la charla está vacía).
+     */
+    fun draft(): String = draftPrefs().getString(saveFile.absolutePath, "").orEmpty()
+
+    fun saveDraft(text: String) {
+        val p = draftPrefs()
+        if (text.isBlank()) p.edit().remove(saveFile.absolutePath).apply()
+        else p.edit().putString(saveFile.absolutePath, text).apply()
+    }
+
+    private fun draftPrefs() = context.getSharedPreferences("r4a_chat_drafts", Context.MODE_PRIVATE)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val client = AiClient(http)
@@ -84,6 +103,28 @@ class ChatSession(
     private var job: Job? = null
 
     fun isEmpty() = _messages.value.isEmpty()
+
+    private val _mode = MutableStateFlow(Mode.BUILD)
+    val mode: StateFlow<Mode> = _mode.asStateFlow()
+
+    fun setMode(m: Mode) {
+        _mode.value = m
+        save()
+    }
+
+    /** false si el modelo no acepta elegir el esfuerzo: se sigue sin él. */
+    private var effortSupported = true
+
+    /** La charla como texto, para que la IA la lea desde otra charla (read_chat). */
+    fun transcript(): String = _messages.value.joinToString("\n") { m ->
+        when (m.role) {
+            Role.USER -> "Usuario: ${m.text}"
+            Role.ASSISTANT -> "IA: ${m.text}"
+            Role.TOOL -> "  (paso) ${m.text}"
+            Role.CHANGE -> "  (cambio) ${m.text}${if (m.undone) " — deshecho" else ""}"
+            Role.ERROR -> "  (error) ${m.text}"
+        }
+    }
 
     /** Para la lista de charlas: el primer mensaje del usuario. */
     val title: String get() =
@@ -152,7 +193,13 @@ class ChatSession(
                     if (reply.toolCalls.isEmpty()) break
 
                     for (call in reply.toolCalls) {
-                        val out = tools.execute(call.name, call.arguments)
+                        // en modo Plan, nada que cambie archivos (aunque el modelo lo pida igual)
+                        val out = if (_mode.value == Mode.PLAN && !home && call.name !in tools.planTools) {
+                            ProjectTools.Outcome(
+                                "Error: estás en modo Plan; no podés usar '${call.name}'. Proponé el plan y esperá que el usuario pase a Build.",
+                                "No usó ${call.name} (modo Plan)",
+                            )
+                        } else tools.execute(call.name, call.arguments)
                         _messages.update { it + toMessage(out) }
                         apiHistory += AiClient.Message("tool", out.result, toolCallId = call.id)
                     }
@@ -212,24 +259,44 @@ class ChatSession(
     }
 
     /** Si el modelo rechaza las herramientas, reintenta sin ellas. */
+    /** Si el modelo rechaza elegir el esfuerzo, reintenta sin él (y lo recuerda). */
     private suspend fun askOnce(tools: ChatTools, cfg: AiSettings.Connection, key: String): AiClient.Reply {
+        val effort = if (effortSupported) cfg.effort else ""
+        if (effort.isEmpty()) return askWith(tools, cfg, key, "")
+        return try {
+            askWith(tools, cfg, key, effort)
+        } catch (e: Exception) {
+            val msg = e.message.orEmpty().lowercase()
+            if (e is kotlinx.coroutines.CancellationException || !("effort" in msg || "reasoning" in msg)) throw e
+            effortSupported = false
+            _messages.update {
+                it.dropLast(1) + ChatMessage(Role.TOOL, "Este modelo no permite elegir el esfuerzo; sigue sin eso") + ChatMessage(Role.ASSISTANT, "")
+            }
+            askWith(tools, cfg, key, "")
+        }
+    }
+
+    /** Si el modelo rechaza las herramientas, reintenta sin ellas. */
+    private suspend fun askWith(tools: ChatTools, cfg: AiSettings.Connection, key: String, effort: String): AiClient.Reply {
         val messages = listOf(AiClient.Message("system", systemPrompt())) + apiHistory
+        // modo Plan: solo las herramientas para mirar
+        val defs = if (_mode.value == Mode.PLAN && !home) tools.definitionsFor(tools.planTools) else tools.definitions
         // Claude va por el SDK de Anthropic (acepta herramientas siempre)
         if (cfg.provider == AiSettings.Provider.ANTHROPIC) {
-            return claude.chatStream(key, cfg.model, messages, tools.definitions) { appendToLast(it) }
+            return claude.chatStream(key, cfg.model, messages, defs, effort) { appendToLast(it) }
         }
         val baseUrl = cfg.baseUrl
         val model = cfg.model
         // plan de ChatGPT: API de Responses con el token de la sesión (se renueva solo)
         val stream: suspend (kotlinx.serialization.json.JsonArray?) -> AiClient.Reply =
             if (cfg.provider == AiSettings.Provider.CHATGPT) {
-                { t -> chatgpt.chatStream(chatgptAuth.accessToken(context, cfg.id), model, messages, t) { appendToLast(it) } }
+                { t -> chatgpt.chatStream(chatgptAuth.accessToken(context, cfg.id), model, messages, t, effort) { appendToLast(it) } }
             } else {
-                { t -> client.chatStream(baseUrl, key, model, messages, t) { appendToLast(it) } }
+                { t -> client.chatStream(baseUrl, key, model, messages, t, effort) { appendToLast(it) } }
             }
         if (toolsSupported) {
             try {
-                return stream(tools.definitions)
+                return stream(defs)
             } catch (e: AiClient.AiException) {
                 val msg = e.message.orEmpty().lowercase()
                 if (!("tool" in msg || "function" in msg)) throw e
@@ -289,6 +356,7 @@ class ChatSession(
         apiHistory.clear()
         changes.clear()
         toolsSupported = true
+        effortSupported = true
         _hiddenBefore.value = 0
         save()
     }
@@ -318,6 +386,7 @@ class ChatSession(
                 val root = JSONObject()
                     .put("project", projectName)
                     .put("title", title)
+                    .put("mode", _mode.value.name)
                     .put("messages", JSONArray().apply {
                         msgs.forEach { m ->
                             put(JSONObject().put("role", m.role.name).put("text", m.text)
@@ -342,6 +411,7 @@ class ChatSession(
 
     fun load() {
         val root = runCatching { JSONObject(saveFile.readText()) }.getOrNull() ?: return
+        _mode.value = Mode.entries.firstOrNull { it.name == root.optString("mode") } ?: Mode.BUILD
         val msgs = root.optJSONArray("messages") ?: JSONArray()
         // los cambios viejos ya no se pueden deshacer (el "antes" no se guarda)
         _messages.value = (0 until msgs.length()).mapNotNull { i ->
@@ -404,7 +474,16 @@ class ChatSession(
         }
     }
 
-    private fun systemPrompt() = if (home) homePrompt() else projectPrompt()
+    private fun systemPrompt(): String {
+        val base = if (home) homePrompt() else projectPrompt()
+        val plan = if (_mode.value == Mode.PLAN && !home) "\n\n" + """
+            MODO PLAN (lo eligió el usuario): no cambies archivos. Investigá con las herramientas de
+            lectura (y cargo_check si hace falta) y respondé con un plan corto y numerado: qué
+            archivos vas a tocar y qué vas a hacer en cada uno. Terminá preguntando si lo ejecutás;
+            para ejecutarlo el usuario pasa a modo Build.
+        """.trimIndent() else ""
+        return base + plan + "\n\nRegla universal del usuario (respetala siempre):\n" + AiSettings.rule.value
+    }
 
     /** Chat de Inicio: arma proyectos nuevos; no toca proyectos existentes. */
     private fun homePrompt() = """
@@ -453,6 +532,7 @@ class ChatSession(
     """.trimIndent()
 
     private companion object {
+        val nextMessageId = java.util.concurrent.atomic.AtomicLong()
         const val MAX_STEPS = 20
         const val MAX_RATE_RETRIES = 4
         const val MAX_RATE_WAIT_SEC = 65.0

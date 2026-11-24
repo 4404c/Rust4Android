@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -57,6 +58,7 @@ class ChatGptClient(baseHttp: OkHttpClient) {
         model: String,
         messages: List<AiClient.Message>,
         tools: JsonArray?,
+        effort: String = "",
         onDelta: (String) -> Unit,
     ): AiClient.Reply = withContext(Dispatchers.IO) {
         val instructions = messages.filter { it.role == "system" }.joinToString("\n\n") { it.content.orEmpty() }
@@ -65,6 +67,7 @@ class ChatGptClient(baseHttp: OkHttpClient) {
             put("store", false)
             put("stream", true)
             if (instructions.isNotBlank()) put("instructions", instructions)
+            if (effort.isNotEmpty()) putJsonObject("reasoning") { put("effort", effort) }
             putJsonArray("input") {
                 for (m in messages) {
                     when (m.role) {

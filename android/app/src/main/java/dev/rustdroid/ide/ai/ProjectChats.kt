@@ -60,7 +60,14 @@ class ProjectChats(
     private val projectName: String,
     private val dir: File,
     private val home: Boolean = false,
-) {
+) : ChatHistory {
+    override fun chats(): List<Summary> = _list.value
+    override fun currentChatId(): String? = _current.value.id
+    override fun transcript(id: String): String? = sessions[id]?.transcript()
+
+    /** Modelos disponibles para una conexión (para cambiarlo desde el chat). */
+    suspend fun listModels(c: AiSettings.Connection): List<String> = ModelCatalog.list(context, http, c)
+
     data class Summary(val id: String, val title: String, val updatedAt: Long, val messages: Int)
 
     private val sessions = LinkedHashMap<String, ChatSession>()

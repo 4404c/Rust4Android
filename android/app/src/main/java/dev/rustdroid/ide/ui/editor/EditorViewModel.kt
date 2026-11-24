@@ -557,7 +557,12 @@ class EditorViewModel(
      * proyecto sí). Cada vez que se abre el proyecto, lo anterior se oculta
      * hasta que el usuario desliza hacia abajo.
      */
-    private val aiTools by lazy { dev.rustdroid.ide.ai.ProjectTools(aiBridge) }
+    private val aiTools by lazy {
+        dev.rustdroid.ide.ai.ProjectTools(
+            aiBridge,
+            history = container.chatStore.project(projectDir, projectName.substringAfterLast('/')),
+        )
+    }
 
     val chat: dev.rustdroid.ide.ai.ProjectChats by lazy {
         container.chatStore.project(projectDir, projectName.substringAfterLast('/')).also {
