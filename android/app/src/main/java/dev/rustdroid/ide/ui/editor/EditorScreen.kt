@@ -386,9 +386,10 @@ fun EditorScreen(
             ChatDrawerSheet(
                 chat = chat,
                 onClose = { drawerScope.launch { chatDrawerState.close() } },
-                onOpenFile = { rel ->
+                onOpenFile = { rel, line ->
                     drawerScope.launch { chatDrawerState.close() }
-                    vm.openFile(rel)
+                    // abre el archivo y va (con un destello) a la primera línea que cambió
+                    if (line != null) vm.revealLine(rel, line) else vm.openFile(rel)
                 },
                 onOpenProject = { ref ->
                     // la charla sigue en el proyecto nuevo; se guarda todo antes de salir

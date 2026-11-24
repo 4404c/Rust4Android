@@ -77,7 +77,8 @@ import dev.rustdroid.ide.ui.theme.LocalEditorPalette
 fun ChatPanel(
     chats: dev.rustdroid.ide.ai.ProjectChats,
     onInputFocusChanged: (Boolean) -> Unit,
-    onOpenFile: (String) -> Unit = {},
+    /** Abrir un archivo en el editor; [line] = primera línea que cambió (para ir ahí). */
+    onOpenFile: (String, Int?) -> Unit = { _, _ -> },
     onOpenProject: (String) -> Unit = {},
     emptyText: String? = null,
     /** Chat de Inicio: sin modo Plan/Build. */
@@ -433,7 +434,8 @@ fun ChatPanel(
                                     ChangeCard(
                                         m,
                                         busy = busy,
-                                        onOpen = { m.path?.let(onOpenFile) },
+                                        change = m.changeId?.let { vm.change(it) },
+                                        onOpenAt = { line -> m.path?.let { onOpenFile(it, line) } },
                                         onUndo = { m.changeId?.let { vm.undo(it) } },
                                         onOpenProject = { m.projectRef?.let(onOpenProject) },
                                     )
@@ -611,35 +613,65 @@ private fun OlderDivider(modifier: Modifier = Modifier) {
 private fun ChangeCard(
     m: ChatSession.ChatMessage,
     busy: Boolean,
-    onOpen: () -> Unit,
+    change: dev.rustdroid.ide.ai.ProjectTools.Change?,
+    onOpenAt: (Int?) -> Unit,
     onUndo: () -> Unit,
     onOpenProject: () -> Unit,
 ) {
     val palette = LocalEditorPalette.current
-    Row(
+    // el diff se calcula una vez; la tarjeta aparece abierta para ver el cambio enseguida
+    val diff = remember(m.id, change) {
+        change?.takeIf { !it.isDir }?.let { LineDiff.compute(it.before, it.after) }
+    }
+    var expanded by remember(m.id) { mutableStateOf(true) }
+    var fullScreen by remember(m.id) { mutableStateOf(false) }
+    Column(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
             .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = if (m.undone) 0.15f else 0.45f), RoundedCornerShape(8.dp))
-            .padding(start = 10.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(8.dp)),
     ) {
-        Text(
-            if (m.undone) "↶ " + m.text else m.text,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (m.undone) MaterialTheme.colorScheme.onSurfaceVariant else palette.stdout,
-            textDecoration = if (m.undone) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
-            modifier = Modifier.weight(1f).padding(vertical = 6.dp),
-        )
-        if (m.projectRef != null) {
-            TextButton(onClick = onOpenProject, enabled = !busy) { Text(stringResource(R.string.ai_change_open_project)) }
+        Row(
+            Modifier.padding(start = 10.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                if (m.undone) "↶ " + m.text else m.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (m.undone) MaterialTheme.colorScheme.onSurfaceVariant else palette.stdout,
+                textDecoration = if (m.undone) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = diff != null && !m.undone) { expanded = !expanded }
+                    .padding(vertical = 6.dp),
+            )
+            if (diff != null && !m.undone) {
+                Text(
+                    if (expanded) "▴" else "▾",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { expanded = !expanded }.padding(horizontal = 6.dp),
+                )
+            }
+            if (m.projectRef != null) {
+                TextButton(onClick = onOpenProject, enabled = !busy) { Text(stringResource(R.string.ai_change_open_project)) }
+            }
+            if (m.path != null && !m.undone) {
+                TextButton(onClick = { onOpenAt(diff?.firstChangedNewLine) }) { Text(stringResource(R.string.ai_change_open)) }
+            }
+            if (m.changeId != null && !m.undone) {
+                TextButton(onClick = onUndo, enabled = !busy) { Text(stringResource(R.string.ai_change_undo)) }
+            }
         }
-        if (m.path != null && !m.undone) {
-            TextButton(onClick = onOpen) { Text(stringResource(R.string.ai_change_open)) }
+        if (diff != null && expanded && !m.undone) {
+            DiffPreview(diff, maxLines = 30)
+            TextButton(onClick = { fullScreen = true }, modifier = Modifier.padding(start = 4.dp)) {
+                Text(stringResource(R.string.ai_diff_full), style = MaterialTheme.typography.labelSmall)
+            }
         }
-        if (m.changeId != null && !m.undone) {
-            TextButton(onClick = onUndo, enabled = !busy) { Text(stringResource(R.string.ai_change_undo)) }
-        }
+    }
+    if (fullScreen && diff != null) {
+        DiffDialog(title = m.path ?: m.text, result = diff, onDismiss = { fullScreen = false })
     }
 }
 

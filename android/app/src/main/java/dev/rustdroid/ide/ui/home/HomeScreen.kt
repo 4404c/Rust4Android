@@ -182,7 +182,7 @@ fun HomeScreen(
             dev.rustdroid.ide.ui.chat.ChatDrawerSheet(
                 chat = homeChats,
                 onClose = { chatScope.launch { chatDrawerState.close() } },
-                onOpenFile = {},
+                onOpenFile = { _, _ -> },
                 onOpenProject = { ref ->
                     // la charla sigue en el proyecto nuevo
                     val dir = container.projectRepository.resolve(ref)

@@ -35,7 +35,7 @@ import dev.rustdroid.ide.ui.theme.LocalEditorPalette
 fun ChatDrawerSheet(
     chat: dev.rustdroid.ide.ai.ProjectChats,
     onClose: () -> Unit,
-    onOpenFile: (String) -> Unit,
+    onOpenFile: (String, Int?) -> Unit,
     onOpenProject: (String) -> Unit,
     /** Chat de Inicio: otro texto de bienvenida. */
     home: Boolean = false,

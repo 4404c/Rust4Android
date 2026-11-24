@@ -963,6 +963,12 @@ class EditorViewModel(
         _panelCollapsed.value = false
     }
 
+    /** R4A: abrir un archivo e ir a [line] con el mismo destello que Problems. */
+    fun revealLine(relativePath: String, line: Int) {
+        openFile(relativePath)
+        _jump.value = JumpRequest(relativePath, line.coerceAtLeast(1), 1)
+    }
+
     fun clearJump() {
         _jump.value = null
     }

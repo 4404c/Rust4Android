@@ -334,6 +334,9 @@
     <string name="ai_chat_divider_now">antes ↑  ·  ahora ↓</string>
     <string name="ai_console_run">La IA ejecuta el programa (cargo run)…</string>
     <string name="ai_chat_copy">Copiar</string>
+    <string name="ai_diff_full">Ver todo el cambio</string>
+    <string name="ai_diff_more">… %1$d líneas más (Ver todo el cambio)</string>
+    <string name="ai_diff_hidden">⋯ %1$d líneas iguales</string>
     <string name="ai_chat_pick_provider">Proveedor (clave)</string>
     <string name="ai_chat_change_model">Cambiar modelo…</string>
     <string name="ai_chat_effort">Esfuerzo</string>

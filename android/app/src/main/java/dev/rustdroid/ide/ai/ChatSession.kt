@@ -350,6 +350,9 @@ class ChatSession(
         job?.cancel()
     }
 
+    /** El antes/después de un cambio (para el diff); null si ya no está en memoria. */
+    fun change(changeId: Int): ProjectTools.Change? = changes[changeId]
+
     fun clear() {
         stop()
         _messages.value = emptyList()
