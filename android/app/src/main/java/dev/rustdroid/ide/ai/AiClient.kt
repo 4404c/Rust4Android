@@ -6,6 +6,9 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -30,7 +33,38 @@ import java.util.concurrent.TimeUnit
  */
 class AiClient(baseHttp: OkHttpClient) {
 
-    data class Message(val role: String, val content: String)
+    /** Un mensaje del historial. [toolCalls] solo en "assistant"; [toolCallId] solo en "tool". */
+    data class Message(
+        val role: String,
+        val content: String?,
+        val toolCalls: List<ToolCall> = emptyList(),
+        val toolCallId: String? = null,
+    ) {
+        fun toJson(): JsonObject = buildJsonObject {
+            put("role", role)
+            put("content", content ?: "")
+            if (toolCalls.isNotEmpty()) {
+                putJsonArray("tool_calls") {
+                    toolCalls.forEach { c ->
+                        addJsonObject {
+                            put("id", c.id)
+                            put("type", "function")
+                            putJsonObject("function") {
+                                put("name", c.name)
+                                put("arguments", c.arguments)
+                            }
+                        }
+                    }
+                }
+            }
+            toolCallId?.let { put("tool_call_id", it) }
+        }
+    }
+
+    /** El modelo pide usar una herramienta; [arguments] es JSON. */
+    data class ToolCall(val id: String, val name: String, val arguments: String)
+
+    data class Reply(val content: String, val toolCalls: List<ToolCall>)
 
     class AiException(message: String) : Exception(message)
 
@@ -63,26 +97,25 @@ class AiClient(baseHttp: OkHttpClient) {
 
     /**
      * POST /chat/completions con stream=true. Llama [onDelta] con cada
-     * pedacito de texto a medida que llega (en el hilo de IO).
+     * pedacito de texto a medida que llega (en el hilo de IO). Si se pasan
+     * [tools], el modelo puede pedir usarlas: vuelven en [Reply.toolCalls]
+     * (los pedazos de cada llamada se juntan acá).
      */
     suspend fun chatStream(
         baseUrl: String,
         apiKey: String,
         model: String,
         messages: List<Message>,
+        tools: JsonArray? = null,
         onDelta: (String) -> Unit,
-    ) = withContext(Dispatchers.IO) {
+    ): Reply = withContext(Dispatchers.IO) {
         val payload = buildJsonObject {
             put("model", model)
             put("stream", true)
             putJsonArray("messages") {
-                messages.forEach { m ->
-                    addJsonObject {
-                        put("role", m.role)
-                        put("content", m.content)
-                    }
-                }
+                messages.forEach { m -> add(m.toJson()) }
             }
+            if (tools != null && tools.isNotEmpty()) put("tools", tools)
         }
         val req = Request.Builder()
             .url("$baseUrl/chat/completions")
@@ -98,6 +131,9 @@ class AiClient(baseHttp: OkHttpClient) {
                 throw AiException(errorText(resp.code, resp.body?.string().orEmpty()))
             }
             val source = resp.body?.source() ?: throw AiException("Respuesta vacía")
+            val text = StringBuilder()
+            // index → (id, nombre, argumentos) que van llegando en pedazos
+            val calls = sortedMapOf<Int, Triple<StringBuilder, StringBuilder, StringBuilder>>()
             while (true) {
                 val line = source.readUtf8Line() ?: break
                 if (!line.startsWith("data:")) continue
@@ -107,10 +143,30 @@ class AiClient(baseHttp: OkHttpClient) {
                 val obj = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: continue
                 obj["error"]?.let { throw AiException(errorMessage(it.toString()) ?: it.toString()) }
                 val delta = obj["choices"]?.jsonArray?.firstOrNull()?.jsonObject
-                    ?.get("delta")?.jsonObject
-                    ?.get("content")?.jsonPrimitive?.contentOrNull
-                if (!delta.isNullOrEmpty()) onDelta(delta)
+                    ?.get("delta")?.jsonObject ?: continue
+                delta["content"]?.jsonPrimitive?.contentOrNull?.let {
+                    if (it.isNotEmpty()) { text.append(it); onDelta(it) }
+                }
+                (delta["tool_calls"] as? JsonArray)?.forEachIndexed { pos, el ->
+                    val tc = el.jsonObject
+                    val index = tc["index"]?.jsonPrimitive?.intOrNull ?: pos
+                    val acc = calls.getOrPut(index) { Triple(StringBuilder(), StringBuilder(), StringBuilder()) }
+                    tc["id"]?.jsonPrimitive?.contentOrNull?.let { acc.first.append(it) }
+                    val fn = tc["function"]?.jsonObject
+                    fn?.get("name")?.jsonPrimitive?.contentOrNull?.let { acc.second.append(it) }
+                    fn?.get("arguments")?.jsonPrimitive?.contentOrNull?.let { acc.third.append(it) }
+                }
             }
+            Reply(
+                content = text.toString(),
+                toolCalls = calls.map { (i, acc) ->
+                    ToolCall(
+                        id = acc.first.toString().ifEmpty { "call_$i" },
+                        name = acc.second.toString(),
+                        arguments = acc.third.toString().ifBlank { "{}" },
+                    )
+                },
+            )
         }
     }
 

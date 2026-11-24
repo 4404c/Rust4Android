@@ -317,7 +317,7 @@
     <string name="editor_more">More options</string>
     <string name="editor_coding_help">Coding help</string>
     <string name="ai_chat_hint">Ask the AI something…</string>
-    <string name="ai_chat_empty">Type to the AI below. For now it can only talk: it cannot touch your files yet.</string>
+    <string name="ai_chat_empty">Type to the AI below. It can read your project and see the errors, but it does not change anything yet: you make the changes.</string>
     <string name="ai_chat_not_ready">AI not set up</string>
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_stop">Stop</string>

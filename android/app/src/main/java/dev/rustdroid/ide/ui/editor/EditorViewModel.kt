@@ -497,6 +497,23 @@ class EditorViewModel(
         }
     }
 
+    // ---------------- IA (R4A fase 2): lo que la IA puede leer ----------------
+
+    /** Solo lectura. Puede llamarse desde IO: lee StateFlows, no escribe nada. */
+    val aiBridge = object : dev.rustdroid.ide.ai.ProjectTools.Bridge {
+        override val projectDir: File get() = this@EditorViewModel.projectDir
+        override fun tree() = repo.fileTree(projectDir, allFiles = true)
+        override fun bufferText(relativePath: String): String? {
+            val active = activeTab
+            if (active?.relativePath == relativePath) return _activeText.value
+            return _tabs.value.firstOrNull { it.relativePath == relativePath }?.cachedText
+        }
+        override fun activeFile(): String? = activeTab?.relativePath
+        override fun unsavedFiles(): List<String> = _tabs.value.filter { it.dirty }.map { it.relativePath }
+        override fun runProblems() = _problems.value
+        override fun liveProblems() = _live.value?.diagnostics.orEmpty()
+    }
+
     // ---------------- leaving the project (R4A) ----------------
 
     /** Names of the open files with unsaved edits (empty = nothing to save). */

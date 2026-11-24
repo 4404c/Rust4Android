@@ -321,7 +321,7 @@
     <string name="editor_more">Más opciones</string>
     <string name="editor_coding_help">Ayuda para programar</string>
     <string name="ai_chat_hint">Preguntale algo a la IA…</string>
-    <string name="ai_chat_empty">Escribile a la IA abajo. Por ahora solo conversa: todavía no puede tocar tus archivos.</string>
+    <string name="ai_chat_empty">Escribile a la IA abajo. Puede leer tu proyecto y ver los errores, pero todavía no cambia nada: los cambios los hacés vos.</string>
     <string name="ai_chat_not_ready">IA sin configurar</string>
     <string name="ai_chat_send">Enviar</string>
     <string name="ai_chat_stop">Detener</string>

@@ -163,6 +163,22 @@ fun ChatPanel(
 @Composable
 private fun MessageBubble(m: ChatViewModel.ChatMessage) {
     val palette = LocalEditorPalette.current
+    // R4A fase 2: lo que hizo la IA con el proyecto, como una línea chiquita
+    if (m.role == ChatViewModel.Role.TOOL) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("›", color = MaterialTheme.colorScheme.primary, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                m.text,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
     val isUser = m.role == ChatViewModel.Role.USER
     Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
         Column(
@@ -174,6 +190,7 @@ private fun MessageBubble(m: ChatViewModel.ChatMessage) {
                         ChatViewModel.Role.USER -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
                         ChatViewModel.Role.ASSISTANT -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                         ChatViewModel.Role.ERROR -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                        ChatViewModel.Role.TOOL -> MaterialTheme.colorScheme.surfaceVariant
                     },
                     RoundedCornerShape(10.dp),
                 )

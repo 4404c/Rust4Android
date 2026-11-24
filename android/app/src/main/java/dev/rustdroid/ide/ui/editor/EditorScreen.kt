@@ -138,7 +138,7 @@ fun EditorScreen(
     // R4A: chat con la IA (pestaña Chat del panel de abajo)
     val chatVm: dev.rustdroid.ide.ui.chat.ChatViewModel = viewModel(
         key = "chat-$projectName",
-        factory = dev.rustdroid.ide.ui.chat.ChatViewModel.factory(container, projectName),
+        factory = dev.rustdroid.ide.ui.chat.ChatViewModel.factory(container, projectName, vm.aiBridge),
     )
     val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
     val chatDrawerState = rememberEdgeDrawerState()
