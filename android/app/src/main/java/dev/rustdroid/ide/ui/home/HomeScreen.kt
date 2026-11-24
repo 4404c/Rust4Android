@@ -202,10 +202,10 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "R4A",
+                        "𝚁𝟺𝙰", // 𝚁𝟺𝙰 (R, 4 y A monoespaciadas de Unicode, a pedido)
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                        fontFamily = dev.rustdroid.ide.ui.theme.TitleFamily,
+                        // sin negrita ni Courier: así se ve la forma propia de esos caracteres
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
                         fontSize = androidx.compose.ui.unit.TextUnit(30f, androidx.compose.ui.unit.TextUnitType.Sp),
                     )
                 },
