@@ -35,6 +35,11 @@ class ChatStore(
             ProjectChats(context, http, repo, projectName, dir)
         }
 
+    /** Las charlas del chat de Inicio (crear proyectos). */
+    val home: ProjectChats by lazy {
+        ProjectChats(context, http, repo, "Inicio", File(root, "home"), home = true)
+    }
+
     /** La IA creó un proyecto y el usuario lo abre: la charla sigue allá (como charla nueva). */
     fun copyTo(from: ChatSession, projectDir: File, projectName: String) {
         project(projectDir, projectName).adopt(from, projectName)
@@ -54,6 +59,7 @@ class ProjectChats(
     private val repo: dev.rustdroid.ide.projects.ProjectRepository,
     private val projectName: String,
     private val dir: File,
+    private val home: Boolean = false,
 ) {
     data class Summary(val id: String, val title: String, val updatedAt: Long, val messages: Int)
 
@@ -66,7 +72,7 @@ class ProjectChats(
     private val _current: MutableStateFlow<ChatSession>
     val current: StateFlow<ChatSession>
 
-    private var bridge: ProjectTools.Bridge? = null
+    private var tools: ChatTools? = null
 
     init {
         dir.listFiles { f -> f.extension == "json" }.orEmpty()
@@ -79,16 +85,16 @@ class ProjectChats(
         refreshList()
     }
 
-    /** El editor de este proyecto está abierto. */
-    fun attach(bridge: ProjectTools.Bridge) {
-        this.bridge = bridge
-        _current.value.attach(bridge)
+    /** El editor de este proyecto (o la pantalla de Inicio) está abierto. */
+    fun attach(tools: ChatTools) {
+        this.tools = tools
+        _current.value.attach(tools)
     }
 
-    fun detach(bridge: ProjectTools.Bridge) {
-        if (this.bridge !== bridge) return
-        _current.value.detach(bridge)
-        this.bridge = null
+    fun detach(tools: ChatTools) {
+        if (this.tools !== tools) return
+        _current.value.detach(tools)
+        this.tools = null
     }
 
     /** Se abrió el proyecto: en la charla actual, lo de antes queda oculto. */
@@ -123,7 +129,7 @@ class ProjectChats(
 
     private fun switchTo(s: ChatSession) {
         val old = _current.value
-        bridge?.let { b -> old.detach(b); s.attach(b) }
+        tools?.let { t -> old.detach(t); s.attach(t) }
         s.revealOlder() // al retomar una charla se ve entera
         _current.value = s
         refreshList()
@@ -135,7 +141,7 @@ class ProjectChats(
     }
 
     private fun newSession(file: File) =
-        ChatSession(context, http, repo, projectName, file, onSaved = { refreshList() })
+        ChatSession(context, http, repo, projectName, file, home = home, onSaved = { refreshList() })
 
     private fun refreshList() {
         _list.value = sessions.values

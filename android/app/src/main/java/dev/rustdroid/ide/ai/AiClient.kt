@@ -39,6 +39,8 @@ class AiClient(baseHttp: OkHttpClient) {
         val content: String?,
         val toolCalls: List<ToolCall> = emptyList(),
         val toolCallId: String? = null,
+        /** Respuesta de Claude tal cual (JSON), para devolverla igual. Solo la usa [AnthropicChat]. */
+        val raw: String? = null,
     ) {
         fun toJson(): JsonObject = buildJsonObject {
             put("role", role)
@@ -64,9 +66,10 @@ class AiClient(baseHttp: OkHttpClient) {
     /** El modelo pide usar una herramienta; [arguments] es JSON. */
     data class ToolCall(val id: String, val name: String, val arguments: String)
 
-    data class Reply(val content: String, val toolCalls: List<ToolCall>)
+    data class Reply(val content: String, val toolCalls: List<ToolCall>, val raw: String? = null)
 
-    class AiException(message: String) : Exception(message)
+    /** [retryAfterSec]: límite de pedidos por minuto; vale la pena esperar y reintentar. */
+    open class AiException(message: String, val retryAfterSec: Double? = null) : Exception(message)
 
     // El streaming puede durar más que el callTimeout de 60 s del cliente
     // compartido: sin límite total, pero cortamos si deja de llegar texto.
@@ -128,7 +131,8 @@ class AiClient(baseHttp: OkHttpClient) {
 
         withCall(req) { resp ->
             if (!resp.isSuccessful) {
-                throw AiException(errorText(resp.code, resp.body?.string().orEmpty()))
+                val body = resp.body?.string().orEmpty()
+                throw AiException(errorText(resp.code, body), retryAfter(resp, body))
             }
             val source = resp.body?.source() ?: throw AiException("Respuesta vacía")
             val text = StringBuilder()
@@ -186,6 +190,20 @@ class AiClient(baseHttp: OkHttpClient) {
         } finally {
             handle?.dispose()
         }
+    }
+
+    /**
+     * Segundos a esperar en un 429: el header Retry-After o el texto del
+     * error ("try again in 20.6s", así lo dice Groq). null = no es un 429.
+     */
+    private fun retryAfter(resp: Response, body: String): Double? {
+        if (resp.code != 429) return null
+        resp.header("retry-after")?.toDoubleOrNull()?.let { return it }
+        Regex("""try again in (?:(\d+)m)?([\d.]+)s""").find(body)?.let { m ->
+            val min = m.groupValues[1].toDoubleOrNull() ?: 0.0
+            return min * 60 + (m.groupValues[2].toDoubleOrNull() ?: 0.0)
+        }
+        return 10.0
     }
 
     private fun errorText(code: Int, body: String): String {

@@ -67,6 +67,7 @@ fun AiSettingsCard(container: AppContainer) {
     val scope = rememberCoroutineScope()
     val state by AiSettings.state.collectAsState()
     val client = remember { AiClient(container.http) }
+    val claude = remember { dev.rustdroid.ide.ai.AnthropicChat() }
 
     var adding by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<AiSettings.Connection?>(null) }
@@ -87,7 +88,8 @@ fun AiSettingsCard(container: AppContainer) {
         }
         scope.launch {
             try {
-                models = client.listModels(c.baseUrl, key)
+                models = if (c.provider == AiSettings.Provider.ANTHROPIC) claude.listModels(key).sorted()
+                else client.listModels(c.baseUrl, key)
             } catch (e: Exception) {
                 modelsError = e.message ?: e.toString()
             }

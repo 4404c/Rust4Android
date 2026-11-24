@@ -514,6 +514,41 @@ class EditorViewModel(
         override fun liveProblems() = _live.value?.diagnostics.orEmpty()
         override fun onExternalWrite(relativePath: String, content: String?) =
             this@EditorViewModel.onExternalWrite(relativePath, content)
+        override suspend fun cargoCheck() = aiCheck()
+        override suspend fun runProgram(onLine: (String) -> Unit) = aiRun(onLine)
+        override fun isGame() = isGameProject()
+    }
+
+    /**
+     * R4A fase 4: la IA compila (cargo check, ONLINE para bajar crates
+     * nuevas) sobre la copia sombra con el texto del editor. El resultado
+     * también pinta los errores en el editor. null = no hay toolchain.
+     */
+    private suspend fun aiCheck(): dev.rustdroid.ide.runtime.LiveResult? {
+        if (!container.toolchainPaths.isInstalled()) return null
+        liveJob?.cancel()
+        activeTab?.let { it.cachedText = _activeText.value }
+        val unsaved = _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
+        val env = withContext(Dispatchers.IO) { buildEnv() }
+        return liveChecker.check(projectDir, unsaved, cargoPath, env, offline = false)
+            .also { _live.value = it }
+    }
+
+    /**
+     * R4A fase 4: la IA corre el programa (cargo run) en la copia sombra,
+     * sin stdin. Lo que imprime también sale en Console. null = no hay toolchain.
+     */
+    private suspend fun aiRun(onLine: (String) -> Unit): dev.rustdroid.ide.model.RunResult? {
+        if (!container.toolchainPaths.isInstalled()) return null
+        activeTab?.let { it.cachedText = _activeText.value }
+        val unsaved = _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
+        val env = withContext(Dispatchers.IO) { buildEnv() }
+        _panelCollapsed.value = false
+        console.system(str(R.string.ai_console_run))
+        return liveChecker.runInShadow(projectDir, unsaved, listOf(cargoPath, "run"), env) { line ->
+            console.append(line)
+            onLine(line.text)
+        }
     }
 
     /**
@@ -522,15 +557,17 @@ class EditorViewModel(
      * proyecto sí). Cada vez que se abre el proyecto, lo anterior se oculta
      * hasta que el usuario desliza hacia abajo.
      */
+    private val aiTools by lazy { dev.rustdroid.ide.ai.ProjectTools(aiBridge) }
+
     val chat: dev.rustdroid.ide.ai.ProjectChats by lazy {
         container.chatStore.project(projectDir, projectName.substringAfterLast('/')).also {
-            it.attach(aiBridge)
+            it.attach(aiTools)
             it.markVisitStart()
         }
     }
 
     override fun onCleared() {
-        chat.detach(aiBridge)
+        chat.detach(aiTools)
         super.onCleared()
     }
 

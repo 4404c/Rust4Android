@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.rustdroid.ide.di.AppContainer
 import dev.rustdroid.ide.model.ProjectSummary
@@ -157,6 +158,44 @@ fun HomeScreen(
         )
     }
 
+    // R4A: chat de Inicio (crear proyectos con la IA), en un cajón desde la derecha
+    val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
+    val homeChats = remember { container.chatStore.home }
+    val homeTools = remember { dev.rustdroid.ide.ai.HomeTools(container.projectRepository) }
+    androidx.compose.runtime.DisposableEffect(homeChats) {
+        homeChats.attach(homeTools)
+        homeChats.markVisitStart()
+        onDispose { homeChats.detach(homeTools) }
+    }
+    val chatDrawerState = dev.rustdroid.ide.ui.components.rememberEdgeDrawerState()
+    val chatScope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.activity.compose.BackHandler(enabled = chatDrawerState.isOpen) {
+        chatScope.launch { chatDrawerState.close() }
+    }
+    dev.rustdroid.ide.ui.components.EdgeDrawer(
+        state = chatDrawerState,
+        fromEnd = true,
+        widthFraction = 0.9f,
+        maxSheetWidth = 460.dp,
+        edgeEnabled = chatEnabled,
+        drawerContent = {
+            dev.rustdroid.ide.ui.chat.ChatDrawerSheet(
+                chat = homeChats,
+                onClose = { chatScope.launch { chatDrawerState.close() } },
+                onOpenFile = {},
+                onOpenProject = { ref ->
+                    // la charla sigue en el proyecto nuevo
+                    val dir = container.projectRepository.resolve(ref)
+                    container.chatStore.copyTo(homeChats.current.value, dir, dir.name)
+                    homeChats.newChat() // Inicio queda listo para el próximo proyecto
+                    chatScope.launch { chatDrawerState.close() }
+                    vm.refresh()
+                    onOpenProject(ref)
+                },
+                home = true,
+            )
+        },
+    ) {
     Scaffold(
         modifier = Modifier.ferrdroidActivity(ferrdroid),
         topBar = {
@@ -174,6 +213,11 @@ fun HomeScreen(
                     // v0.2: the terminal moved OUT of the Home toolbar and
                     // ONTO each project card (plus the editor toolbar) — it
                     // is a per-project tool, not a global menu entry.
+                    if (chatEnabled) {
+                        IconButton(onClick = { chatScope.launch { chatDrawerState.open() } }) {
+                            dev.rustdroid.ide.ui.chat.AiBadge(contentDescription = stringResource(R.string.ai_chat_open))
+                        }
+                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.common_settings))
                     }
@@ -247,6 +291,7 @@ fun HomeScreen(
             }
         }
     }
+    } // chat de Inicio
 
     if (showNewDialog) {
         NewProjectDialog(

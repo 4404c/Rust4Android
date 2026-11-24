@@ -33,6 +33,8 @@ object AiSettings {
         OPENROUTER("OpenRouter", "https://openrouter.ai/api/v1", "https://openrouter.ai/keys"),
         GEMINI("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "https://aistudio.google.com/apikey"),
         OPENAI("OpenAI", "https://api.openai.com/v1", "https://platform.openai.com/api-keys"),
+        /** Claude: usa el SDK oficial ([AnthropicChat]), no el formato de OpenAI. */
+        ANTHROPIC("Anthropic (Claude)", "https://api.anthropic.com", "https://console.anthropic.com/settings/keys"),
         CUSTOM("URL propia", "", null),
     }
 
@@ -74,7 +76,8 @@ object AiSettings {
             name = name.trim().ifBlank { provider.label },
             provider = provider,
             customUrl = customUrl.trim(),
-            model = "",
+            // Claude: arranca en el modelo recomendado (se puede cambiar)
+            model = if (provider == Provider.ANTHROPIC) "claude-opus-5-5" else "",
         )
         prefs(context).edit().putString(keyPref(c.id), encrypt(key.trim())).apply()
         save(context, State(_state.value.connections + c, c.id))

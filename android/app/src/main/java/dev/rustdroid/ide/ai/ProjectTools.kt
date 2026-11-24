@@ -25,13 +25,11 @@ import java.io.File
  * Fase 2: leer (archivos dentro del proyecto, nunca afuera; Problems; lo
  * que hay abierto en el editor, incluido el texto sin guardar).
  * Fase 3: escribir. Cada cambio devuelve un [Change] con el contenido de
- * antes, para que el chat muestre una tarjeta con "Deshacer". Crear un
- * proyecto nuevo usa `cargo new` (como el botón de Inicio). No ejecutan nada.
+ * antes, para que el chat muestre una tarjeta con "Deshacer".
+ * Fase 4: compilar (cargo check) y ejecutar (cargo run) en una copia.
+ * Crear proyectos NO va acá: eso es del chat de Inicio ([HomeTools]).
  */
-class ProjectTools(
-    private val bridge: Bridge,
-    private val repo: dev.rustdroid.ide.projects.ProjectRepository,
-) {
+class ProjectTools(val bridge: Bridge) : ChatTools {
 
     /** Lo que las herramientas necesitan del editor. */
     interface Bridge {
@@ -51,6 +49,11 @@ class ProjectTools(
          * recarga si está abierto ([content] null = se borró).
          */
         fun onExternalWrite(relativePath: String, content: String?)
+        /** Fase 4: cargo check ahora mismo. null = no hay toolchain instalada. */
+        suspend fun cargoCheck(): dev.rustdroid.ide.runtime.LiveResult?
+        /** Fase 4: cargo run (sin stdin). null = no hay toolchain instalada. */
+        suspend fun runProgram(onLine: (String) -> Unit): dev.rustdroid.ide.model.RunResult?
+        fun isGame(): Boolean
     }
 
     /**
@@ -78,7 +81,7 @@ class ProjectTools(
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    val definitions: JsonArray = buildJsonArray {
+    override val definitions: JsonArray = buildJsonArray {
         tool(
             "list_files",
             "Lista los archivos y carpetas del proyecto abierto (rutas relativas a la raíz). Las carpetas terminan en /.",
@@ -100,6 +103,15 @@ class ProjectTools(
         tool(
             "get_editor_state",
             "Qué archivo está mirando el usuario en el editor y qué archivos tienen cambios sin guardar.",
+        )
+        // ---- fase 4: compilar y probar ----
+        tool(
+            "cargo_check",
+            "Compila el proyecto (cargo check) y devuelve los errores y advertencias. Usalo SIEMPRE después de cambiar código, y corregí hasta que no haya errores. Si agregaste dependencias, las baja (puede tardar).",
+        )
+        tool(
+            "run_program",
+            "Ejecuta el programa (cargo run, sin entrada del teclado, máximo 2 minutos) y devuelve lo que imprime. No sirve para juegos de macroquad: esos los abre el usuario con ▶.",
         )
         // ---- fase 3: escribir ----
         tool(
@@ -125,15 +137,9 @@ class ProjectTools(
             "Borra UN archivo del proyecto (no carpetas). El usuario puede deshacerlo.",
             "path" to "Ruta relativa del archivo",
         )
-        tool(
-            "create_project",
-            "Crea un proyecto de R4A NUEVO y separado (cargo new). Después el usuario lo abre con un botón y ahí seguís trabajando con las demás herramientas.",
-            "name" to "Nombre: empieza con letra; solo letras, números, - y _",
-            "template" to "\"basico\" (hola mundo) o \"juego\" (macroquad con una pelota de ejemplo)",
-        )
     }
 
-    suspend fun execute(name: String, arguments: String): Outcome {
+    override suspend fun execute(name: String, arguments: String): Outcome {
         val args = runCatching { json.parseToJsonElement(arguments).jsonObject }.getOrNull() ?: JsonObject(emptyMap())
         fun arg(key: String) = args[key]?.jsonPrimitive?.contentOrNull?.trim().orEmpty()
         // sin trim: el contenido de un archivo se escribe tal cual
@@ -149,7 +155,8 @@ class ProjectTools(
                 "edit_file" -> editFile(arg("path"), raw("old_text"), raw("new_text"))
                 "create_folder" -> createFolder(arg("path"))
                 "delete_file" -> deleteFile(arg("path"))
-                "create_project" -> createProject(arg("name"), arg("template"))
+                "cargo_check" -> cargoCheck()
+                "run_program" -> runProgram()
                 else -> Outcome("Error: la herramienta '$name' no existe.", "Pidió una herramienta desconocida ($name)")
             }
         } catch (e: Exception) {
@@ -243,6 +250,64 @@ class ProjectTools(
         return Outcome(text, "Miró qué archivo tenés abierto")
     }
 
+    // ---------------- fase 4: compilar y probar ----------------
+
+    private suspend fun cargoCheck(): Outcome {
+        val r = bridge.cargoCheck() ?: return Outcome(
+            "Error: la toolchain de Rust no está instalada.", "No pudo compilar (falta la toolchain)",
+        )
+        val errors = r.diagnostics.count { it.isError }
+        val warnings = r.diagnostics.size - errors
+        val sb = StringBuilder()
+        r.diagnostics.forEach { d ->
+            sb.append(if (d.isError) "error" else "warning")
+            d.code?.let { sb.append("[").append(it).append("]") }
+            sb.append(" ${d.file}:${d.lineStart}:${d.colStart}: ${d.message}")
+            d.label?.let { sb.append(" (").append(it).append(")") }
+            sb.appendLine()
+            d.notes.forEach { sb.appendLine("    $it") }
+        }
+        // cargo falló sin diagnósticos (Cargo.toml roto, crate que no existe, sin internet…)
+        if (!r.success && errors == 0) {
+            sb.appendLine("cargo falló:")
+            r.stderrTail.filter { it.isNotBlank() }.takeLast(20).forEach { sb.appendLine(it) }
+            return Outcome(clip(sb.toString()), "Compiló: cargo falló (mirá el chat)")
+        }
+        if (sb.isEmpty()) sb.append("Compila sin errores ni advertencias.")
+        val summary = when {
+            errors > 0 -> "Compiló: $errors error${if (errors == 1) "" else "es"}, $warnings advertencia${if (warnings == 1) "" else "s"}"
+            warnings > 0 -> "Compiló bien ($warnings advertencia${if (warnings == 1) "" else "s"})"
+            else -> "Compiló bien ✓"
+        }
+        return Outcome(clip(sb.toString()), summary)
+    }
+
+    private suspend fun runProgram(): Outcome {
+        if (bridge.isGame()) return Outcome(
+            "Es un juego de macroquad: no se puede ejecutar desde acá. Pedile al usuario que toque ▶ para verlo.",
+            "Es un juego: lo abrís vos con ▶",
+        )
+        val out = ArrayList<String>()
+        val result = kotlinx.coroutines.withTimeoutOrNull(RUN_TIMEOUT_MS) {
+            bridge.runProgram { line -> synchronized(out) { out += line; if (out.size > 300) out.removeAt(0) } }
+        }
+        val lines = synchronized(out) { out.toList() }
+        val text = buildString {
+            when {
+                result == null -> append("Se cortó a los 2 minutos (¿espera entrada del teclado o tiene un loop infinito?).\n")
+                else -> append("Terminó con código ${result.exitCode}.\n")
+            }
+            append("Salida:\n")
+            append(lines.joinToString("\n").ifBlank { "(no imprimió nada)" })
+        }
+        val summary = when {
+            result == null -> "Ejecutó el programa (se cortó a los 2 min)"
+            result.success -> "Ejecutó el programa ✓"
+            else -> "Ejecutó el programa: falló (código ${result.exitCode})"
+        }
+        return Outcome(clip(text), summary)
+    }
+
     // ---------------- fase 3: escribir ----------------
 
     /** Ruta segura dentro del proyecto; null + mensaje si no se puede escribir ahí. */
@@ -310,21 +375,6 @@ class ProjectTools(
         return Outcome("Listo: '$rel' borrado.", "Borró $rel", Change(bridge.projectDir, rel, before, null))
     }
 
-    private suspend fun createProject(name: String, template: String): Outcome {
-        if (!name.matches(Regex("[a-zA-Z][a-zA-Z0-9_-]*"))) return Outcome(
-            "Error: nombre inválido. Tiene que empezar con letra y tener solo letras, números, - y _.",
-            "Nombre de proyecto inválido: $name",
-        )
-        val game = template.lowercase().let { "jueg" in it || "game" in it || "macroquad" in it }
-        val dir = repo.create(name, isLib = false, game = game)
-        return Outcome(
-            "Listo: proyecto '$name' creado (${if (game) "juego con macroquad" else "básico"}). " +
-                "El usuario tiene que abrirlo con el botón del chat; recién ahí vas a poder editar sus archivos.",
-            "Creó el proyecto $name${if (game) " (juego)" else ""}",
-            newProjectRef = repo.refOf(dir),
-        )
-    }
-
     // ---------------- ayudas ----------------
 
     private fun lineCount(text: String) = if (text.isEmpty()) 0 else text.count { it == '\n' } + 1
@@ -383,5 +433,6 @@ class ProjectTools(
         /** Lo que se le manda al modelo por herramienta (las capas gratis tienen pocos tokens). */
         private const val MAX_RESULT_CHARS = 24_000
         private const val MAX_WRITE_CHARS = 200_000
+        private const val RUN_TIMEOUT_MS = 120_000L
     }
 }

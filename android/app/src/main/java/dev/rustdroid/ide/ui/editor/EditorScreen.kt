@@ -119,6 +119,8 @@ import dev.rustdroid.ide.runtime.ConsoleClassifier
 import dev.rustdroid.ide.runtime.ConsoleKind
 import dev.rustdroid.ide.ui.theme.LocalEditorPalette
 import dev.rustdroid.ide.ui.theme.MonoSmall
+import dev.rustdroid.ide.ui.chat.AiBadge
+import dev.rustdroid.ide.ui.chat.ChatDrawerSheet
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
@@ -1539,66 +1541,4 @@ private fun showGame(context: android.content.Context, launch: EditorViewModel.G
         context, R.anim.r4a_slide_in_right, R.anim.r4a_slide_out_left,
     )
     context.startActivity(intent, slide.toBundle())
-}
-
-/** R4A: el cajón del Chat IA (desde la derecha). */
-@Composable
-private fun ChatDrawerSheet(
-    chat: dev.rustdroid.ide.ai.ProjectChats,
-    onClose: () -> Unit,
-    onOpenFile: (String) -> Unit,
-    onOpenProject: (String) -> Unit,
-) {
-    val palette = LocalEditorPalette.current
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(palette.consoleBg)
-            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
-            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.navigationBars)
-            .imePadding(),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AiBadge(color = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                stringResource(R.string.ai_chat_menu),
-                style = MaterialTheme.typography.titleMedium,
-                color = palette.stdout,
-                modifier = Modifier.weight(1f),
-            )
-            IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.ai_chat_close), tint = palette.stdout)
-            }
-        }
-        dev.rustdroid.ide.ui.chat.ChatPanel(
-            chats = chat,
-            onInputFocusChanged = {},
-            onOpenFile = onOpenFile,
-            onOpenProject = onOpenProject,
-        )
-    }
-}
-
-/**
- * R4A: las letras "AI" en lugar de un ícono (botón del chat, menú ⋮ y
- * cabecera del cajón). Sin [color] toma el color del ícono (LocalContentColor).
- */
-@Composable
-private fun AiBadge(
-    color: Color = androidx.compose.material3.LocalContentColor.current,
-    contentDescription: String? = null,
-) {
-    Text(
-        "AI",
-        color = color,
-        fontSize = 15.sp,
-        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-        modifier = if (contentDescription != null) {
-            Modifier.semantics { this.contentDescription = contentDescription }
-        } else Modifier,
-    )
 }

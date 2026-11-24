@@ -317,7 +317,8 @@
     <string name="editor_more">More options</string>
     <string name="editor_coding_help">Coding help</string>
     <string name="ai_chat_hint">Ask the AI something…</string>
-    <string name="ai_chat_empty">Type to the AI below. It can read and change the files of this project and create new projects. Every change shows up as a card you can undo.</string>
+    <string name="ai_chat_empty">Type to the AI below. It can read, change and compile the files of this project. Every change shows up as a card you can undo.</string>
+    <string name="ai_home_empty">Tell the AI what you want to make (for example: a game with a bouncing ball). It creates the project and, when you tap Open project, you keep working there.</string>
     <string name="ai_chat_pull_older">Pull down to see the earlier chat (%1$d messages)</string>
     <string name="ai_chat_new">New chat</string>
     <string name="ai_chat_list">Chats of this project</string>
@@ -327,6 +328,7 @@
     <string name="ai_chat_delete_text">“%1$s” is removed from the phone. The changes the AI made to files stay as they are.</string>
     <string name="ai_chat_release_older">Release to see the earlier chat</string>
     <string name="ai_chat_divider_now">before ↑  ·  now ↓</string>
+    <string name="ai_console_run">The AI runs the program (cargo run)…</string>
     <string name="ai_change_open">Open</string>
     <string name="ai_change_undo">Undo</string>
     <string name="ai_change_open_project">Open project</string>

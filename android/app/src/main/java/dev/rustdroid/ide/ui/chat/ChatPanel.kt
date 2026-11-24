@@ -74,6 +74,7 @@ fun ChatPanel(
     onInputFocusChanged: (Boolean) -> Unit,
     onOpenFile: (String) -> Unit = {},
     onOpenProject: (String) -> Unit = {},
+    emptyText: String? = null,
 ) {
     // la charla actual del proyecto (cambia con "Nueva charla" o la lista)
     val vm by chats.current.collectAsState()
@@ -304,7 +305,7 @@ fun ChatPanel(
                     if (messages.isEmpty()) {
                         item(key = "empty") {
                             Text(
-                                stringResource(R.string.ai_chat_empty),
+                                emptyText ?: stringResource(R.string.ai_chat_empty),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(16.dp),

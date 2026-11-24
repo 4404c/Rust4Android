@@ -116,6 +116,8 @@ dependencies {
 
     // Networking (toolchain download, crates.io search)
     implementation(libs.okhttp)
+    // R4A: Chat IA con Claude (Anthropic)
+    implementation(libs.anthropic.java)
 
     // Code editor (LGPL-2.1 — F-Droid compatible)
     implementation(libs.sora.editor)

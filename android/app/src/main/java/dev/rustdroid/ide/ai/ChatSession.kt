@@ -33,6 +33,8 @@ class ChatSession(
     private val repo: dev.rustdroid.ide.projects.ProjectRepository,
     private var projectName: String,
     private val saveFile: File,
+    /** Chat de la pantalla de Inicio (crear proyectos), no de un proyecto. */
+    private val home: Boolean = false,
     /** Identifica la charla dentro del proyecto (nombre del archivo). */
     val id: String = saveFile.nameWithoutExtension,
     /** Avisa a [ProjectChats] que cambió (para la lista de charlas). */
@@ -56,6 +58,7 @@ class ChatSession(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val client = AiClient(http)
+    private val claude = AnthropicChat()
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -73,8 +76,9 @@ class ChatSession(
     /** false si el modelo elegido no acepta herramientas: se sigue sin ellas. */
     private var toolsSupported = true
 
-    private var tools: ProjectTools? = null
-    private var bridge: ProjectTools.Bridge? = null
+    private var tools: ChatTools? = null
+    /** El editor del proyecto (para Deshacer); null en el chat de Inicio. */
+    private val bridge: ProjectTools.Bridge? get() = (tools as? ProjectTools)?.bridge
     private var job: Job? = null
 
     fun isEmpty() = _messages.value.isEmpty()
@@ -109,17 +113,15 @@ class ChatSession(
     fun revealOlder() { _hiddenBefore.value = 0 }
 
     /** El editor de este proyecto está abierto: las herramientas trabajan sobre él. */
-    fun attach(bridge: ProjectTools.Bridge) {
-        this.bridge = bridge
-        tools = ProjectTools(bridge, repo)
+    fun attach(tools: ChatTools) {
+        this.tools = tools
     }
 
     /** Se cerró el editor: se corta lo que esté haciendo (no hay dónde escribir). */
-    fun detach(bridge: ProjectTools.Bridge) {
-        if (this.bridge !== bridge) return
+    fun detach(tools: ChatTools) {
+        if (this.tools !== tools) return
         stop()
-        this.bridge = null
-        tools = null
+        this.tools = null
     }
 
     fun send(text: String) {
@@ -142,9 +144,9 @@ class ChatSession(
             try {
                 for (step in 1..MAX_STEPS) {
                     _messages.update { it + ChatMessage(Role.ASSISTANT, "") }
-                    val reply = ask(tools, cfg.baseUrl, key, cfg.model)
+                    val reply = ask(tools, cfg, key)
                     dropEmptyLast()
-                    apiHistory += AiClient.Message("assistant", reply.content, toolCalls = reply.toolCalls)
+                    apiHistory += AiClient.Message("assistant", reply.content, toolCalls = reply.toolCalls, raw = reply.raw)
                     if (reply.toolCalls.isEmpty()) break
 
                     for (call in reply.toolCalls) {
@@ -185,9 +187,37 @@ class ChatSession(
         )
     }
 
-    /** Una vuelta al modelo. Si rechaza las herramientas, reintenta sin ellas. */
-    private suspend fun ask(tools: ProjectTools, baseUrl: String, key: String, model: String): AiClient.Reply {
+    /**
+     * Una vuelta al modelo. Si el proveedor dice "límite por minuto" (las capas
+     * gratis), espera lo que pide y reintenta, hasta [MAX_RATE_RETRIES] veces.
+     */
+    private suspend fun ask(tools: ChatTools, cfg: AiSettings.Connection, key: String): AiClient.Reply {
+        var attempt = 0
+        while (true) {
+            try {
+                return askOnce(tools, cfg, key)
+            } catch (e: AiClient.AiException) {
+                val wait = e.retryAfterSec
+                if (wait == null || wait > MAX_RATE_WAIT_SEC || attempt >= MAX_RATE_RETRIES) throw e
+                attempt++
+                val secs = kotlin.math.ceil(wait).toInt() + 1
+                _messages.update {
+                    it.dropLast(1) + ChatMessage(Role.TOOL, "Límite de ${cfg.provider.label}: espera $secs s y sigue…") + ChatMessage(Role.ASSISTANT, "")
+                }
+                kotlinx.coroutines.delay(secs * 1000L)
+            }
+        }
+    }
+
+    /** Si el modelo rechaza las herramientas, reintenta sin ellas. */
+    private suspend fun askOnce(tools: ChatTools, cfg: AiSettings.Connection, key: String): AiClient.Reply {
         val messages = listOf(AiClient.Message("system", systemPrompt())) + apiHistory
+        // Claude va por el SDK de Anthropic (acepta herramientas siempre)
+        if (cfg.provider == AiSettings.Provider.ANTHROPIC) {
+            return claude.chatStream(key, cfg.model, messages, tools.definitions) { appendToLast(it) }
+        }
+        val baseUrl = cfg.baseUrl
+        val model = cfg.model
         if (toolsSupported) {
             try {
                 return client.chatStream(baseUrl, key, model, messages, tools.definitions) { appendToLast(it) }
@@ -257,7 +287,7 @@ class ChatSession(
     /** Copia la charla de otro proyecto (el que creó este). */
     fun adopt(from: ChatSession, newName: String) {
         projectName = newName
-        _messages.value = from._messages.value.map { it.copy(changeId = null) } +
+        _messages.value = from._messages.value.map { it.copy(changeId = null, projectRef = null) } +
             ChatMessage(Role.TOOL, "Seguimos en el proyecto $newName")
         apiHistory.clear()
         apiHistory += from.apiHistory
@@ -289,6 +319,7 @@ class ChatSession(
                         api.forEach { m ->
                             put(JSONObject().put("role", m.role).put("content", m.content ?: "")
                                 .putOpt("toolCallId", m.toolCallId)
+                                .putOpt("raw", m.raw)
                                 .put("toolCalls", JSONArray().apply {
                                     m.toolCalls.forEach { c -> put(JSONObject().put("id", c.id).put("name", c.name).put("arguments", c.arguments)) }
                                 }))
@@ -327,6 +358,7 @@ class ChatSession(
                     AiClient.ToolCall(c.optString("id"), c.optString("name"), c.optString("arguments"))
                 },
                 toolCallId = o.optString("toolCallId").ifEmpty { null },
+                raw = o.optString("raw").ifEmpty { null },
             )
         }
     }
@@ -363,7 +395,25 @@ class ChatSession(
         }
     }
 
-    private fun systemPrompt() = """
+    private fun systemPrompt() = if (home) homePrompt() else projectPrompt()
+
+    /** Chat de Inicio: arma proyectos nuevos; no toca proyectos existentes. */
+    private fun homePrompt() = """
+        Sos el asistente de R4A, un IDE de Rust que corre directamente en un celular Android
+        (aarch64), sin PC. Estás en la pantalla de INICIO: acá solo se crean proyectos nuevos.
+        La pantalla es chica: respondé corto y claro, en el idioma en que te escriba el usuario.
+
+        Herramientas: list_projects (los proyectos que ya tiene) y create_project.
+        - Cuando el usuario quiera hacer algo nuevo ("quiero un juego de una pelota que rebota",
+          "un programa que calcule..."), proponé un nombre corto y creá el proyecto con
+          create_project: template "juego" si es un juego (macroquad), "basico" si no.
+        - No inventes un nombre que ya exista: mirá list_projects si hace falta.
+        - Después decile que toque "Abrir proyecto": ahí se abre el editor, esta charla sigue
+          allá y vas a poder escribir el código, compilarlo y corregirlo.
+        - Desde acá no podés leer ni cambiar archivos de ningún proyecto.
+    """.trimIndent()
+
+    private fun projectPrompt() = """
         Sos el asistente de programación de R4A, un IDE de Rust que corre directamente en un
         celular Android (aarch64), sin PC. El usuario escribe, compila y corre programas Rust
         en el teléfono con cargo (Rust 1.85, edición 2024). La pantalla es chica: respondé
@@ -371,16 +421,20 @@ class ChatSession(
         Proyecto abierto ahora: "$projectName".
 
         Herramientas para LEER: list_files, read_file, search_text, get_problems, get_editor_state.
-        Herramientas para CAMBIAR: write_file, edit_file, create_folder, delete_file, create_project.
+        Herramientas para PROBAR: cargo_check, run_program.
+        Herramientas para CAMBIAR: write_file, edit_file, create_folder, delete_file.
         - Antes de cambiar un archivo, leelo. Para cambios chicos usá edit_file; para archivos
           nuevos o reescrituras completas, write_file.
         - Si el usuario pide algo concreto ("haceme...", "agregá...", "arreglá..."), hacelo con
           las herramientas en vez de solo mostrar el código. Cada cambio le aparece como una
           tarjeta y lo puede deshacer.
-        - Si pide un proyecto NUEVO, usá create_project y pedile que lo abra con el botón; los
-          archivos de ese proyecto se editan recién cuando esté abierto.
-        - No podés compilar ni ejecutar: el usuario toca ▶. Después de cambiar código podés mirar
-          get_problems (los errores en vivo tardan unos segundos en actualizarse).
+        - No podés crear proyectos nuevos desde acá: si el usuario quiere otro proyecto, decile
+          que use el chat "AI" de la pantalla de inicio.
+        - Después de cambiar código, SIEMPRE usá cargo_check. Si hay errores, leé el archivo,
+          corregilos y volvé a chequear, hasta que compile (máximo unos 4 intentos; si no sale,
+          explicale al usuario qué falta). Para programas de consola podés usar run_program y
+          mirar la salida. Los juegos de macroquad no se pueden ejecutar desde acá: el usuario
+          los abre con ▶.
         - Juegos: macroquad 0.4 con default-features = false y fontdue = "=0.9.3" en
           [dependencies] (fontdue más nuevo pide Rust 1.87). Usá #[macroquad::main("Nombre")]
           y async fn main() con loop { ...; next_frame().await }. Las imágenes van con
@@ -391,5 +445,7 @@ class ChatSession(
 
     private companion object {
         const val MAX_STEPS = 20
+        const val MAX_RATE_RETRIES = 4
+        const val MAX_RATE_WAIT_SEC = 65.0
     }
 }
