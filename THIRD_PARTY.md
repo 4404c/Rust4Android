@@ -21,6 +21,11 @@ The companion plan for the Phase 4 additions is
 | Mozilla CA root store | MPL-2.0 | `assets/ssl/cacert.pem` (from https://curl.se/ca/cacert.pem, periodically refreshed) | cargo TLS trust |
 | Press Start 2P | OFL-1.1 (Reserved Font Name "Press Start 2P") | google/fonts `ofl/pressstart2p`, shipped unmodified | `res/font/press_start_2p.ttf`, Ferrdroid's speech bubble |
 | Courier Prime | OFL-1.1 | google/fonts `ofl/courierprime` (Bold), shipped unmodified | `res/font/courier_prime_bold.ttf`, the "R4A" title on Home |
+| Anthropic Java SDK (`anthropic-java`, `-core`, `-client-okhttp`) | Apache-2.0 | Maven `com.anthropic:anthropic-java:3.3.0` | AI chat with Claude (`ai/AnthropicChat.kt`) |
+| Jackson (core, databind, annotations, module-kotlin, datatype-jdk8/jsr310) | Apache-2.0 (NOTICE files reproduced in `assets/licenses/anthropic-sdk-NOTICES.txt`, incl. the shaded FastDoubleParser notices) | Maven 2.19.4, pulled in by the Anthropic SDK | JSON for the SDK |
+| classmate, jsonschema-generator (+ jackson/swagger-2 modules), swagger-annotations, OpenTelemetry API/context/common, kotlin-reflect | Apache-2.0 | Maven (classmate 1.7.0, jsonschema-generator 4.38.0, swagger-annotations 2.2.50, opentelemetry 1.62.0, kotlin-reflect 1.9.25), pulled in by the Anthropic SDK | SDK internals |
+| Standard Webhooks (Java) | MIT | Maven `com.standardwebhooks:standardwebhooks:1.2.0`, pulled in by the Anthropic SDK | SDK internals |
+| SLF4J API | MIT | Maven `org.slf4j:slf4j-api:2.0.16`, pulled in by the Anthropic SDK | SDK internals |
 
 Test-only (not shipped): JUnit 4 (EPL-2.0).
 

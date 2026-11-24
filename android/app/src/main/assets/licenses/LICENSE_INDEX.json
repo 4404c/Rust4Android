@@ -70,5 +70,34 @@
     "file": "courier-prime-OFL-1.1.txt",
     "url": "https://github.com/google/fonts/tree/main/ofl/courierprime",
     "pin": "google/fonts ofl/courierprime, CourierPrime-Bold.ttf (archivo original sin modificar)"
+  },
+  {
+    "component": "Anthropic Java SDK (Chat IA con Claude)",
+    "license": "Apache-2.0",
+    "file": "Apache-2.0.txt",
+    "url": "https://github.com/anthropics/anthropic-sdk-java",
+    "pin": "Maven com.anthropic:anthropic-java 3.3.0 (+ anthropic-java-core, anthropic-java-client-okhttp)"
+  },
+  {
+    "component": "Jackson, classmate, jsonschema-generator, OpenTelemetry API, swagger-annotations, kotlin-reflect (usadas por el SDK de Anthropic)",
+    "license": "Apache-2.0",
+    "file": "Apache-2.0.txt",
+    "file2": "anthropic-sdk-NOTICES.txt",
+    "url": "https://github.com/FasterXML/jackson",
+    "pin": "Jackson 2.19.4, classmate 1.7.0, jsonschema-generator 4.38.0, opentelemetry-api 1.62.0, swagger-annotations 2.2.50, kotlin-reflect 1.9.25"
+  },
+  {
+    "component": "Standard Webhooks (usada por el SDK de Anthropic)",
+    "license": "MIT",
+    "file": "standardwebhooks-MIT.txt",
+    "url": "https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries/java",
+    "pin": "Maven com.standardwebhooks:standardwebhooks 1.2.0"
+  },
+  {
+    "component": "SLF4J API (usada por el SDK de Anthropic)",
+    "license": "MIT",
+    "file": "slf4j-MIT.txt",
+    "url": "https://www.slf4j.org",
+    "pin": "Maven org.slf4j:slf4j-api 2.0.16"
   }
 ]
