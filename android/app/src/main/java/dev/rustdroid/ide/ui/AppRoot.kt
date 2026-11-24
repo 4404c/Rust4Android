@@ -60,14 +60,14 @@ object Routes {
      * (URL-encoded so it stays one path segment). Both resolve in
      * ProjectRepository.resolve.
      */
-    const val EDITOR = "editor/{project}?file={file}"
+    const val EDITOR = "editor/{project}?file={file}&chat={chat}"
     const val DEPS = "deps/{project}"
     const val SETTINGS = "settings"
     const val LICENSES = "licenses"
     const val CODE_THEMES = "code_themes"
 
-    fun editor(project: String, file: String = ""): String =
-        "editor/${android.net.Uri.encode(project)}?file=${android.net.Uri.encode(file)}"
+    fun editor(project: String, file: String = "", chat: Boolean = false): String =
+        "editor/${android.net.Uri.encode(project)}?file=${android.net.Uri.encode(file)}&chat=$chat"
     fun deps(project: String) = "deps/${android.net.Uri.encode(project)}"
     fun terminal(project: String? = null): String =
         if (project.isNullOrBlank()) "terminal"
@@ -170,6 +170,7 @@ fun AppRoot(
             HomeScreen(
                 container,
                 onOpenProject = { ref -> nav.navigate(Routes.editor(ref)) },
+                onOpenProjectChat = { ref -> nav.navigate(Routes.editor(ref, chat = true)) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 onOpenTerminal = { ref -> navigateToTerminal(nav, ref) },
             )
@@ -201,6 +202,10 @@ fun AppRoot(
                     type = NavType.StringType
                     defaultValue = ""
                 },
+                navArgument("chat") {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
             ),
         ) { entry ->
             val project = entry.arguments?.getString("project") ?: return@composable
@@ -208,6 +213,7 @@ fun AppRoot(
             EditorScreen(
                 container, project,
                 initialFile = file.ifBlank { null },
+                openChat = entry.arguments?.getBoolean("chat") == true,
                 onOpenDeps = { nav.navigate(Routes.deps(it)) },
                 onOpenTerminal = { ref -> navigateToTerminal(nav, ref) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },

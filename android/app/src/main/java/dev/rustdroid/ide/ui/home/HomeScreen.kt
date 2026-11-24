@@ -48,6 +48,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.MoreVert
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.rustdroid.ide.di.AppContainer
@@ -69,7 +72,10 @@ fun HomeScreen(
     onOpenProject: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTerminal: (String) -> Unit,
+    /** R4A: abrir el proyecto con el chat de la IA ya abierto. */
+    onOpenProjectChat: (String) -> Unit = onOpenProject,
 ) {
+    val aiActivity by container.chatStore.activity.collectAsState()
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(container))
     val projects by vm.projects.collectAsState()
     val creating by vm.creating.collectAsState()
@@ -284,6 +290,8 @@ fun HomeScreen(
                         },
                         onDelete = { deleteTarget = project },
                         onRename = { if (!project.external) renameTarget = project },
+                        onOpenChat = { onOpenProjectChat(container.projectRepository.refOf(project.dir)) },
+                        ai = aiActivity[container.chatStore.keyOf(project.dir)],
                     )
                 }
             }
@@ -374,6 +382,9 @@ private fun ProjectCard(
     onOpenTerminal: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
+    onOpenChat: () -> Unit = {},
+    /** Qué hace la IA en este proyecto (ruedita, "te escribió", error). */
+    ai: dev.rustdroid.ide.ai.ChatStore.Activity? = null,
 ) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(
@@ -418,27 +429,61 @@ private fun ProjectCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            if (!project.external) {
-                IconButton(onClick = onRename) {
-                    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.home_rename_cd), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                // R4A: la IA trabajando o con algo sin leer en este proyecto
+                when {
+                    ai?.working == true -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.home_ai_working), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                    ai?.unread == true -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        val c = if (ai.error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        Box(Modifier.size(8.dp).background(c, androidx.compose.foundation.shape.CircleShape))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            stringResource(if (ai.error) R.string.home_ai_error else R.string.home_ai_done),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = c,
+                        )
+                    }
                 }
             }
-            // v0.2: per-project terminal — the session starts IN this
-            // project's directory (cargo run / fetch / test with no cd).
-            IconButton(onClick = onOpenTerminal) {
-                Icon(
-                    RdIcons.Terminal,
-                    contentDescription = stringResource(R.string.home_open_terminal_cd, project.name),
-                    tint = MaterialTheme.colorScheme.primary,
+            // R4A: AI abre el proyecto con el chat; ⋮ junta Cambiar nombre, Terminal y Borrar
+            IconButton(onClick = onOpenChat) {
+                dev.rustdroid.ide.ui.chat.AiBadge(
+                    color = MaterialTheme.colorScheme.primary,
+                    contentDescription = stringResource(R.string.home_open_chat_cd, project.name),
                 )
             }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = if (project.external) stringResource(R.string.home_remove_cd) else stringResource(R.string.common_delete),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Box {
+                var menu by remember { mutableStateOf(false) }
+                IconButton(onClick = { menu = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.editor_more), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (!project.external) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.home_rename_cd)) },
+                            leadingIcon = { Icon(Icons.Filled.Edit, null) },
+                            onClick = { menu = false; onRename() },
+                        )
+                    }
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(R.string.terminal_title)) },
+                        leadingIcon = { Icon(RdIcons.Terminal, null) },
+                        onClick = { menu = false; onOpenTerminal() },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (project.external) stringResource(R.string.home_remove_cd) else stringResource(R.string.common_delete),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; onDelete() },
+                    )
+                }
             }
         }
     }

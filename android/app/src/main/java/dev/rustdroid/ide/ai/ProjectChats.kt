@@ -20,6 +20,37 @@ class ChatStore(
     private val root = File(context.filesDir, "chats")
     private val projects = HashMap<String, ProjectChats>()
 
+    /** Qué pasa con la IA en cada proyecto: para la tarjeta del proyecto en Inicio. */
+    data class Activity(val name: String, val working: Boolean = false, val unread: Boolean = false, val error: Boolean = false)
+
+    private val _activity = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Activity>>(emptyMap())
+    /** Clave = ruta canónica del proyecto ([keyOf]). */
+    val activity: kotlinx.coroutines.flow.StateFlow<Map<String, Activity>> = _activity
+
+    fun keyOf(projectDir: File) = key(projectDir)
+
+    /** Lo llama [ProjectChats] cuando una charla empieza o termina de trabajar. */
+    internal fun report(key: String, name: String, working: Boolean, finishedUnseen: Boolean, error: Boolean) {
+        val old = _activity.value[key] ?: Activity(name)
+        val now = old.copy(
+            working = working,
+            unread = if (working) old.unread else (old.unread || finishedUnseen),
+            error = if (working) false else error,
+        )
+        _activity.value = _activity.value + (key to now)
+        // servicio en primer plano mientras alguna trabaja; aviso al terminar sin mirar
+        AiWorkService.update(context, _activity.value.values.filter { it.working }.map { it.name })
+        if (!working && finishedUnseen) AiWorkService.notifyFinished(context, name, error)
+    }
+
+    fun isUnread(key: String) = _activity.value[key]?.unread == true
+
+    /** Se abrió el proyecto: ya no hay nada sin leer. */
+    internal fun seen(key: String) {
+        val old = _activity.value[key] ?: return
+        if (old.unread) _activity.value = _activity.value + (key to old.copy(unread = false))
+    }
+
     /** Las charlas del proyecto en [projectDir] (las carga del disco la primera vez). */
     fun project(projectDir: File, projectName: String): ProjectChats =
         projects.getOrPut(key(projectDir)) {
@@ -32,12 +63,12 @@ class ChatStore(
                 dir.mkdirs()
                 old.renameTo(File(dir, "${old.lastModified()}.json"))
             }
-            ProjectChats(context, http, repo, projectName, dir)
+            ProjectChats(context, http, repo, projectName, dir, store = this, key = key(projectDir))
         }
 
     /** Las charlas del chat de Inicio (crear proyectos). */
     val home: ProjectChats by lazy {
-        ProjectChats(context, http, repo, "Inicio", File(root, "home"), home = true)
+        ProjectChats(context, http, repo, "Inicio", File(root, "home"), home = true, store = this, key = "home")
     }
 
     /** La IA creó un proyecto y el usuario lo abre: la charla sigue allá (como charla nueva). */
@@ -60,6 +91,8 @@ class ProjectChats(
     private val projectName: String,
     private val dir: File,
     private val home: Boolean = false,
+    private val store: ChatStore? = null,
+    private val key: String = "",
 ) : ChatHistory {
     override fun chats(): List<Summary> = _list.value
     override fun currentChatId(): String? = _current.value.id
@@ -96,7 +129,12 @@ class ProjectChats(
     fun attach(tools: ChatTools) {
         this.tools = tools
         _current.value.attach(tools)
+        // si la IA te había escrito, esa respuesta se muestra (no se oculta al entrar)
+        openedWithUnread = store?.isUnread(key) == true
+        store?.seen(key)
     }
+
+    private var openedWithUnread = false
 
     fun detach(tools: ChatTools) {
         if (this.tools !== tools) return
@@ -105,7 +143,10 @@ class ProjectChats(
     }
 
     /** Se abrió el proyecto: en la charla actual, lo de antes queda oculto. */
-    fun markVisitStart() = _current.value.markVisitStart()
+    fun markVisitStart() {
+        if (openedWithUnread) { openedWithUnread = false; return }
+        _current.value.markVisitStart()
+    }
 
     /** "Nueva charla": si la actual está vacía, se queda en esa. */
     fun newChat() {
@@ -148,7 +189,15 @@ class ProjectChats(
     }
 
     private fun newSession(file: File) =
-        ChatSession(context, http, repo, projectName, file, home = home, onSaved = { refreshList() })
+        ChatSession(
+            context, http, repo, projectName, file, home = home,
+            onSaved = { refreshList() },
+            onBusy = { s, working, error ->
+                // "sin mirar" = el usuario ya no está en el proyecto (o la app está en segundo plano)
+                val unseen = !working && (!s.attached || !AppVisibility.foreground)
+                store?.report(key, projectName, working, unseen, error)
+            },
+        )
 
     private fun refreshList() {
         _list.value = sessions.values

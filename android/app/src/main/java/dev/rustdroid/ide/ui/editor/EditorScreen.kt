@@ -131,6 +131,8 @@ fun EditorScreen(
     onOpenTerminal: (String) -> Unit = {},
     initialFile: String? = null,
     onOpenSettings: () -> Unit = {},
+    /** R4A: entrar con el chat de la IA ya abierto (botón AI de la tarjeta en Inicio). */
+    openChat: Boolean = false,
     /** R4A: abrir otro proyecto (uno que creó la IA). */
     onOpenProject: (String) -> Unit = {},
     onExit: () -> Unit = {},
@@ -146,6 +148,7 @@ fun EditorScreen(
     val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
     val chatDrawerState = rememberEdgeDrawerState()
     var moreMenuOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { if (openChat) chatDrawerState.open() }
     val tabs by vm.tabs.collectAsState()
     val activeIndex by vm.activeIndex.collectAsState()
     val activeText by vm.activeText.collectAsState()

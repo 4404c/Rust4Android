@@ -39,6 +39,8 @@ class ChatSession(
     val id: String = saveFile.nameWithoutExtension,
     /** Avisa a [ProjectChats] que cambió (para la lista de charlas). */
     private val onSaved: (ChatSession) -> Unit = {},
+    /** Empezó (true) o terminó (false) de trabajar; al terminar, [error] si falló. */
+    private val onBusy: (ChatSession, Boolean, Boolean) -> Unit = { _, _, _ -> },
 ) {
     /** PLAN = solo mira y propone un plan; BUILD = puede cambiar archivos. */
     enum class Mode { PLAN, BUILD }
@@ -158,12 +160,27 @@ class ChatSession(
     /** El editor de este proyecto está abierto: las herramientas trabajan sobre él. */
     fun attach(tools: ChatTools) {
         this.tools = tools
+        detachedWhileBusy = false
     }
+
+    /**
+     * true = el usuario salió del proyecto mientras la IA trabajaba: sigue con
+     * las herramientas de antes y, al terminar, avisa (punto en Inicio y notificación).
+     */
+    var detachedWhileBusy = false
+        private set
+
+    /** ¿Hay alguien mirando este proyecto? (editor abierto) */
+    val attached: Boolean get() = tools != null && !detachedWhileBusy
 
     /** Se cerró el editor: se corta lo que esté haciendo (no hay dónde escribir). */
     fun detach(tools: ChatTools) {
         if (this.tools !== tools) return
-        stop()
+        // R4A: si está trabajando, NO se corta: termina con lo que tenía
+        if (_busy.value) {
+            detachedWhileBusy = true
+            return
+        }
         this.tools = null
     }
 
@@ -182,11 +199,15 @@ class ChatSession(
         _messages.update { it + ChatMessage(Role.USER, prompt) }
         apiHistory += AiClient.Message("user", prompt)
         _busy.value = true
+        onBusy(this, true, false)
+        var failed = false
 
         job = scope.launch {
             try {
                 for (step in 1..MAX_STEPS) {
                     _messages.update { it + ChatMessage(Role.ASSISTANT, "") }
+                    // si el usuario volvió a abrir el proyecto, se usan las herramientas nuevas
+                    val tools = this@ChatSession.tools ?: tools
                     val reply = ask(tools, cfg, key)
                     dropEmptyLast()
                     apiHistory += AiClient.Message("assistant", reply.content, toolCalls = reply.toolCalls, raw = reply.raw)
@@ -208,18 +229,23 @@ class ChatSession(
                     }
                 }
             } catch (e: AiClient.AiException) {
+                failed = true
                 dropEmptyLast()
                 _messages.update { it + ChatMessage(Role.ERROR, e.message ?: "Error") }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 dropEmptyLast()
                 throw e
             } catch (e: Exception) {
+                failed = true
                 dropEmptyLast()
                 _messages.update { it + ChatMessage(Role.ERROR, e.message ?: e.toString()) }
             } finally {
                 closeDanglingToolCalls()
                 _busy.value = false
                 save()
+                onBusy(this@ChatSession, false, failed)
+                // ya terminó: si el usuario se había ido, se sueltan las herramientas viejas
+                if (detachedWhileBusy) { this@ChatSession.tools = null; detachedWhileBusy = false }
             }
         }
     }
@@ -378,14 +404,21 @@ class ChatSession(
 
     // ---------------- guardar / cargar ----------------
 
+    /**
+     * El antes/después de cada cambio, aparte de la charla (puede ser grande):
+     * así el diff y Deshacer siguen andando después de cerrar la app.
+     */
+    private val changesFile = File(saveFile.parentFile, saveFile.nameWithoutExtension + ".changes")
+
     private fun save() {
         val msgs = _messages.value
         val api = apiHistory.toList()
+        val chg = changes.filterKeys { id -> msgs.any { it.changeId == id } }
         updatedAt = System.currentTimeMillis()
         onSaved(this)
         scope.launch(Dispatchers.IO) {
             runCatching {
-                if (msgs.isEmpty()) { saveFile.delete(); return@runCatching }
+                if (msgs.isEmpty()) { saveFile.delete(); changesFile.delete(); return@runCatching }
                 val root = JSONObject()
                     .put("project", projectName)
                     .put("title", title)
@@ -393,7 +426,8 @@ class ChatSession(
                     .put("messages", JSONArray().apply {
                         msgs.forEach { m ->
                             put(JSONObject().put("role", m.role.name).put("text", m.text)
-                                .putOpt("path", m.path).putOpt("projectRef", m.projectRef).put("undone", m.undone))
+                                .putOpt("path", m.path).putOpt("projectRef", m.projectRef).put("undone", m.undone)
+                                .putOpt("changeId", m.changeId?.takeIf { it in chg }))
                         }
                     })
                     .put("api", JSONArray().apply {
@@ -408,6 +442,15 @@ class ChatSession(
                     })
                 saveFile.parentFile?.mkdirs()
                 Fs.writeAtomic(saveFile, root.toString())
+                // cambios: hasta ~2 MB por cambio (archivos enormes no se guardan)
+                val cj = JSONObject()
+                chg.forEach { (id, c) ->
+                    if ((c.before?.length ?: 0) + (c.after?.length ?: 0) > 2_000_000) return@forEach
+                    cj.put(id.toString(), JSONObject()
+                        .put("dir", c.projectDir.absolutePath).put("path", c.path)
+                        .putOpt("before", c.before).putOpt("after", c.after).put("isDir", c.isDir))
+                }
+                if (cj.length() == 0) changesFile.delete() else Fs.writeAtomic(changesFile, cj.toString())
             }
         }
     }
@@ -416,7 +459,20 @@ class ChatSession(
         val root = runCatching { JSONObject(saveFile.readText()) }.getOrNull() ?: return
         _mode.value = Mode.entries.firstOrNull { it.name == root.optString("mode") } ?: Mode.BUILD
         val msgs = root.optJSONArray("messages") ?: JSONArray()
-        // los cambios viejos ya no se pueden deshacer (el "antes" no se guarda)
+        // los cambios guardados: su diff se sigue viendo y se pueden deshacer
+        runCatching {
+            val cj = JSONObject(changesFile.readText())
+            cj.keys().forEach { k ->
+                val o = cj.getJSONObject(k)
+                changes[k.toInt()] = ProjectTools.Change(
+                    File(o.getString("dir")), o.getString("path"),
+                    if (o.isNull("before") || !o.has("before")) null else o.getString("before"),
+                    if (o.isNull("after") || !o.has("after")) null else o.getString("after"),
+                    o.optBoolean("isDir"),
+                )
+            }
+            nextChangeId = (changes.keys.maxOrNull() ?: 0) + 1
+        }
         _messages.value = (0 until msgs.length()).mapNotNull { i ->
             val o = msgs.getJSONObject(i)
             val role = Role.entries.firstOrNull { it.name == o.optString("role") } ?: return@mapNotNull null
@@ -425,6 +481,7 @@ class ChatSession(
                 path = o.optString("path").ifEmpty { null },
                 projectRef = o.optString("projectRef").ifEmpty { null },
                 undone = o.optBoolean("undone"),
+                changeId = if (o.has("changeId")) o.optInt("changeId").takeIf { it in changes } else null,
             )
         }
         val api = root.optJSONArray("api") ?: JSONArray()

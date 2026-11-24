@@ -89,7 +89,7 @@ class AiClient(baseHttp: OkHttpClient) {
             .build()
         withCall(req) { resp ->
             val body = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) throw AiException(errorText(resp.code, body))
+            if (!resp.isSuccessful) throw AiException(errorText(resp.code, body) + urlHint(baseUrl))
             json.parseToJsonElement(body).jsonObject["data"]?.jsonArray
                 ?.mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
                 ?.map { it.removePrefix("models/") } // Gemini antepone "models/"
@@ -138,7 +138,7 @@ class AiClient(baseHttp: OkHttpClient) {
         withCall(req) { resp ->
             if (!resp.isSuccessful) {
                 val body = resp.body?.string().orEmpty()
-                throw AiException(errorText(resp.code, body), retryAfter(resp, body))
+                throw AiException(errorText(resp.code, body) + urlHint(baseUrl), retryAfter(resp, body))
             }
             val source = resp.body?.source() ?: throw AiException("Respuesta vacía")
             val text = StringBuilder()
@@ -204,6 +204,9 @@ class AiClient(baseHttp: OkHttpClient) {
      */
     private fun retryAfter(resp: Response, body: String): Double? {
         if (resp.code != 429) return null
+        // límite POR DÍA (OpenRouter gratis, etc.): esperar segundos no sirve
+        val low = body.lowercase()
+        if ("per-day" in low || "per day" in low || "daily" in low || "rpd" in low) return null
         resp.header("retry-after")?.toDoubleOrNull()?.let { return it }
         Regex("""try again in (?:(\d+)m)?([\d.]+)s""").find(body)?.let { m ->
             val min = m.groupValues[1].toDoubleOrNull() ?: 0.0
@@ -211,6 +214,12 @@ class AiClient(baseHttp: OkHttpClient) {
         }
         return 10.0
     }
+
+    /** Pista para un error común: la URL de Gemini sin el "/openai" del final. */
+    private fun urlHint(baseUrl: String): String =
+        if ("generativelanguage.googleapis.com" in baseUrl && !baseUrl.trimEnd('/').endsWith("/openai"))
+            "\n→ Para Gemini elegí el proveedor «Google Gemini» (no hace falta URL), o usá la URL https://generativelanguage.googleapis.com/v1beta/openai"
+        else ""
 
     private fun errorText(code: Int, body: String): String {
         val msg = errorMessage(body)
@@ -225,7 +234,9 @@ class AiClient(baseHttp: OkHttpClient) {
 
     /** Saca el texto de {"error":{"message":…}} o {"error":"…"}. */
     private fun errorMessage(body: String): String? = runCatching {
-        val root = json.parseToJsonElement(body)
+        // Gemini devuelve los errores dentro de una lista: [{"error":{...}}]
+        val parsed = json.parseToJsonElement(body)
+        val root = (parsed as? JsonArray)?.firstOrNull() ?: parsed
         val err = (root as? JsonObject)?.get("error") ?: root
         (err as? JsonObject)?.get("message")?.jsonPrimitive?.contentOrNull
             ?: err.jsonPrimitive.contentOrNull

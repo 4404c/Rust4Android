@@ -37,6 +37,16 @@ class MainActivity : ComponentActivity() {
     }
 
     // singleTask launch mode: a running instance receives VIEW intents here.
+    override fun onStart() {
+        super.onStart()
+        dev.rustdroid.ide.ai.AppVisibility.foreground = true
+    }
+
+    override fun onStop() {
+        dev.rustdroid.ide.ai.AppVisibility.foreground = false
+        super.onStop()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         captureRsIntent(intent)

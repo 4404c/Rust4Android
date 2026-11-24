@@ -105,5 +105,12 @@
             android:name=".runtime.terminal.TerminalService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- R4A: keeps the AI chat running while the user is outside the
+             project or the app (ongoing "the AI is working" notification). -->
+        <service
+            android:name=".ai.AiWorkService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>
