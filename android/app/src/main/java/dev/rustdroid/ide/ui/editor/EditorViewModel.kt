@@ -512,6 +512,49 @@ class EditorViewModel(
         override fun unsavedFiles(): List<String> = _tabs.value.filter { it.dirty }.map { it.relativePath }
         override fun runProblems() = _problems.value
         override fun liveProblems() = _live.value?.diagnostics.orEmpty()
+        override fun onExternalWrite(relativePath: String, content: String?) =
+            this@EditorViewModel.onExternalWrite(relativePath, content)
+    }
+
+    /**
+     * La charla con la IA de este proyecto. Queda enganchada a este editor
+     * mientras el VM vive (ir a Opciones o Deps no la corta; salir del
+     * proyecto sí). Cada vez que se abre el proyecto, lo anterior se oculta
+     * hasta que el usuario desliza hacia abajo.
+     */
+    val chat: dev.rustdroid.ide.ai.ChatSession by lazy {
+        container.chatStore.session(projectDir, projectName.substringAfterLast('/')).also {
+            it.attach(aiBridge)
+            it.markVisitStart()
+        }
+    }
+
+    override fun onCleared() {
+        chat.detach(aiBridge)
+        super.onCleared()
+    }
+
+    /**
+     * R4A fase 3: la IA (o Deshacer) cambió un archivo en disco. Si está
+     * abierto, la pestaña muestra lo nuevo y queda guardada; si se borró, se
+     * cierra. Después se refresca Files y los errores en vivo.
+     */
+    fun onExternalWrite(relativePath: String, content: String?) {
+        activeTab?.let { it.cachedText = _activeText.value }
+        val idx = _tabs.value.indexOfFirst { it.relativePath == relativePath }
+        if (idx >= 0) {
+            if (content == null) {
+                closeTab(idx, force = true)
+            } else {
+                val tab = _tabs.value[idx]
+                tab.cachedText = content
+                tab.dirty = false
+                if (idx == _activeIndex.value) _activeText.value = content
+                _tabs.value = _tabs.value.toList() // que la pestaña deje de verse "sin guardar"
+            }
+        }
+        refreshTree()
+        scheduleLiveCheck(300)
     }
 
     // ---------------- leaving the project (R4A) ----------------

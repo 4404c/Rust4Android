@@ -317,7 +317,11 @@
     <string name="editor_more">More options</string>
     <string name="editor_coding_help">Coding help</string>
     <string name="ai_chat_hint">Ask the AI something…</string>
-    <string name="ai_chat_empty">Type to the AI below. It can read your project and see the errors, but it does not change anything yet: you make the changes.</string>
+    <string name="ai_chat_empty">Type to the AI below. It can read and change the files of this project and create new projects. Every change shows up as a card you can undo.</string>
+    <string name="ai_chat_pull_older">↓ Pull down to see the earlier chat (%1$d messages)</string>
+    <string name="ai_change_open">Open</string>
+    <string name="ai_change_undo">Undo</string>
+    <string name="ai_change_open_project">Open project</string>
     <string name="ai_chat_not_ready">AI not set up</string>
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_stop">Stop</string>

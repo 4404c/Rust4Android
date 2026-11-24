@@ -212,6 +212,12 @@ fun AppRoot(
                 onOpenTerminal = { ref -> navigateToTerminal(nav, ref) },
                 onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                 onExit = { nav.popBackStack() },
+                // R4A: proyecto creado por la IA → reemplaza a este editor
+                onOpenProject = { ref ->
+                    nav.navigate(Routes.editor(ref)) {
+                        popUpTo(Routes.EDITOR) { inclusive = true }
+                    }
+                },
             )
         }
         composable(Routes.DEPS) { entry ->

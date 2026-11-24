@@ -29,6 +29,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.border
+import dev.rustdroid.ide.ai.ChatSession
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
@@ -56,13 +60,19 @@ import dev.rustdroid.ide.ai.AiSettings
 import dev.rustdroid.ide.ui.components.RdIcons
 import dev.rustdroid.ide.ui.theme.LocalEditorPalette
 
-/** R4A: pestaña Chat del panel de abajo (fase 1: solo conversa). */
+/** R4A: el Chat IA (va en el cajón de la derecha del editor). */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ChatPanel(
-    vm: ChatViewModel,
+    vm: ChatSession,
     onInputFocusChanged: (Boolean) -> Unit,
+    onOpenFile: (String) -> Unit = {},
+    onOpenProject: (String) -> Unit = {},
 ) {
-    val messages by vm.messages.collectAsState()
+    val allMessages by vm.messages.collectAsState()
+    val hiddenBefore by vm.hiddenBefore.collectAsState()
+    // lo de visitas anteriores queda oculto hasta deslizar hacia abajo
+    val messages = remember(allMessages, hiddenBefore) { allMessages.drop(hiddenBefore) }
     val busy by vm.busy.collectAsState()
     val aiState by AiSettings.state.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -70,8 +80,12 @@ fun ChatPanel(
 
     // seguir el final mientras llega texto
     val lastLen = messages.lastOrNull()?.text?.length ?: 0
-    LaunchedEffect(messages.size, lastLen) {
-        if (messages.isNotEmpty()) listState.scrollToItem(messages.lastIndex, Int.MAX_VALUE)
+    // (no depende de hiddenBefore: al revelar lo anterior la lista queda arriba de todo)
+    LaunchedEffect(allMessages.size, lastLen) {
+        if (messages.isEmpty()) return@LaunchedEffect
+        // el aviso de "charla anterior" ocupa el primer lugar
+        val last = messages.lastIndex + if (hiddenBefore > 0) 1 else 0
+        listState.scrollToItem(last, Int.MAX_VALUE)
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -121,7 +135,7 @@ fun ChatPanel(
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
             }
-            IconButton(onClick = { vm.clear() }, enabled = messages.isNotEmpty(), modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = { vm.clear() }, enabled = allMessages.isNotEmpty(), modifier = Modifier.size(32.dp)) {
                 Icon(
                     Icons.Filled.Delete,
                     contentDescription = stringResource(R.string.ai_chat_clear),
@@ -130,22 +144,57 @@ fun ChatPanel(
             }
         }
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (messages.isEmpty()) {
-                Text(
-                    stringResource(R.string.ai_chat_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center).padding(16.dp),
-                )
-            } else {
-                SelectionContainer {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        itemsIndexed(messages) { _, m -> MessageBubble(m) }
+        // deslizar hacia abajo (estando arriba de todo) muestra la charla anterior
+        val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = false,
+            onRefresh = { vm.revealOlder() },
+            state = pullState,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            indicator = {},
+        ) {
+            SelectionContainer {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    if (hiddenBefore > 0) {
+                        item {
+                            Text(
+                                stringResource(R.string.ai_chat_pull_older, hiddenBefore),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer { alpha = 0.4f + 0.6f * pullState.distanceFraction.coerceIn(0f, 1f) }
+                                    .padding(vertical = 8.dp),
+                            )
+                        }
+                    }
+                    if (messages.isEmpty()) {
+                        item {
+                            Text(
+                                stringResource(R.string.ai_chat_empty),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp),
+                            )
+                        }
+                    }
+                    itemsIndexed(messages) { _, m ->
+                        if (m.role == ChatSession.Role.CHANGE) {
+                            ChangeCard(
+                                m,
+                                busy = busy,
+                                onOpen = { m.path?.let(onOpenFile) },
+                                onUndo = { m.changeId?.let { vm.undo(it) } },
+                                onOpenProject = { m.projectRef?.let(onOpenProject) },
+                            )
+                        } else {
+                            MessageBubble(m)
+                        }
                     }
                 }
             }
@@ -161,10 +210,10 @@ fun ChatPanel(
 }
 
 @Composable
-private fun MessageBubble(m: ChatViewModel.ChatMessage) {
+private fun MessageBubble(m: ChatSession.ChatMessage) {
     val palette = LocalEditorPalette.current
     // R4A fase 2: lo que hizo la IA con el proyecto, como una línea chiquita
-    if (m.role == ChatViewModel.Role.TOOL) {
+    if (m.role == ChatSession.Role.TOOL) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -179,7 +228,7 @@ private fun MessageBubble(m: ChatViewModel.ChatMessage) {
         }
         return
     }
-    val isUser = m.role == ChatViewModel.Role.USER
+    val isUser = m.role == ChatSession.Role.USER
     Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
         Column(
             Modifier
@@ -187,17 +236,17 @@ private fun MessageBubble(m: ChatViewModel.ChatMessage) {
                 .widthIn(max = 520.dp)
                 .background(
                     when (m.role) {
-                        ChatViewModel.Role.USER -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                        ChatViewModel.Role.ASSISTANT -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                        ChatViewModel.Role.ERROR -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
-                        ChatViewModel.Role.TOOL -> MaterialTheme.colorScheme.surfaceVariant
+                        ChatSession.Role.USER -> MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                        ChatSession.Role.ASSISTANT -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        ChatSession.Role.ERROR -> MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                        ChatSession.Role.TOOL, ChatSession.Role.CHANGE -> MaterialTheme.colorScheme.surfaceVariant
                     },
                     RoundedCornerShape(10.dp),
                 )
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            val color = if (m.role == ChatViewModel.Role.ERROR) MaterialTheme.colorScheme.error else palette.stdout
+            val color = if (m.role == ChatSession.Role.ERROR) MaterialTheme.colorScheme.error else palette.stdout
             // ```bloques``` en monoespaciado; el resto como texto normal
             splitCodeBlocks(m.text.ifEmpty { "…" }).forEach { (isCode, part) ->
                 if (isCode) {
@@ -217,6 +266,46 @@ private fun MessageBubble(m: ChatViewModel.ChatMessage) {
                     Text(part.trim('\n'), style = MaterialTheme.typography.bodySmall, color = color)
                 }
             }
+        }
+    }
+}
+
+/**
+ * R4A fase 3: un cambio de la IA. "Abrir" lleva al archivo en el editor;
+ * "Deshacer" lo vuelve atrás. Un proyecto nuevo trae "Abrir proyecto".
+ */
+@Composable
+private fun ChangeCard(
+    m: ChatSession.ChatMessage,
+    busy: Boolean,
+    onOpen: () -> Unit,
+    onUndo: () -> Unit,
+    onOpenProject: () -> Unit,
+) {
+    val palette = LocalEditorPalette.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = if (m.undone) 0.15f else 0.45f), RoundedCornerShape(8.dp))
+            .padding(start = 10.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            if (m.undone) "↶ " + m.text else m.text,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (m.undone) MaterialTheme.colorScheme.onSurfaceVariant else palette.stdout,
+            textDecoration = if (m.undone) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+        )
+        if (m.projectRef != null) {
+            TextButton(onClick = onOpenProject, enabled = !busy) { Text(stringResource(R.string.ai_change_open_project)) }
+        }
+        if (m.path != null && !m.undone) {
+            TextButton(onClick = onOpen) { Text(stringResource(R.string.ai_change_open)) }
+        }
+        if (m.changeId != null && !m.undone) {
+            TextButton(onClick = onUndo, enabled = !busy) { Text(stringResource(R.string.ai_change_undo)) }
         }
     }
 }

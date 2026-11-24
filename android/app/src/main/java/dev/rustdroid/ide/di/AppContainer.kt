@@ -77,6 +77,11 @@ class AppContainer(val context: Context) {
         )
     }
 
+    /** R4A: charlas con la IA, una por proyecto (guardadas en files/chats). */
+    val chatStore: dev.rustdroid.ide.ai.ChatStore by lazy {
+        dev.rustdroid.ide.ai.ChatStore(context, http, projectRepository)
+    }
+
     /** SAF folder-pick → real path (open-folder-as-project glue). */
     val folderLink: FolderLink by lazy { FolderLink() }
 }

@@ -129,17 +129,18 @@ fun EditorScreen(
     onOpenTerminal: (String) -> Unit = {},
     initialFile: String? = null,
     onOpenSettings: () -> Unit = {},
+    /** R4A: abrir otro proyecto (uno que creó la IA). */
+    onOpenProject: (String) -> Unit = {},
     onExit: () -> Unit = {},
 ) {
     val vm: EditorViewModel = viewModel(
         key = "editor-$projectName",
         factory = EditorViewModel.factory(container, projectName, initialFile),
     )
-    // R4A: chat con la IA (pestaña Chat del panel de abajo)
-    val chatVm: dev.rustdroid.ide.ui.chat.ChatViewModel = viewModel(
-        key = "chat-$projectName",
-        factory = dev.rustdroid.ide.ui.chat.ChatViewModel.factory(container, projectName, vm.aiBridge),
-    )
+    // R4A: la charla con la IA de ESTE proyecto (se guarda en el teléfono).
+    // Mientras el editor está abierto, sus herramientas trabajan sobre él.
+    // (attach/detach los hace el VM: ver EditorViewModel.chat)
+    val chat = vm.chat
     val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
     val chatDrawerState = rememberEdgeDrawerState()
     var moreMenuOpen by remember { mutableStateOf(false) }
@@ -381,8 +382,18 @@ fun EditorScreen(
         edgeEnabled = chatEnabled,
         drawerContent = {
             ChatDrawerSheet(
-                chatVm = chatVm,
+                chat = chat,
                 onClose = { drawerScope.launch { chatDrawerState.close() } },
+                onOpenFile = { rel ->
+                    drawerScope.launch { chatDrawerState.close() }
+                    vm.openFile(rel)
+                },
+                onOpenProject = { ref ->
+                    // la charla sigue en el proyecto nuevo; se guarda todo antes de salir
+                    val dir = container.projectRepository.resolve(ref)
+                    container.chatStore.copyTo(chat, dir, dir.name)
+                    vm.saveAllThen { onOpenProject(ref) }
+                },
             )
         },
     ) {
@@ -1533,8 +1544,10 @@ private fun showGame(context: android.content.Context, launch: EditorViewModel.G
 /** R4A: el cajón del Chat IA (desde la derecha). */
 @Composable
 private fun ChatDrawerSheet(
-    chatVm: dev.rustdroid.ide.ui.chat.ChatViewModel,
+    chat: dev.rustdroid.ide.ai.ChatSession,
     onClose: () -> Unit,
+    onOpenFile: (String) -> Unit,
+    onOpenProject: (String) -> Unit,
 ) {
     val palette = LocalEditorPalette.current
     Column(
@@ -1561,7 +1574,12 @@ private fun ChatDrawerSheet(
                 Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.ai_chat_close), tint = palette.stdout)
             }
         }
-        dev.rustdroid.ide.ui.chat.ChatPanel(vm = chatVm, onInputFocusChanged = {})
+        dev.rustdroid.ide.ui.chat.ChatPanel(
+            vm = chat,
+            onInputFocusChanged = {},
+            onOpenFile = onOpenFile,
+            onOpenProject = onOpenProject,
+        )
     }
 }
 
