@@ -186,6 +186,31 @@ object Fs {
     }
 
     /**
+     * R4A (auditoría M3): normalized project-relative path for paths that
+     * come from outside (the AI). "./a//b/./c" → "a/b/c" (also with `\`).
+     * Rejects empty, absolute and `..` paths. Without this, "././.git/x"
+     * slipped past checks that only strip one leading "./".
+     */
+    @Throws(IOException::class)
+    fun normalizeRelative(path: String): String {
+        val p = path.trim()
+        if (p.startsWith("/") || p.startsWith("\\")) throw IOException("illegal path: $path")
+        val parts = p.split('/', '\\').filter { it.isNotEmpty() && it != "." }
+        if (parts.isEmpty()) throw IOException("empty path")
+        if (parts.any { it == ".." }) throw IOException("traversal in path: $path")
+        return parts.joinToString("/")
+    }
+
+    /**
+     * R4A (auditoría M3): [resolveChild] + [requireInside]. Lexically safe
+     * AND, after following symlinks, still inside [root] — for anything the
+     * AI asks to read or write.
+     */
+    @Throws(IOException::class)
+    fun resolveInside(root: File, relative: String): File =
+        resolveChild(root, relative).also { requireInside(root, it) }
+
+    /**
      * Canonical containment: [dest] (which may not exist yet) must resolve
      * inside [root] after following any symlinks in its EXISTING ancestors.
      * The guard that actually stops symlink-based escape during archive

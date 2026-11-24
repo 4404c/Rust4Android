@@ -15,7 +15,10 @@ android {
         // is blocked by SELinux for targetSdk >= 29. This is the same strategy
         // Termux uses; binaries run fine on Android 5-15 at targetSdk 28.
         // F-Droid distribution only — not Play-eligible at this target.
-        minSdk = 24
+        // R4A (auditoría B1): 26 = Android 8. The app uses java.nio.file and
+        // Process.isAlive/waitFor(timeout)/destroyForcibly (API 26) to save
+        // files and run cargo; on Android 7 those crash.
+        minSdk = 26
         targetSdk = 28
         versionCode = 11
         versionName = "0.2.0"
@@ -38,7 +41,10 @@ android {
             // smoother than debug ones (Compose runs unoptimized in debug).
             // TODO: a real release key before publishing anywhere.
             signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
+            // R4A (auditoría M10): R8 achica la APK de ~24 MB a ~7 MB (sobre
+            // todo el SDK de Anthropic). Reglas en proguard-rules.pro.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -118,6 +124,15 @@ dependencies {
     implementation(libs.okhttp)
     // R4A: Chat IA con Claude (Anthropic)
     implementation(libs.anthropic.java)
+    // R4A (auditoría A3): el SDK de Anthropic trae Jackson 2.19.4 y
+    // opentelemetry-api 1.62.0, y commons-compress trae commons-lang3 3.16.0,
+    // todos con avisos de seguridad en OSV. Se suben; el BOM alinea todos los
+    // módulos de Jackson a la misma versión.
+    implementation(platform(libs.jackson.bom))
+    constraints {
+        implementation(libs.commons.lang3) { because("GHSA-j288-q9x7-2f5v") }
+        implementation(libs.opentelemetry.api) { because("GHSA-ccrj-gw8r-854m") }
+    }
 
     // Code editor (LGPL-2.1 — F-Droid compatible)
     implementation(libs.sora.editor)

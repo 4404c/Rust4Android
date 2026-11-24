@@ -345,7 +345,7 @@ class ChatSession(
         scope.launch {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
-                    val f = Fs.resolveChild(change.projectDir, change.path)
+                    val f = Fs.resolveInside(change.projectDir, change.path)
                     if (change.isDir) {
                         if (f.isDirectory && (f.list()?.isEmpty() != false)) f.delete()
                         else return@runCatching "La carpeta ${change.path} ya tiene archivos; no se borró."
@@ -410,48 +410,87 @@ class ChatSession(
      */
     private val changesFile = File(saveFile.parentFile, saveFile.nameWithoutExtension + ".changes")
 
+    /** Lo que hay que guardar, tomado en el hilo principal (ver [save]). */
+    private class Snapshot(
+        val msgs: List<ChatMessage>,
+        val api: List<AiClient.Message>,
+        val chg: Map<Int, ProjectTools.Change>,
+        val project: String,
+        val title: String,
+        val mode: String,
+    )
+
+    /**
+     * R4A (auditoría M2): antes cada save() escribía en paralelo con el mismo
+     * temporal (.rdtmp) → JSON mezclado o una versión vieja pisando la nueva.
+     * Ahora se deja la foto más nueva en [pendingSave] y escribe una sola
+     * corrutina a la vez ([saveLock]); si llegan varias, gana la última.
+     */
+    private val pendingSave = java.util.concurrent.atomic.AtomicReference<Snapshot?>(null)
+    private val saveLock = kotlinx.coroutines.sync.Mutex()
+
     private fun save() {
         val msgs = _messages.value
-        val api = apiHistory.toList()
-        val chg = changes.filterKeys { id -> msgs.any { it.changeId == id } }
+        pendingSave.set(
+            Snapshot(
+                msgs = msgs,
+                api = apiHistory.toList(),
+                chg = changes.filterKeys { id -> msgs.any { it.changeId == id } },
+                project = projectName,
+                title = title,
+                mode = _mode.value.name,
+            ),
+        )
         updatedAt = System.currentTimeMillis()
         onSaved(this)
         scope.launch(Dispatchers.IO) {
-            runCatching {
-                if (msgs.isEmpty()) { saveFile.delete(); changesFile.delete(); return@runCatching }
-                val root = JSONObject()
-                    .put("project", projectName)
-                    .put("title", title)
-                    .put("mode", _mode.value.name)
-                    .put("messages", JSONArray().apply {
-                        msgs.forEach { m ->
-                            put(JSONObject().put("role", m.role.name).put("text", m.text)
-                                .putOpt("path", m.path).putOpt("projectRef", m.projectRef).put("undone", m.undone)
-                                .putOpt("changeId", m.changeId?.takeIf { it in chg }))
-                        }
-                    })
-                    .put("api", JSONArray().apply {
-                        api.forEach { m ->
-                            put(JSONObject().put("role", m.role).put("content", m.content ?: "")
-                                .putOpt("toolCallId", m.toolCallId)
-                                .putOpt("raw", m.raw)
-                                .put("toolCalls", JSONArray().apply {
-                                    m.toolCalls.forEach { c -> put(JSONObject().put("id", c.id).put("name", c.name).put("arguments", c.arguments).apply { c.extra?.let { put("extra", it) } }) }
-                                }))
-                        }
-                    })
-                saveFile.parentFile?.mkdirs()
-                Fs.writeAtomic(saveFile, root.toString())
-                // cambios: hasta ~2 MB por cambio (archivos enormes no se guardan)
-                val cj = JSONObject()
-                chg.forEach { (id, c) ->
-                    if ((c.before?.length ?: 0) + (c.after?.length ?: 0) > 2_000_000) return@forEach
-                    cj.put(id.toString(), JSONObject()
-                        .put("dir", c.projectDir.absolutePath).put("path", c.path)
-                        .putOpt("before", c.before).putOpt("after", c.after).put("isDir", c.isDir))
-                }
-                if (cj.length() == 0) changesFile.delete() else Fs.writeAtomic(changesFile, cj.toString())
+            saveLock.lock()
+            try {
+                pendingSave.getAndSet(null)?.let { writeSnapshot(it) }
+            } finally {
+                saveLock.unlock()
             }
+        }
+    }
+
+    private fun writeSnapshot(s: Snapshot) {
+        val msgs = s.msgs
+        val api = s.api
+        val chg = s.chg
+        runCatching {
+            if (msgs.isEmpty()) { saveFile.delete(); changesFile.delete(); return@runCatching }
+            val root = JSONObject()
+                .put("project", s.project)
+                .put("title", s.title)
+                .put("mode", s.mode)
+                .put("messages", JSONArray().apply {
+                    msgs.forEach { m ->
+                        put(JSONObject().put("role", m.role.name).put("text", m.text)
+                            .putOpt("path", m.path).putOpt("projectRef", m.projectRef).put("undone", m.undone)
+                            .putOpt("changeId", m.changeId?.takeIf { it in chg }))
+                    }
+                })
+                .put("api", JSONArray().apply {
+                    api.forEach { m ->
+                        put(JSONObject().put("role", m.role).put("content", m.content ?: "")
+                            .putOpt("toolCallId", m.toolCallId)
+                            .putOpt("raw", m.raw)
+                            .put("toolCalls", JSONArray().apply {
+                                m.toolCalls.forEach { c -> put(JSONObject().put("id", c.id).put("name", c.name).put("arguments", c.arguments).apply { c.extra?.let { put("extra", it) } }) }
+                            }))
+                    }
+                })
+            saveFile.parentFile?.mkdirs()
+            Fs.writeAtomic(saveFile, root.toString())
+            // cambios: hasta ~2 MB por cambio (archivos enormes no se guardan)
+            val cj = JSONObject()
+            chg.forEach { (id, c) ->
+                if ((c.before?.length ?: 0) + (c.after?.length ?: 0) > 2_000_000) return@forEach
+                cj.put(id.toString(), JSONObject()
+                    .put("dir", c.projectDir.absolutePath).put("path", c.path)
+                    .putOpt("before", c.before).putOpt("after", c.after).put("isDir", c.isDir))
+            }
+            if (cj.length() == 0) changesFile.delete() else Fs.writeAtomic(changesFile, cj.toString())
         }
     }
 

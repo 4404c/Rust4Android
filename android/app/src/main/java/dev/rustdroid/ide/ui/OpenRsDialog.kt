@@ -93,7 +93,7 @@ fun OpenRsDialog(
             withContext(Dispatchers.IO) {
                 runCatching {
                     val dir = repo.createStandaloneProject(name.trim())
-                    repo.importRsContent(dir, s.fileName, s.content) to dir.name
+                    repo.importRsContent(dir, s.fileName, s.content, replaceMain = true) to dir.name
                 }
             }.fold(
                 onSuccess = { (rel, ref) -> onOpened(ref, rel) },

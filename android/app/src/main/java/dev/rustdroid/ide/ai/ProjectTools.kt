@@ -154,7 +154,7 @@ class ProjectTools(
         )
         tool(
             "delete_file",
-            "Borra UN archivo del proyecto (no carpetas). El usuario puede deshacerlo.",
+            "Borra UN archivo de texto del proyecto (no carpetas ni imágenes u otros binarios). El usuario puede deshacerlo.",
             "path" to "Ruta relativa del archivo",
         )
     }
@@ -197,11 +197,12 @@ class ProjectTools(
     }
 
     private suspend fun readFile(path: String): Outcome {
-        val rel = path.removePrefix("./").replace('\\', '/')
-        if (rel.isEmpty()) return Outcome("Error: falta 'path'.", "Quiso leer un archivo sin decir cuál")
+        if (path.isBlank()) return Outcome("Error: falta 'path'.", "Quiso leer un archivo sin decir cuál")
+        // R4A (auditoría M3): ruta normalizada y, siguiendo symlinks, dentro del proyecto
+        val rel = Fs.normalizeRelative(path)
+        val f = withContext(Dispatchers.IO) { Fs.resolveInside(bridge.projectDir, rel) }
         bridge.bufferText(rel)?.let { return Outcome(clip(it), "Leyó $rel") }
         val text = withContext(Dispatchers.IO) {
-            val f = Fs.resolveChild(bridge.projectDir, rel)
             if (!f.isFile) return@withContext null
             if (f.length() > MAX_FILE_BYTES) return@withContext "Error: el archivo es muy grande (${f.length() / 1024} KB)."
             val bytes = f.readBytes()
@@ -214,8 +215,11 @@ class ProjectTools(
         if (query.isEmpty()) return Outcome("Error: falta 'query'.", "Quiso buscar sin decir qué")
         val hits = withContext(Dispatchers.IO) {
             val out = mutableListOf<String>()
+            val root = bridge.projectDir
             for (node in bridge.tree()) {
                 if (node.isDirectory || !isCode(node.relativePath)) continue
+                // una carpeta enlazada (symlink) puede apuntar fuera del proyecto
+                if (runCatching { Fs.requireInside(root, node.file) }.isFailure) continue
                 val text = bridge.bufferText(node.relativePath)
                     ?: runCatching { if (node.file.length() <= MAX_FILE_BYTES) node.file.readText() else null }.getOrNull()
                     ?: continue
@@ -352,16 +356,31 @@ class ProjectTools(
 
     /** Ruta segura dentro del proyecto; null + mensaje si no se puede escribir ahí. */
     private fun target(path: String): Pair<String, File> {
-        val rel = path.removePrefix("./").replace('\\', '/').trimEnd('/')
-        if (rel.isEmpty()) throw IllegalArgumentException("falta 'path'")
+        if (path.isBlank()) throw IllegalArgumentException("falta 'path'")
+        // R4A (auditoría M3): "././.git/x" ya no esquiva el chequeo de abajo,
+        // y un symlink no deja escribir ni borrar fuera del proyecto
+        val rel = Fs.normalizeRelative(path)
         val top = rel.substringBefore('/')
         if (top == "target" || top == ".git") throw IllegalArgumentException("no se escribe en $top/")
-        return rel to Fs.resolveChild(bridge.projectDir, rel)
+        return rel to Fs.resolveInside(bridge.projectDir, rel)
     }
 
     /** Lo que hay ahora: el texto del editor si está abierto, si no el disco. */
     private suspend fun current(rel: String, f: File): String? =
-        bridge.bufferText(rel) ?: withContext(Dispatchers.IO) { if (f.isFile) f.readText() else null }
+        bridge.bufferText(rel) ?: withContext(Dispatchers.IO) {
+            if (!f.isFile) return@withContext null
+            // R4A (auditoría M7): un binario (imagen, sonido…) leído como texto
+            // queda roto si se lo pisa o si Deshacer lo vuelve a escribir.
+            // write/edit/delete pasan todos por acá: no se tocan binarios.
+            val head = f.inputStream().use { input ->
+                val buf = ByteArray(8192)
+                buf.copyOf(maxOf(0, input.read(buf)))
+            }
+            if (head.any { it == 0.toByte() }) {
+                throw java.io.IOException("'$rel' es un archivo binario (imagen, sonido…); la IA no lo cambia ni lo borra. Pedile al usuario que lo haga desde Files.")
+            }
+            f.readText()
+        }
 
     private suspend fun writeFile(path: String, content: String?): Outcome {
         if (content == null) return Outcome("Error: falta 'content'.", "Quiso escribir un archivo sin contenido")

@@ -276,8 +276,24 @@ class ToolchainVerifier(
      * PT_INTERP; a String = the specific problem. Only the 64-byte ELF64
      * header + program header table is read — no library dependency.
      */
+    /**
+     * R4A (auditoría A1): up to [n] bytes, fewer only at end of file.
+     * `InputStream.readNBytes` only exists on Android 13+ (API 33): on
+     * Android 8–12 it threw NoSuchMethodError and broke the busybox check.
+     */
+    private fun readUpTo(input: java.io.InputStream, n: Int): ByteArray {
+        val buf = ByteArray(n)
+        var off = 0
+        while (off < n) {
+            val r = input.read(buf, off, n - off)
+            if (r < 0) break
+            off += r
+        }
+        return if (off == n) buf else buf.copyOf(off)
+    }
+
     private fun elfStaticAarch64(f: File): String? {
-        val header = f.inputStream().use { it.readNBytes(64) }
+        val header = f.inputStream().use { readUpTo(it, 64) }
         if (header.size < 64 || header[0] != 0x7f.toByte() ||
             header[1] != 'E'.code.toByte() || header[2] != 'L'.code.toByte() ||
             header[3] != 'F'.code.toByte()
@@ -302,7 +318,7 @@ class ToolchainVerifier(
                 skipped += n
             }
             repeat(phnum) {
-                val ph = input.readNBytes(phentsize)
+                val ph = readUpTo(input, phentsize)
                 if (ph.size < phentsize) return "truncated program header table"
                 val type = ((ph[3].toInt() and 0xff) shl 24) or ((ph[2].toInt() and 0xff) shl 16) or
                     ((ph[1].toInt() and 0xff) shl 8) or (ph[0].toInt() and 0xff)

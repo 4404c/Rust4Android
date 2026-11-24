@@ -74,9 +74,20 @@ class RsImportTest {
     @Test
     fun `importRsContent main dot rs replaces the template stub`() {
         val dir = repo().createStandaloneProject("demo")
-        val rel = repo().importRsContent(dir, "main.rs", "fn main() { real(); }")
+        val rel = repo().importRsContent(dir, "main.rs", "fn main() { real(); }", replaceMain = true)
         assertEquals("src/main.rs", rel)
         assertEquals("fn main() { real(); }", File(dir, "src/main.rs").readText())
+    }
+
+    // R4A (auditoría A2): in a project the user already had, main.rs is theirs
+    @Test
+    fun `importRsContent main dot rs never overwrites an existing project's main`() {
+        val dir = repo().createStandaloneProject("demo")
+        File(dir, "src/main.rs").writeText("fn main() { mine(); }")
+        val rel = repo().importRsContent(dir, "main.rs", "fn main() { imported(); }")
+        assertEquals("src/main-1.rs", rel.replace('\\', '/'))
+        assertEquals("fn main() { mine(); }", File(dir, "src/main.rs").readText())
+        assertEquals("fn main() { imported(); }", File(dir, "src/main-1.rs").readText())
     }
 
     @Test

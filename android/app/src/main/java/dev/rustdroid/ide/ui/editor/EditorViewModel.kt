@@ -538,21 +538,39 @@ class EditorViewModel(
 
     // ---------------- IA (R4A fase 2): lo que la IA puede leer ----------------
 
-    /** Solo lectura. Puede llamarse desde IO: lee StateFlows, no escribe nada. */
+    /**
+     * R4A (auditoría M1): true cuando se salió del editor (onCleared). La IA
+     * puede seguir trabajando con este puente, pero las pestañas ya no valen
+     * (con "No guardar" tienen lo que el usuario descartó): desde ahí todo se
+     * lee del disco.
+     */
+    @Volatile private var closedForAi = false
+
+    /** Lo que está sin guardar en las pestañas; vacío si ya se salió del editor. */
+    private fun unsavedForAi(): Map<String, String> {
+        if (closedForAi) return emptyMap()
+        activeTab?.let { it.cachedText = _activeText.value }
+        return _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
+    }
+
+    /** Solo lectura (salvo avisar cambios al editor). Puede llamarse desde IO. */
     val aiBridge = object : dev.rustdroid.ide.ai.ProjectTools.Bridge {
         override val projectDir: File get() = this@EditorViewModel.projectDir
         override fun tree() = repo.fileTree(projectDir, allFiles = true)
         override fun bufferText(relativePath: String): String? {
+            if (closedForAi) return null
             val active = activeTab
             if (active?.relativePath == relativePath) return _activeText.value
             return _tabs.value.firstOrNull { it.relativePath == relativePath }?.cachedText
         }
-        override fun activeFile(): String? = activeTab?.relativePath
-        override fun unsavedFiles(): List<String> = _tabs.value.filter { it.dirty }.map { it.relativePath }
+        override fun activeFile(): String? = if (closedForAi) null else activeTab?.relativePath
+        override fun unsavedFiles(): List<String> =
+            if (closedForAi) emptyList() else _tabs.value.filter { it.dirty }.map { it.relativePath }
         override fun runProblems() = _problems.value
         override fun liveProblems() = _live.value?.diagnostics.orEmpty()
-        override fun onExternalWrite(relativePath: String, content: String?) =
-            this@EditorViewModel.onExternalWrite(relativePath, content)
+        override fun onExternalWrite(relativePath: String, content: String?) {
+            if (!closedForAi) this@EditorViewModel.onExternalWrite(relativePath, content)
+        }
         override suspend fun cargoCheck() = aiCheck()
         override suspend fun runProgram(onLine: (String) -> Unit) = aiRun(onLine)
         override fun isGame() = isGameProject()
@@ -566,8 +584,7 @@ class EditorViewModel(
     private suspend fun aiCheck(): dev.rustdroid.ide.runtime.LiveResult? {
         if (!container.toolchainPaths.isInstalled()) return null
         liveJob?.cancel()
-        activeTab?.let { it.cachedText = _activeText.value }
-        val unsaved = _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
+        val unsaved = unsavedForAi()
         val env = withContext(Dispatchers.IO) { buildEnv() }
         return liveChecker.check(projectDir, unsaved, cargoPath, env, offline = false)
             .also { _live.value = it }
@@ -579,8 +596,7 @@ class EditorViewModel(
      */
     private suspend fun aiRun(onLine: (String) -> Unit): dev.rustdroid.ide.model.RunResult? {
         if (!container.toolchainPaths.isInstalled()) return null
-        activeTab?.let { it.cachedText = _activeText.value }
-        val unsaved = _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
+        val unsaved = unsavedForAi()
         val env = withContext(Dispatchers.IO) { buildEnv() }
         _panelCollapsed.value = false
         console.system(str(R.string.ai_console_run))
@@ -611,6 +627,7 @@ class EditorViewModel(
     }
 
     override fun onCleared() {
+        closedForAi = true
         chat.detach(aiTools)
         super.onCleared()
     }

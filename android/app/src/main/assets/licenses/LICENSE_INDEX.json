@@ -76,7 +76,7 @@
     "license": "Apache-2.0",
     "file": "Apache-2.0.txt",
     "url": "https://github.com/anthropics/anthropic-sdk-java",
-    "pin": "Maven com.anthropic:anthropic-java 3.3.0 (+ anthropic-java-core, anthropic-java-client-okhttp)"
+    "pin": "Maven com.anthropic:anthropic-java 3.13.0 (+ anthropic-java-core, anthropic-java-client-okhttp)"
   },
   {
     "component": "Jackson, classmate, jsonschema-generator, OpenTelemetry API, swagger-annotations, kotlin-reflect (usadas por el SDK de Anthropic)",
@@ -84,7 +84,7 @@
     "file": "Apache-2.0.txt",
     "file2": "anthropic-sdk-NOTICES.txt",
     "url": "https://github.com/FasterXML/jackson",
-    "pin": "Jackson 2.19.4, classmate 1.7.0, jsonschema-generator 4.38.0, opentelemetry-api 1.62.0, swagger-annotations 2.2.50, kotlin-reflect 1.9.25"
+    "pin": "Jackson 2.23.0, classmate 1.7.0, jsonschema-generator 4.38.0, opentelemetry-api 1.68.0, swagger-annotations 2.2.50, kotlin-reflect 2.1.21"
   },
   {
     "component": "Standard Webhooks (usada por el SDK de Anthropic)",

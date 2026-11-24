@@ -428,14 +428,16 @@ class ProjectRepository(
     // ---- .rs intake (ACTION_VIEW from file managers) ----
 
     /**
-     * Places incoming .rs content into a project as `src/<name>`. A file
-     * named main.rs replaces the template stub; any other name that already
-     * exists gets a `-1`, `-2`… suffix instead of being overwritten.
+     * Places incoming .rs content into a project as `src/<name>`. A name
+     * that already exists gets a `-1`, `-2`… suffix instead of being
+     * overwritten. R4A: main.rs only replaces the existing one when
+     * [replaceMain] is true (a project just created for this file, whose
+     * main.rs is the template stub) — never in a project the user already had.
      * Returns the path relative to the project root (for opening a tab).
      * Works for internal AND external projects — the caller picks the
      * destination; this method only writes into [projectDir].
      */
-    fun importRsContent(projectDir: File, fileName: String, content: String): String {
+    fun importRsContent(projectDir: File, fileName: String, content: String, replaceMain: Boolean = false): String {
         val clean = fileName.substringAfterLast('/').substringAfterLast('\\').trim()
         if (clean.isEmpty() || !clean.endsWith(".rs")) {
             throw IOException("not a Rust source name: '$fileName'")
@@ -446,7 +448,7 @@ class ProjectRepository(
         val src = projectDir.resolve("src")
         src.mkdirs() // destination projects may predate src/ (plain folders)
         var target = src.resolve(clean)
-        if (clean == "main.rs") {
+        if (clean == "main.rs" && replaceMain) {
             // the template stub exists precisely to be replaced
             Fs.writeAtomic(target, content)
             return "src/main.rs"
