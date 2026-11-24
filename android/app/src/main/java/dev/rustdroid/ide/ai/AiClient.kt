@@ -55,6 +55,8 @@ class AiClient(baseHttp: OkHttpClient) {
                                 put("name", c.name)
                                 put("arguments", c.arguments)
                             }
+                            // Gemini 3: hay que devolverle su "thought_signature" tal cual
+                            c.extra?.let { e -> runCatching { Json.parseToJsonElement(e) }.getOrNull()?.let { put("extra_content", it) } }
                         }
                     }
                 }
@@ -64,7 +66,13 @@ class AiClient(baseHttp: OkHttpClient) {
     }
 
     /** El modelo pide usar una herramienta; [arguments] es JSON. */
-    data class ToolCall(val id: String, val name: String, val arguments: String)
+    data class ToolCall(
+        val id: String,
+        val name: String,
+        val arguments: String,
+        /** "extra_content" que mandó el modelo (JSON); Gemini guarda ahí su thought_signature. */
+        val extra: String? = null,
+    )
 
     data class Reply(val content: String, val toolCalls: List<ToolCall>, val raw: String? = null)
 
@@ -144,6 +152,7 @@ class AiClient(baseHttp: OkHttpClient) {
             val text = StringBuilder()
             // index → (id, nombre, argumentos) que van llegando en pedazos
             val calls = sortedMapOf<Int, Triple<StringBuilder, StringBuilder, StringBuilder>>()
+            val extras = HashMap<Int, String>()
             while (true) {
                 val line = source.readUtf8Line() ?: break
                 if (!line.startsWith("data:")) continue
@@ -162,6 +171,7 @@ class AiClient(baseHttp: OkHttpClient) {
                     val index = tc["index"]?.jsonPrimitive?.intOrNull ?: pos
                     val acc = calls.getOrPut(index) { Triple(StringBuilder(), StringBuilder(), StringBuilder()) }
                     tc["id"]?.jsonPrimitive?.contentOrNull?.let { acc.first.append(it) }
+                    (tc["extra_content"] as? JsonObject)?.let { extras[index] = it.toString() }
                     val fn = tc["function"]?.jsonObject
                     fn?.get("name")?.jsonPrimitive?.contentOrNull?.let { acc.second.append(it) }
                     fn?.get("arguments")?.jsonPrimitive?.contentOrNull?.let { acc.third.append(it) }
@@ -174,6 +184,7 @@ class AiClient(baseHttp: OkHttpClient) {
                         id = acc.first.toString().ifEmpty { "call_$i" },
                         name = acc.second.toString(),
                         arguments = acc.third.toString().ifBlank { "{}" },
+                        extra = extras[i],
                     )
                 },
             )

@@ -436,7 +436,7 @@ class ChatSession(
                                 .putOpt("toolCallId", m.toolCallId)
                                 .putOpt("raw", m.raw)
                                 .put("toolCalls", JSONArray().apply {
-                                    m.toolCalls.forEach { c -> put(JSONObject().put("id", c.id).put("name", c.name).put("arguments", c.arguments)) }
+                                    m.toolCalls.forEach { c -> put(JSONObject().put("id", c.id).put("name", c.name).put("arguments", c.arguments).apply { c.extra?.let { put("extra", it) } }) }
                                 }))
                         }
                     })
@@ -494,7 +494,7 @@ class ChatSession(
                 content = o.optString("content"),
                 toolCalls = (0 until calls.length()).map { j ->
                     val c = calls.getJSONObject(j)
-                    AiClient.ToolCall(c.optString("id"), c.optString("name"), c.optString("arguments"))
+                    AiClient.ToolCall(c.optString("id"), c.optString("name"), c.optString("arguments"), c.optString("extra").ifEmpty { null })
                 },
                 toolCallId = o.optString("toolCallId").ifEmpty { null },
                 raw = o.optString("raw").ifEmpty { null },

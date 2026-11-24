@@ -463,7 +463,7 @@ class ProjectRepository(
     companion object {
         /** src/main.rs stub for toolchain-free project scaffolds. */
         const val TEMPLATE_MAIN_RS =
-            "fn main() {\n    println!(\"Hello from RustDroid!\");\n}\n"
+            "fn main() {\n    println!(\"Hello from R4A!\");\n}\n"
 
         /** R4A: dependencies of the game template. */
         const val GAME_DEPENDENCIES =

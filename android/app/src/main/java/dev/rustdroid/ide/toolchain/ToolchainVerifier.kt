@@ -238,7 +238,7 @@ class ToolchainVerifier(
             val helloRs = File(scratch, "hello.rs")
             val helloBin = File(scratch, "hello")
             helloRs.writeText(
-                "fn main() { println!(\"hello from RustDroid on Android\"); }\n"
+                "fn main() { println!(\"hello from R4A on Android\"); }\n"
             )
             helloBin.delete()
 
@@ -262,7 +262,7 @@ class ToolchainVerifier(
             )
             when {
                 !runResult.success -> "hello exited ${runResult.exitCode}"
-                !runOut.contains("hello from RustDroid") ->
+                !runOut.contains("hello from R4A") ->
                     "unexpected output: '${runOut.toString().take(60)}'"
                 else -> null
             }
