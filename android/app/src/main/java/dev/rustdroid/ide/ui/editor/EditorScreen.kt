@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBars
@@ -102,6 +103,11 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import java.io.File
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -206,6 +212,8 @@ fun EditorScreen(
     var newIsFolder by remember { mutableStateOf(false) }
     var newMenuOpen by remember { mutableStateOf(false) }
     // R4A: importar archivos del teléfono → elegir carpeta del proyecto
+    // R4A: imagen que se está mirando (tocada en Files)
+    var imagePreview by remember { mutableStateOf<File?>(null) }
     var pendingImport by remember { mutableStateOf<List<android.net.Uri>?>(null) }
     val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
@@ -471,6 +479,8 @@ fun EditorScreen(
                                     if (node.isDirectory) {
                                         val p = node.relativePath
                                         collapsedDirs = if (p in collapsedDirs) collapsedDirs - p else collapsedDirs + p
+                                    } else if (node.file.extension.lowercase() in IMAGE_EXTS) {
+                                        imagePreview = node.file
                                     } else {
                                         vm.openFile(node.relativePath)
                                         drawerScope.launch { drawerState.close() }
@@ -953,6 +963,8 @@ fun EditorScreen(
             },
         )
     }
+
+    imagePreview?.let { f -> ImagePreviewDialog(f) { imagePreview = null } }
 
     pendingImport?.let { uris ->
         ImportFolderDialog(
@@ -1610,4 +1622,69 @@ private fun ImportFolderDialog(
         confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+
+private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
+
+/** R4A: muestra una imagen del proyecto; se agranda con dos dedos. */
+@Composable
+private fun ImagePreviewDialog(file: File, onDismiss: () -> Unit) {
+    val bitmap by produceState<android.graphics.Bitmap?>(null, file) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { android.graphics.BitmapFactory.decodeFile(file.path) }.getOrNull()
+        }
+    }
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                .padding(12.dp),
+        ) {
+            Text(file.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            val b = bitmap
+            Text(
+                if (b != null) "${b.width} × ${b.height} px" else "",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp, max = 520.dp)
+                    .clipToBounds()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 8f)
+                            offset = if (scale == 1f) androidx.compose.ui.geometry.Offset.Zero else offset + pan
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (b != null) {
+                    androidx.compose.foundation.Image(
+                        b.asImageBitmap(), contentDescription = file.name,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                        filterQuality = if (b.width < 128) androidx.compose.ui.graphics.FilterQuality.None else androidx.compose.ui.graphics.FilterQuality.Low,
+                        modifier = Modifier.fillMaxWidth().graphicsLayer(
+                            scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y,
+                        ),
+                    )
+                } else {
+                    Text("…")
+                }
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.common_dismiss))
+            }
+        }
+    }
 }

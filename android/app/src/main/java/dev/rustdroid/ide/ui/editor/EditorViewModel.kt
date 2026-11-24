@@ -687,7 +687,7 @@ class EditorViewModel(
 
     fun refreshTree() {
         viewModelScope.launch {
-            _tree.value = withContext(Dispatchers.IO) { repo.fileTree(projectDir, allFiles = false) }
+            _tree.value = withContext(Dispatchers.IO) { repo.fileTree(projectDir, allFiles = true) }
         }
     }
 

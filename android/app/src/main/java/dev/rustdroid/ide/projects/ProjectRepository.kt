@@ -322,7 +322,11 @@ class ProjectRepository(
 
     fun readFile(file: File): String {
         if (file.length() > 4L * 1024 * 1024) throw IOException("file too large to edit")
-        return file.readText()
+        val bytes = file.readBytes()
+        // R4A: images, audio, etc. are listed in the tree but never opened as
+        // text — saving them from the editor would corrupt them
+        if (bytes.take(8192).any { it == 0.toByte() }) throw IOException("not a text file")
+        return String(bytes, Charsets.UTF_8)
     }
 
     fun writeFile(file: File, content: String) {
