@@ -87,7 +87,7 @@ class FerrdroidState {
         messageId++
     }
 
-    fun hush() { message = null }
+    fun hush() { message = null; messageId++ }
 
     /** Ferrdroid pone la cara de contento un rato. */
     fun cheer(ms: Long = 1500) { happyUntil = SystemClock.uptimeMillis() + ms }
@@ -106,6 +106,12 @@ class FerrdroidState {
 
 @Composable
 fun rememberFerrdroidState(): FerrdroidState = remember { FerrdroidState() }
+
+/**
+ * R4A: el tour de presentación. Mientras hay uno, tocar a Ferrdroid avanza,
+ * el globo no se esconde, no se duerme y abajo del globo van Saltar · n/N · Siguiente.
+ */
+class FerrdroidTour(val step: Int, val total: Int, val onNext: () -> Unit, val onSkip: () -> Unit)
 
 /** Avisa a Ferrdroid de cada toque en esta zona, sin quitarle el toque a nadie. */
 fun Modifier.ferrdroidActivity(state: FerrdroidState): Modifier = pointerInput(state) {
@@ -129,7 +135,7 @@ private val SPRITE_BOX_HEIGHT = SPRITE_TOP_ROOM + PX * SPRITE_H
 private enum class Look { CENTER, LEFT, RIGHT }
 
 /** true si el celu tiene las animaciones desactivadas (accesibilidad / opciones de desarrollador). */
-private fun animationsOff(context: Context): Boolean =
+internal fun animationsOff(context: Context): Boolean =
     android.provider.Settings.Global.getFloat(
         context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f,
     ) == 0f
@@ -144,9 +150,11 @@ fun Ferrdroid(
     tips: List<String>,
     wakeLines: List<String>,
     modifier: Modifier = Modifier,
+    tour: FerrdroidTour? = null,
 ) {
     val context = LocalContext.current
     val still = remember { animationsOff(context) }
+    val tourNow by androidx.compose.runtime.rememberUpdatedState(tour)
     var shown by remember { mutableStateOf("") }
     var talking by remember { mutableStateOf(false) }
     var bubbleVisible by remember { mutableStateOf(false) }
@@ -162,7 +170,7 @@ fun Ferrdroid(
         while (true) {
             delay(500)
             now = SystemClock.uptimeMillis()
-            if (!state.sleeping && !talking && now - state.lastActivity > SLEEP_AFTER_MS) {
+            if (tourNow == null && !state.sleeping && !talking && now - state.lastActivity > SLEEP_AFTER_MS) {
                 state.sleeping = true
                 state.wakeText = wakeLines.randomOrNull().orEmpty()
                 state.hush()
@@ -219,6 +227,7 @@ fun Ferrdroid(
             }
         }
         talking = false
+        if (tourNow != null) return@LaunchedEffect // en el tour el globo queda hasta el próximo paso
         delay(BUBBLE_HIDE_MS)
         bubbleVisible = false
     }
@@ -267,6 +276,7 @@ fun Ferrdroid(
                     ) {
                         // el toque que lo despertó ya le hizo decir algo
                         if (SystemClock.uptimeMillis() - state.wokeAt < 400) return@clickable
+                        tourNow?.let { it.onNext(); return@clickable }
                         state.cheer()
                         tips.randomOrNull()?.let(state::say)
                     },
@@ -274,12 +284,40 @@ fun Ferrdroid(
             if (state.sleeping) Zzz(still, Modifier.align(Alignment.TopEnd).offset(x = 22.dp, y = (-26).dp))
         }
         AnimatedVisibility(
-            visible = bubbleVisible && !state.sleeping,
+            visible = (bubbleVisible || tour != null) && !state.sleeping,
             enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.9f),
             exit = fadeOut(tween(300)),
             modifier = Modifier.weight(1f),
         ) {
-            SpeechBubble(state.message.orEmpty(), shown.length)
+            androidx.compose.foundation.layout.Column {
+                SpeechBubble(state.message.orEmpty(), shown.length)
+                if (tour != null) TourControls(tour)
+            }
+        }
+    }
+}
+
+/** Saltar · n/N · Siguiente (¡Listo! en el último), debajo del globo. */
+@Composable
+private fun TourControls(tour: FerrdroidTour) {
+    val last = tour.step >= tour.total - 1
+    val pad = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(start = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.TextButton(onClick = tour.onSkip, contentPadding = pad) {
+            Text(stringResource(R.string.tour_skip), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+        Text(
+            "${tour.step + 1}/${tour.total}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+        androidx.compose.material3.FilledTonalButton(onClick = tour.onNext, contentPadding = pad) {
+            Text(stringResource(if (last) R.string.tour_done else R.string.tour_next))
         }
     }
 }

@@ -408,4 +408,19 @@
     <string name="ai_settings_model_pick">Elegir modelo</string>
     <string name="ai_settings_model_filter">Buscar modelo…</string>
     <string name="ai_settings_model_empty">No hay modelos que coincidan.</string>
+    <!-- R4A: tour de Ferrdroid -->
+    <string-array name="ferrdroid_tour">
+        <item>¡Hola! Soy Ferrdroid. Con R4A programás Rust en el celu, sin PC.</item>
+        <item>Tocá Nuevo proyecto para arrancar, o abrí una carpeta tuya con 📁.</item>
+        <item>Adentro tenés el editor. Tocá ▶ y tu programa corre acá mismo.</item>
+        <item>¿Algo falla? Problems te marca el error y Console muestra lo que imprime.</item>
+        <item>¿Juegos? Elegí la plantilla macroquad, probalo con ▶ y exportalo como APK.</item>
+        <item>¿No sabés Rust? ¡Tranqui! Poné la clave de una IA en Opciones, tocá AI y armá lo que quieras.</item>
+        <item>El AI de cada proyecto te ayuda a programar. ¡Listo! Me volvés a ver en Opciones.</item>
+    </string-array>
+    <string name="tour_skip">Saltar</string>
+    <string name="tour_next">Siguiente</string>
+    <string name="tour_done">¡Listo!</string>
+    <string name="settings_tour">Ver presentación</string>
+    <string name="settings_tour_desc">Ferrdroid te muestra la app de nuevo.</string>
 </resources>

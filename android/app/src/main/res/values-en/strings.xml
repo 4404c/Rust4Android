@@ -404,4 +404,19 @@
     <string name="ai_settings_model_pick">Pick model</string>
     <string name="ai_settings_model_filter">Search model…</string>
     <string name="ai_settings_model_empty">No matching models.</string>
+    <!-- R4A: Ferrdroid's tour -->
+    <string-array name="ferrdroid_tour">
+        <item>Hi! I\'m Ferrdroid. With R4A you code Rust on your phone, no PC needed.</item>
+        <item>Tap New project to start, or open your own folder with 📁.</item>
+        <item>Inside is the editor. Tap ▶ and your program runs right here.</item>
+        <item>Something broke? Problems shows the error, Console shows the output.</item>
+        <item>Games? Pick the macroquad template, try it with ▶ and export an APK.</item>
+        <item>Don\'t know Rust? No worries! Add an AI key in Settings, tap AI and build anything.</item>
+        <item>Each project\'s AI helps you code. Done! Find me again in Settings.</item>
+    </string-array>
+    <string name="tour_skip">Skip</string>
+    <string name="tour_next">Next</string>
+    <string name="tour_done">Done!</string>
+    <string name="settings_tour">Watch the tour</string>
+    <string name="settings_tour_desc">Ferrdroid shows you around the app again.</string>
 </resources>

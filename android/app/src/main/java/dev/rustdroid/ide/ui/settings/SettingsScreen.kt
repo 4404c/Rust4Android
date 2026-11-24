@@ -360,6 +360,24 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
                 description = stringResource(R.string.settings_ferrdroid_desc),
                 checked = ferrdroidVisible,
             ) { dev.rustdroid.ide.util.AppSettings.setFerrdroidVisible(context, it) }
+            // R4A: el tour de Ferrdroid de nuevo: vuelve atrás y arranca en Inicio
+            val back = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        dev.rustdroid.ide.util.AppSettings.setTourSeen(context, false)
+                        back?.onBackPressedDispatcher?.onBackPressed()
+                    }
+                    .padding(vertical = 10.dp),
+            ) {
+                Text(stringResource(R.string.settings_tour), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.settings_tour_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

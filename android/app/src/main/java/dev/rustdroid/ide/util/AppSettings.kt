@@ -37,6 +37,14 @@ object AppSettings {
         _ferrdroidVisible.value = on
     }
 
+    /** R4A: ya se vio el tour de Ferrdroid. En false, Inicio lo arranca (primera vez u Opciones → Ver presentación). */
+    private val _tourSeen = MutableStateFlow(true)
+    val tourSeen: StateFlow<Boolean> = _tourSeen.asStateFlow()
+
+    fun setTourSeen(context: Context, seen: Boolean) {
+        prefs(context).edit().putBoolean("tour_seen", seen).apply()
+        _tourSeen.value = seen
+    }
 
     /** Colores de las letras en el editor (id de CodeThemes). */
     private val _codeTheme = MutableStateFlow("classic")
@@ -94,6 +102,7 @@ object AppSettings {
             ?: ThemeMode.SYSTEM
         _codeTheme.value = prefs(context).getString(KEY_CODE_THEME, null) ?: "classic"
         _ferrdroidVisible.value = prefs(context).getBoolean("ferrdroid_visible", true)
+        _tourSeen.value = prefs(context).getBoolean("tour_seen", false)
         _aiChatEnabled.value = prefs(context).getBoolean("ai_chat_enabled", true)
         prefs(context).let { p ->
             _customColors.value = CustomColors(

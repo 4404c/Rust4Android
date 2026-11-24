@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- R4A: las capturas del tour de Ferrdroid están en inglés (drawable-en-nodpi): cambian algunas zonas resaltadas -->
+    <bool name="tour_shots_en">false</bool>
+</resources>

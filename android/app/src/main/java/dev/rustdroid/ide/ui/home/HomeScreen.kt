@@ -98,10 +98,37 @@ fun HomeScreen(
     val tips = remember { res.getStringArray(R.array.ferrdroid_tips).toList() }
     val wakeLines = remember { res.getStringArray(R.array.ferrdroid_wake).toList() }
     val createdMsg = stringResource(R.string.ferrdroid_created)
+
+    // ---- R4A: tour de Ferrdroid (primera vez, u Opciones → Ver presentación) ----
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    val tourSeen by dev.rustdroid.ide.util.AppSettings.tourSeen.collectAsState()
+    var tourOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(tourSeen) {
+        if (!tourSeen && !tourOpen) {
+            kotlinx.coroutines.delay(400)
+            tourOpen = true
+        }
+    }
+    if (tourOpen) {
+        dev.rustdroid.ide.ui.components.FerrdroidTourScreen(
+            wakeLines = wakeLines,
+            onClose = {
+                tourOpen = false
+                FerrdroidGreeting.done = true
+                dev.rustdroid.ide.util.AppSettings.setTourSeen(appContext, true)
+                ferrdroid.onActivity() // se durmió mientras durabas el tour: lo despierta
+                ferrdroid.cheer(2000)
+                if (projects.isEmpty()) ferrdroid.say(res.getString(R.string.ferrdroid_empty))
+            },
+        )
+    }
+
     androidx.compose.runtime.LaunchedEffect(Unit) {
         // saluda una vez por sesión de la app; sin proyectos, explica cómo empezar
         kotlinx.coroutines.delay(400)
-        if (projects.isEmpty()) {
+        if (!dev.rustdroid.ide.util.AppSettings.tourSeen.value || tourOpen) {
+            // el tour habla primero
+        } else if (projects.isEmpty()) {
             ferrdroid.say(res.getString(R.string.ferrdroid_empty))
         } else if (!FerrdroidGreeting.done) {
             val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
