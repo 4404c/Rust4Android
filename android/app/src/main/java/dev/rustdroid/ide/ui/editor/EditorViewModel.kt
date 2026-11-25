@@ -1,5 +1,7 @@
 package dev.rustdroid.ide.ui.editor
 
+import dev.rustdroid.ide.util.Fs
+
 import androidx.lifecycle.ViewModel
 import dev.rustdroid.ide.R
 import androidx.lifecycle.ViewModelProvider
@@ -275,13 +277,19 @@ class EditorViewModel(
 
     // ---------------- tabs ----------------
 
-    fun openFile(relativePath: String) {
+    /**
+     * Abre [path] (o pasa a su pestaña si ya está abierta). Devuelve la ruta
+     * normalizada: "./src/main.rs" y "src//main.rs" son la misma pestaña que
+     * "src/main.rs" (antes abrían otra).
+     */
+    fun openFile(path: String): String {
+        val relativePath = runCatching { Fs.normalizeRelative(path) }.getOrDefault(path)
         val idx = _tabs.value.indexOfFirst { it.relativePath == relativePath }
         if (idx >= 0) {
             setActive(idx)
-            return
+            return relativePath
         }
-        if (!opening.add(relativePath)) return
+        if (!opening.add(relativePath)) return relativePath
         val file = File(projectDir, relativePath)
         viewModelScope.launch {
             try {
@@ -294,6 +302,7 @@ class EditorViewModel(
                 opening.remove(relativePath)
             }
         }
+        return relativePath
     }
 
     fun setActive(index: Int) {
@@ -1049,9 +1058,9 @@ class EditorViewModel(
         if (!resolved.isFile) return
         val rel = diagnostic.file ?: return
         if (rel.startsWith("/")) return // absolute paths outside project: no jump
-        openFile(rel)
+        val path = openFile(rel)
         _jump.value = JumpRequest(
-            rel,
+            path,
             (diagnostic.line ?: 1),
             (diagnostic.col ?: 1),
         )
@@ -1061,8 +1070,8 @@ class EditorViewModel(
 
     /** R4A: abrir un archivo e ir a [line] con el mismo destello que Problems. */
     fun revealLine(relativePath: String, line: Int) {
-        openFile(relativePath)
-        _jump.value = JumpRequest(relativePath, line.coerceAtLeast(1), 1)
+        val path = openFile(relativePath)
+        _jump.value = JumpRequest(path, line.coerceAtLeast(1), 1)
     }
 
     fun clearJump() {

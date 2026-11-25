@@ -184,13 +184,41 @@ class ChatSession(
         this.tools = null
     }
 
+    /**
+     * R4A: true si el último pedido falló (error del proveedor, de red…): el
+     * chat muestra «Reintentar» debajo del error. Nunca se reintenta solo.
+     */
+    private val _canRetry = MutableStateFlow(false)
+    val canRetry: StateFlow<Boolean> = _canRetry.asStateFlow()
+
     fun send(text: String) {
         val prompt = text.trim()
         if (prompt.isEmpty() || _busy.value) return
         val tools = this.tools ?: return
+        withKey { cfg, key ->
+            _messages.update { it + ChatMessage(Role.USER, prompt) }
+            apiHistory += AiClient.Message("user", prompt)
+            run(tools, cfg, key)
+        }
+    }
+
+    /**
+     * Vuelve a mandar el último pedido después de un error. El historial ya
+     * tiene el mensaje del usuario (y los pasos que se hayan hecho): se sigue
+     * desde ahí, sin repetir el mensaje.
+     */
+    fun retry() {
+        if (_busy.value || !_canRetry.value) return
+        val tools = this.tools ?: return
+        withKey { cfg, key -> run(tools, cfg, key) }
+    }
+
+    /** Lee la conexión activa y su clave; si falta algo, lo dice en el chat. */
+    private fun withKey(then: (AiSettings.Connection, String) -> Unit) {
         // la API key activa (se puede cambiar desde la cabecera del chat)
         val cfg = AiSettings.state.value.active
         if (cfg == null || !cfg.ready) {
+            _canRetry.value = false
             _messages.update { it + ChatMessage(Role.ERROR, context.getString(dev.rustdroid.ide.R.string.ai_not_configured)) }
             return
         }
@@ -205,17 +233,17 @@ class ChatSession(
                     withContext(Dispatchers.IO) { AiSettings.keyUnreadable(context, cfg.id) }
                 val msg = if (unreadable) context.getString(dev.rustdroid.ide.R.string.ai_key_unreadable, cfg.name)
                 else context.getString(dev.rustdroid.ide.R.string.ai_not_configured)
+                _canRetry.value = false
                 _messages.update { it + ChatMessage(Role.ERROR, msg) }
                 _busy.value = false
                 return@launch
             }
-            startSend(prompt, tools, cfg, key)
+            then(cfg, key)
         }
     }
 
-    private fun startSend(prompt: String, tools: ChatTools, cfg: AiSettings.Connection, key: String) {
-        _messages.update { it + ChatMessage(Role.USER, prompt) }
-        apiHistory += AiClient.Message("user", prompt)
+    private fun run(tools: ChatTools, cfg: AiSettings.Connection, key: String) {
+        _canRetry.value = false
         _busy.value = true
         onBusy(this, true, false)
         var failed = false
@@ -266,6 +294,7 @@ class ChatSession(
                 _messages.update { it + ChatMessage(Role.ERROR, e.message ?: e.toString()) }
             } finally {
                 closeDanglingToolCalls()
+                _canRetry.value = failed
                 _busy.value = false
                 save()
                 onBusy(this@ChatSession, false, failed)
@@ -312,7 +341,7 @@ class ChatSession(
     /** Si el modelo rechaza las herramientas, reintenta sin ellas. */
     /** Si el modelo rechaza elegir el esfuerzo, reintenta sin él (y lo recuerda). */
     private suspend fun askOnce(tools: ChatTools, cfg: AiSettings.Connection, key: String): AiClient.Reply {
-        val effort = if (effortSupported) cfg.effort else ""
+        val effort = if (effortSupported) AiSettings.effectiveEffort(cfg) else ""
         if (effort.isEmpty()) return askWith(tools, cfg, key, "")
         return try {
             askWith(tools, cfg, key, effort)

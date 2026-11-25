@@ -51,21 +51,85 @@ object AiSettings {
         val provider: Provider,
         val customUrl: String,
         val model: String,
-        /** Esfuerzo de razonamiento ("" = el del modelo). Ver [effortOptions]. */
-        val effort: String = "",
+        /**
+         * Esfuerzo de razonamiento: "" = el del modelo, [EFFORT_OFF] = apagado.
+         * Por defecto «Bajo». Ver [effortOptions] y [effectiveEffort].
+         */
+        val effort: String = "low",
     ) {
         val baseUrl: String get() =
             (if (provider == Provider.CUSTOM) customUrl else provider.baseUrl).trim().trimEnd('/')
         val ready: Boolean get() = model.isNotBlank() && baseUrl.isNotBlank()
     }
 
+    /** Razonamiento apagado. Cada cliente lo traduce a lo que entiende su proveedor. */
+    const val EFFORT_OFF = "off"
+
     /**
-     * Niveles de esfuerzo que se pueden pedir a cada proveedor ("" = automático).
-     * Si el modelo elegido no acepta elegirlo, el chat sigue sin él.
+     * Niveles de esfuerzo que acepta este modelo ("" = automático, [EFFORT_OFF]
+     * = apagado). Se decide por el nombre del modelo; si igual lo rechaza, el
+     * chat sigue sin elegir el esfuerzo.
      */
-    fun effortOptions(p: Provider): List<String> = when (p) {
-        Provider.ANTHROPIC -> listOf("", "low", "medium", "high", "xhigh", "max")
-        else -> listOf("", "low", "medium", "high")
+    fun effortOptions(p: Provider, model: String): List<String> {
+        val m = model.lowercase().substringAfterLast('/')
+        val lmh = listOf("low", "medium", "high")
+        val levels: List<String> = when (p) {
+            Provider.ANTHROPIC -> when {
+                // siempre razonan: no se puede apagar, solo bajar el esfuerzo
+                m.startsWith("claude-fable") || m.startsWith("claude-mythos") ||
+                    m.startsWith("claude-opus-5-5") -> lmh + listOf("xhigh", "max")
+                m.startsWith("claude-opus-5") || m.startsWith("claude-opus-4-8") ||
+                    m.startsWith("claude-opus-4-7") || m.startsWith("claude-sonnet-5") ||
+                    m.startsWith("claude-haiku-5") -> listOf(EFFORT_OFF) + lmh + listOf("xhigh", "max")
+                m.startsWith("claude-opus-4-6") || m.startsWith("claude-sonnet-4-6") ->
+                    listOf(EFFORT_OFF) + lmh + "max"
+                m.startsWith("claude-opus-4-5") -> listOf(EFFORT_OFF) + lmh
+                else -> emptyList() // Claude más viejos: no se elige
+            }
+            Provider.OPENAI, Provider.CHATGPT -> when {
+                Regex("""^gpt-5\.\d""").containsMatchIn(m) -> listOf(EFFORT_OFF) + lmh
+                m == "gpt-5" || m.startsWith("gpt-5-") -> listOf(EFFORT_OFF) + lmh
+                Regex("""^o\d""").containsMatchIn(m) -> lmh
+                else -> emptyList()
+            }
+            Provider.GEMINI -> when {
+                m.startsWith("gemini-2.5-flash") -> listOf(EFFORT_OFF) + lmh
+                m.startsWith("gemini-2.5-pro") -> lmh
+                m.startsWith("gemini-") && "pro" in m -> listOf("low", "high")
+                m.startsWith("gemini-") -> lmh
+                else -> emptyList()
+            }
+            Provider.GROQ -> when {
+                m.startsWith("qwen3") -> listOf(EFFORT_OFF)
+                m.startsWith("gpt-oss") -> lmh
+                else -> emptyList()
+            }
+            // OpenRouter traduce el esfuerzo para cada modelo; URL propia: lo común
+            Provider.OPENROUTER, Provider.CUSTOM -> listOf(EFFORT_OFF) + lmh
+        }
+        return listOf("") + levels
+    }
+
+    /**
+     * El esfuerzo que se manda de verdad: el elegido si este modelo lo acepta;
+     * si no (por ejemplo, se cambió de modelo), «Bajo» o, si tampoco, automático.
+     */
+    fun effectiveEffort(c: Connection): String {
+        val ok = effortOptions(c.provider, c.model)
+        return when {
+            c.effort in ok -> c.effort
+            "low" in ok -> "low"
+            else -> ""
+        }
+    }
+
+    /**
+     * Valor de reasoning_effort que apaga el razonamiento en la API compatible
+     * con OpenAI: "none"; GPT-5 (sin .1) no tiene "none" y lo más bajo es "minimal".
+     */
+    fun offWireValue(model: String): String {
+        val m = model.lowercase().substringAfterLast('/')
+        return if (m == "gpt-5" || m.startsWith("gpt-5-")) "minimal" else "none"
     }
 
     fun setEffort(context: Context, id: String, effort: String) =

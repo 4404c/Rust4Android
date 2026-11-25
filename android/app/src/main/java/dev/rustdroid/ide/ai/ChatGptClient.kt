@@ -67,7 +67,9 @@ class ChatGptClient(baseHttp: OkHttpClient) {
             put("store", false)
             put("stream", true)
             if (instructions.isNotBlank()) put("instructions", instructions)
-            if (effort.isNotEmpty()) putJsonObject("reasoning") { put("effort", effort) }
+            if (effort.isNotEmpty()) putJsonObject("reasoning") {
+                put("effort", if (effort == AiSettings.EFFORT_OFF) AiSettings.offWireValue(model) else effort)
+            }
             putJsonArray("input") {
                 for (m in messages) {
                     when (m.role) {

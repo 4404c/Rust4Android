@@ -349,6 +349,7 @@
     <string name="ai_chat_release_older">Soltá para ver la charla anterior</string>
     <string name="ai_chat_divider_now">antes ↑  ·  ahora ↓</string>
     <string name="ai_console_run">La IA ejecuta el programa (cargo run)…</string>
+    <string name="ai_chat_retry">Reintentar</string>
     <string name="ai_chat_copy">Copiar</string>
     <string name="ai_notif_channel_working">IA trabajando</string>
     <string name="ai_notif_channel_done">IA terminó</string>
@@ -369,6 +370,7 @@
     <string name="ai_chat_change_model">Cambiar modelo…</string>
     <string name="ai_chat_effort">Esfuerzo</string>
     <string name="ai_chat_effort_auto">Automático</string>
+    <string name="ai_effort_off">Apagado</string>
     <string name="ai_effort_low">Bajo</string>
     <string name="ai_effort_medium">Medio</string>
     <string name="ai_effort_high">Alto</string>

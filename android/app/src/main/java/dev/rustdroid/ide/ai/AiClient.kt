@@ -130,8 +130,10 @@ class AiClient(baseHttp: OkHttpClient) {
             }
             if (tools != null && tools.isNotEmpty()) put("tools", tools)
             if (effort.isNotEmpty()) {
-                if ("openrouter.ai" in baseUrl) putJsonObject("reasoning") { put("effort", effort) }
-                else put("reasoning_effort", effort)
+                // apagado: OpenRouter y los demás entienden "none" (GPT-5: "minimal")
+                val e = if (effort == AiSettings.EFFORT_OFF) AiSettings.offWireValue(model) else effort
+                if ("openrouter.ai" in baseUrl) putJsonObject("reasoning") { put("effort", e) }
+                else put("reasoning_effort", e)
             }
         }
         val req = Request.Builder()

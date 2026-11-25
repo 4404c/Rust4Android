@@ -88,7 +88,13 @@ class AnthropicChat {
             // el prompt de sistema y las herramientas no cambian: se cachean
             .cacheControl(CacheControlEphemeral.builder().build())
         if (system.isNotBlank()) builder.system(system)
-        if (effort.isNotEmpty()) {
+        if (effort == AiSettings.EFFORT_OFF) {
+            // apagado: Sonnet 5.5 no acepta "disabled"; su forma es "between_tools"
+            // (sin esfuerzo, que queda en el de fábrica, "high"). Los modelos que
+            // siempre razonan (Opus 5.5, Fable) no ofrecen esta opción.
+            val type = if (model.startsWith("claude-sonnet-5-5")) "between_tools" else "disabled"
+            builder.putAdditionalBodyProperty("thinking", JsonValue.from(mapOf("type" to type)))
+        } else if (effort.isNotEmpty()) {
             builder.outputConfig(
                 com.anthropic.models.messages.OutputConfig.builder()
                     .effort(com.anthropic.models.messages.OutputConfig.Effort.of(effort))

@@ -92,6 +92,7 @@ fun ChatPanel(
     // lo de visitas anteriores queda oculto hasta deslizar hacia abajo
     val messages = remember(allMessages, hiddenBefore) { allMessages.drop(hiddenBefore) }
     val busy by vm.busy.collectAsStateWithLifecycle()
+    val canRetry by vm.canRetry.collectAsStateWithLifecycle()
     val aiState by AiSettings.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val listState = rememberLazyListState()
@@ -132,7 +133,8 @@ fun ChatPanel(
             var modelsFor by remember { mutableStateOf<AiSettings.Connection?>(null) }
             var models by remember { mutableStateOf<List<String>?>(null) }
             var modelsError by remember { mutableStateOf<String?>(null) }
-            val effortLabel = active?.effort?.takeIf { it.isNotEmpty() }?.let { " · ${effortName(it)}" }.orEmpty()
+            val effort = active?.let { AiSettings.effectiveEffort(it) }.orEmpty()
+            val effortLabel = effort.takeIf { it.isNotEmpty() }?.let { " · ${effortName(it)}" }.orEmpty()
             Box(Modifier.weight(1f)) {
                 Text(
                     if (active?.ready == true) "${active.name} · ${active.model}$effortLabel  ▾"
@@ -192,10 +194,10 @@ fun ChatPanel(
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                         )
-                        AiSettings.effortOptions(active.provider).forEach { e ->
+                        AiSettings.effortOptions(active.provider, active.model).forEach { e ->
                             DropdownMenuItem(
                                 text = { Text(if (e.isEmpty()) stringResource(R.string.ai_chat_effort_auto) else effortName(e)) },
-                                leadingIcon = { RadioButton(selected = active.effort == e, onClick = null) },
+                                leadingIcon = { RadioButton(selected = effort == e, onClick = null) },
                                 onClick = {
                                     AiSettings.setEffort(context, active.id, e)
                                     pickerOpen = false
@@ -445,6 +447,17 @@ fun ChatPanel(
                                         streaming = busy && m.role == ChatSession.Role.ASSISTANT && i == messages.lastIndex,
                                     )
                                 }
+                            }
+                        }
+                    }
+                    // R4A: el pedido falló: el error queda a la vista y este botón lo vuelve a mandar
+                    if (canRetry && !busy && messages.lastOrNull()?.role == ChatSession.Role.ERROR) {
+                        item(key = "retry") {
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { follow = true; vm.retry() },
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                            ) {
+                                Text(stringResource(R.string.ai_chat_retry))
                             }
                         }
                     }
@@ -797,6 +810,7 @@ private fun ChatInput(
 /** Nombre corto del nivel de esfuerzo. */
 @Composable
 private fun effortName(e: String): String = when (e) {
+    AiSettings.EFFORT_OFF -> stringResource(R.string.ai_effort_off)
     "low" -> stringResource(R.string.ai_effort_low)
     "medium" -> stringResource(R.string.ai_effort_medium)
     "high" -> stringResource(R.string.ai_effort_high)
