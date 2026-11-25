@@ -102,6 +102,13 @@ fun AiSettingsCard(container: AppContainer) {
 
     ExpandableCard(stringResource(R.string.ai_settings_title)) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // R4A: prender o apagar el chat del editor (lo mismo que el menú del editor)
+            val chatOn by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsStateWithLifecycle()
+            SwitchRow(
+                title = stringResource(R.string.settings_ai_chat),
+                description = stringResource(R.string.settings_ai_chat_desc),
+                checked = chatOn,
+            ) { dev.rustdroid.ide.util.AppSettings.setAiChatEnabled(context, it) }
             Text(
                 stringResource(R.string.ai_settings_note),
                 style = MaterialTheme.typography.bodySmall,

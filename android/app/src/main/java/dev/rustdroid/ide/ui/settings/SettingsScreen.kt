@@ -89,6 +89,21 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // R4A: grupos con título, lo más usado primero
+            SettingsHeader(stringResource(R.string.settings_group_ai))
+            AiSettingsCard(container)
+
+            SettingsHeader(stringResource(R.string.settings_group_editor))
+            EditorCard(onOpenCodeThemes)
+
+            SettingsHeader(stringResource(R.string.settings_group_general))
+            LanguageCard()
+            AppearanceCard()
+
+            SettingsHeader(stringResource(R.string.settings_group_export))
+            SigningKeyCard()
+
+            SettingsHeader(stringResource(R.string.settings_group_system))
             // ---- toolchain ----
             ExpandableCard(stringResource(R.string.settings_toolchain)) {
                 Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -144,18 +159,6 @@ fun SettingsScreen(
                     )
                 }
             }
-
-            // ---- language (R4A) ----
-            LanguageCard()
-
-            // ---- appearance (R4A) ----
-            AppearanceCard(onOpenCodeThemes)
-
-            // ---- inteligencia artificial (R4A) ----
-            AiSettingsCard(container)
-
-            // ---- game signing key (R4A) ----
-            SigningKeyCard()
 
             // ---- storage ----
             ExpandableCard(stringResource(R.string.settings_storage)) {
@@ -451,25 +454,12 @@ private fun ErrorLine(text: String) =
 
 /** R4A: appearance / editor toggles. Changes apply right away (AppSettings flows). */
 @Composable
-private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
+private fun AppearanceCard() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsStateWithLifecycle()
-    val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsStateWithLifecycle()
     val ferrdroidVisible by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsStateWithLifecycle()
     ExpandableCard(stringResource(R.string.settings_appearance)) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ThemeModeRow()
-            CodeThemeRow(onOpenCodeThemes)
-            SwitchRow(
-                title = stringResource(R.string.settings_file_icons),
-                description = stringResource(R.string.settings_file_icons_desc),
-                checked = fileIcons,
-            ) { dev.rustdroid.ide.util.AppSettings.setFileIcons(context, it) }
-            SwitchRow(
-                title = stringResource(R.string.settings_live_check),
-                description = stringResource(R.string.settings_live_check_desc),
-                checked = liveCheck,
-            ) { dev.rustdroid.ide.util.AppSettings.setLiveCheck(context, it) }
             SwitchRow(
                 title = stringResource(R.string.settings_ferrdroid),
                 description = stringResource(R.string.settings_ferrdroid_desc),
@@ -495,6 +485,40 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
             }
         }
     }
+}
+
+/** R4A: cosas del editor: tema de código, íconos, revisión en vivo. */
+@Composable
+private fun EditorCard(onOpenCodeThemes: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsStateWithLifecycle()
+    val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsStateWithLifecycle()
+    ExpandableCard(stringResource(R.string.settings_editor_card)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            CodeThemeRow(onOpenCodeThemes)
+            SwitchRow(
+                title = stringResource(R.string.settings_file_icons),
+                description = stringResource(R.string.settings_file_icons_desc),
+                checked = fileIcons,
+            ) { dev.rustdroid.ide.util.AppSettings.setFileIcons(context, it) }
+            SwitchRow(
+                title = stringResource(R.string.settings_live_check),
+                description = stringResource(R.string.settings_live_check_desc),
+                checked = liveCheck,
+            ) { dev.rustdroid.ide.util.AppSettings.setLiveCheck(context, it) }
+        }
+    }
+}
+
+/** R4A: título de un grupo de opciones (como en los ajustes de Android). */
+@Composable
+private fun SettingsHeader(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp),
+    )
 }
 
 /** R4A: fila que lleva a la lista de temas de código (para que Opciones no sea eterna). */
@@ -670,7 +694,7 @@ private fun CustomColorsEditor() {
 
 /** One setting: title + description + switch; the whole row toggles. */
 @Composable
-private fun SwitchRow(
+internal fun SwitchRow(
     title: String,
     description: String,
     checked: Boolean,

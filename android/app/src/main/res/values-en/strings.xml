@@ -387,7 +387,7 @@
     <string name="ai_tools_unsupported">⚠ The model “%1$s” does not accept tools: in this chat it cannot read, change or build your project, only talk. To work on the project, pick another model from the menu at the top of the chat and start a new chat.</string>
     <string name="ai_tools_stuck">The model “%1$s” got stuck with the tools and could not continue. Try again, or pick another model from the menu at the top of the chat.</string>
     <string name="ai_not_configured">The AI is not set up yet: go to Settings → Artificial intelligence, add an API key and pick a model.</string>
-    <string name="ai_settings_title">Artificial intelligence</string>
+    <string name="ai_settings_title">Chat and connections</string>
     <string name="ai_settings_note">Connect an AI with your own API key to use the editor Chat. Needs internet. The key is stored encrypted on the phone.</string>
     <string name="ai_settings_provider">Provider</string>
     <string name="ai_provider_custom">Other (own URL, OpenAI-compatible)</string>
@@ -435,4 +435,12 @@
     <string name="tour_done">Done!</string>
     <string name="settings_tour">Watch the tour</string>
     <string name="settings_tour_desc">Ferrdroid shows you around the app again.</string>
+    <string name="settings_group_ai">Artificial intelligence</string>
+    <string name="settings_group_editor">Editor</string>
+    <string name="settings_group_general">General</string>
+    <string name="settings_group_export">APK export</string>
+    <string name="settings_group_system">System</string>
+    <string name="settings_editor_card">Code and files</string>
+    <string name="settings_ai_chat">AI chat in the editor</string>
+    <string name="settings_ai_chat_desc">Shows the AI button and the chat panel inside each project</string>
 </resources>

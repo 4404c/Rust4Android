@@ -391,7 +391,7 @@
     <string name="ai_tools_unsupported">⚠ El modelo «%1$s» no acepta herramientas: en esta charla no puede leer, cambiar ni compilar tu proyecto, solo conversar. Para que trabaje con el proyecto, elegí otro modelo desde el menú de arriba del chat y empezá una charla nueva.</string>
     <string name="ai_tools_stuck">El modelo «%1$s» se trabó con las herramientas y no pudo seguir. Probá de nuevo, o elegí otro modelo desde el menú de arriba del chat.</string>
     <string name="ai_not_configured">Falta configurar la IA: andá a Opciones → Inteligencia artificial, agregá una API key y elegí un modelo.</string>
-    <string name="ai_settings_title">Inteligencia artificial</string>
+    <string name="ai_settings_title">Chat y conexiones</string>
     <string name="ai_settings_note">Conectá una IA con tu propia API key para usar el Chat del editor. Hace falta internet. La clave se guarda cifrada en el teléfono.</string>
     <string name="ai_settings_provider">Proveedor</string>
     <string name="ai_provider_custom">Otro (URL propia, compatible con OpenAI)</string>
@@ -439,4 +439,12 @@
     <string name="tour_done">¡Listo!</string>
     <string name="settings_tour">Ver presentación</string>
     <string name="settings_tour_desc">Ferrdroid te muestra la app de nuevo.</string>
+    <string name="settings_group_ai">Inteligencia artificial</string>
+    <string name="settings_group_editor">Editor</string>
+    <string name="settings_group_general">General</string>
+    <string name="settings_group_export">Exportar APK</string>
+    <string name="settings_group_system">Sistema</string>
+    <string name="settings_editor_card">Código y archivos</string>
+    <string name="settings_ai_chat">Chat de IA en el editor</string>
+    <string name="settings_ai_chat_desc">Muestra el botón AI y el panel del chat dentro de cada proyecto</string>
 </resources>
