@@ -99,5 +99,12 @@
     "file": "slf4j-MIT.txt",
     "url": "https://www.slf4j.org",
     "pin": "Maven org.slf4j:slf4j-api 2.0.16"
+  },
+  {
+    "component": "Newsreader (fuente del título R4A)",
+    "license": "OFL-1.1",
+    "file": "newsreader-OFL-1.1.txt",
+    "url": "https://github.com/productiontype/Newsreader",
+    "pin": "google/fonts ofl/newsreader (variable, instanciada a wght 500 / opsz 72 y recortada a ASCII)"
   }
 ]

@@ -8,6 +8,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.Font
 import dev.rustdroid.ide.R
 
+/** R4A: Newsreader (OFL, sin Reserved Font Name) para el título R4A: grosor 500, óptica "display", recortada a ASCII. */
+val NewsreaderFamily = FontFamily(Font(R.font.newsreader_title, FontWeight.Normal))
+
 /** R4A: Press Start 2P (OFL), la letra pixel del globo de Ferrdroid. */
 val PixelFamily = FontFamily(Font(R.font.press_start_2p, FontWeight.Normal))
 

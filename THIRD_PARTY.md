@@ -20,6 +20,7 @@ The companion plan for the Phase 4 additions is
 | tomlj | MIT | Maven 1.1.1 | Cargo.toml parsing |
 | Mozilla CA root store | MPL-2.0 | `assets/ssl/cacert.pem` (from https://curl.se/ca/cacert.pem, periodically refreshed) | cargo TLS trust |
 | Press Start 2P | OFL-1.1 (Reserved Font Name "Press Start 2P") | google/fonts `ofl/pressstart2p`, shipped unmodified | `res/font/press_start_2p.ttf`, Ferrdroid's speech bubble |
+| Newsreader | OFL-1.1 (no Reserved Font Name) | google/fonts `ofl/newsreader` (variable font instanced to wght 500 / opsz 72, subset to ASCII) | `res/font/newsreader_title.ttf`, the R4A title |
 | Courier Prime | OFL-1.1 | google/fonts `ofl/courierprime` (Bold), shipped unmodified | `res/font/courier_prime_bold.ttf`, the "R4A" title on Home |
 | Anthropic Java SDK (`anthropic-java`, `-core`, `-client-okhttp`) | Apache-2.0 | Maven `com.anthropic:anthropic-java:3.13.0` | AI chat with Claude (`ai/AnthropicChat.kt`) |
 | Jackson (core, databind, annotations, module-kotlin, datatype-jdk8/jsr310) | Apache-2.0 (NOTICE files reproduced in `assets/licenses/anthropic-sdk-NOTICES.txt`, incl. the shaded FastDoubleParser and Schubfach (MIT) notices) | Maven 2.23.0 (annotations 2.23), pulled in by the Anthropic SDK and raised with the Jackson BOM (security advisories in 2.19.4) | JSON for the SDK |

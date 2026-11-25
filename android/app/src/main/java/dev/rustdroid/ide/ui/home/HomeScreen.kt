@@ -237,9 +237,9 @@ fun HomeScreen(
                     Text(
                         "R4A",
                         color = MaterialTheme.colorScheme.primary,
-                        // R4A: el título con Press Start 2P, la letra pixel de Ferrdroid
-                        fontFamily = dev.rustdroid.ide.ui.theme.PixelFamily,
-                        fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp),
+                        // R4A: el título con Newsreader
+                        fontFamily = dev.rustdroid.ide.ui.theme.NewsreaderFamily,
+                        fontSize = androidx.compose.ui.unit.TextUnit(30f, androidx.compose.ui.unit.TextUnitType.Sp),
                     )
                 },
                 actions = {
