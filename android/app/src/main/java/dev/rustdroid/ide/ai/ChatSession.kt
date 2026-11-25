@@ -304,7 +304,9 @@ class ChatSession(
 
     /** Si el modelo rechaza las herramientas, reintenta sin ellas. */
     private suspend fun askWith(tools: ChatTools, cfg: AiSettings.Connection, key: String, effort: String): AiClient.Reply {
-        val messages = listOf(AiClient.Message("system", systemPrompt())) + apiHistory
+        // R4A (auditoría M8): resultados viejos de herramientas recortados (no con Claude)
+        val history = if (cfg.provider == AiSettings.Provider.ANTHROPIC) apiHistory.toList() else HistoryTrim.forRequest(apiHistory.toList())
+        val messages = listOf(AiClient.Message("system", systemPrompt())) + history
         // modo Plan: solo las herramientas para mirar
         val defs = if (_mode.value == Mode.PLAN && !home) tools.definitionsFor(tools.planTools) else tools.definitions
         // Claude va por el SDK de Anthropic (acepta herramientas siempre)
