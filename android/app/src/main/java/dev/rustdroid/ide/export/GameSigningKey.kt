@@ -127,7 +127,9 @@ object GameSigningKey {
     private fun decrypt(backup: ByteArray, password: CharArray): ByteArray {
         val buf = java.nio.ByteBuffer.wrap(backup, MAGIC.size, backup.size - MAGIC.size)
         val iterations = buf.int
-        if (iterations !in 10_000..10_000_000) error("not an R4A key backup")
+        // R4A (auditoría 2, S2): tope 2.000.000 (se guarda con 210.000); un
+        // archivo armado con 10 millones trababa el celu ~1 minuto
+        if (iterations !in 10_000..2_000_000) error("not an R4A key backup")
         val salt = ByteArray(16).also { buf.get(it) }
         val iv = ByteArray(12).also { buf.get(it) }
         val ct = ByteArray(buf.remaining()).also { buf.get(it) }

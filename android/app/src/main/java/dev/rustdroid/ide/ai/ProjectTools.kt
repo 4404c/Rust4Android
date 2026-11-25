@@ -33,6 +33,8 @@ class ProjectTools(
     val bridge: Bridge,
     /** Las charlas del proyecto (read_chat); null = no se ofrecen esas herramientas. */
     private val history: ChatHistory? = null,
+    /** R4A (auditoría 2, S1): cambios de la IA en cómo se compila, sin aprobar. */
+    private val guard: BuildGuard = BuildGuard(bridge.projectDir, null),
 ) : ChatTools {
 
     /** En modo Plan: mirar, compilar para ver errores y leer charlas; nada que cambie archivos. */
@@ -307,35 +309,33 @@ class ProjectTools(
     /** Modo Plan: cargo_check sin internet (no baja ni compila crates nuevas). */
     var planMode: Boolean = false
 
-    /** Crates que ya estaban al abrir el proyecto o que el usuario permitió. */
-    private val knownDeps: MutableSet<String> = dependencyNames().toMutableSet()
     private var runApproved = false
-
-    /** Nombres en [dependencies], [dev-dependencies] y [build-dependencies] del Cargo.toml raíz. */
-    private fun dependencyNames(): Set<String> = runCatching {
-        val toml = org.tomlj.Toml.parse(File(bridge.projectDir, "Cargo.toml").toPath())
-        listOf("dependencies", "dev-dependencies", "build-dependencies")
-            .flatMap { toml.getTable(it)?.keySet().orEmpty() }
-            .toSet()
-    }.getOrDefault(emptySet())
 
     private suspend fun ask(text: String): Boolean = approver?.invoke(text) ?: false
 
-    private suspend fun cargoCheck(): Outcome {
-        // crates nuevas: cargo las bajaría y correría su código (build.rs, macros)
-        val newDeps = withContext(Dispatchers.IO) { dependencyNames() } - knownDeps
-        var offline = planMode
-        var denied: Set<String> = emptySet()
-        if (!planMode && newDeps.isNotEmpty()) {
-            val names = newDeps.sorted().joinToString(", ")
-            if (ask("La IA agregó dependencias nuevas: $names. Para compilar, cargo las va a bajar de internet y su código va a correr en tu celular. ¿Lo permitís?")) {
-                knownDeps += newDeps
-            } else {
-                offline = true
-                denied = newDeps
-            }
+    /**
+     * R4A (auditoría 2, S1): si la IA cambió algo que decide qué código corre
+     * al compilar ([BuildGuard]), pregunta antes. null = se puede compilar;
+     * si no, lo que se le contesta a la IA.
+     */
+    private suspend fun buildApproval(): Outcome? {
+        val pending = withContext(Dispatchers.IO) { guard.pending() }
+        if (pending.isEmpty()) return null
+        val files = pending.joinToString(", ")
+        if (ask("La IA cambió archivos que deciden qué código corre al compilar: $files. Al compilar, cargo puede bajar crates de internet y ejecutar su código (y el de build.rs) en tu celular. ¿Lo permitís?")) {
+            withContext(Dispatchers.IO) { guard.approve() }
+            return null
         }
-        val r = bridge.cargoCheck(offline) ?: return Outcome(
+        return Outcome(
+            "El usuario NO permitió compilar con los cambios en $files. No se compiló. Explicale qué hacen esos cambios, o que los deshaga con las tarjetas del chat.",
+            "No compiló: no permitiste los cambios en $files",
+        )
+    }
+
+    private suspend fun cargoCheck(): Outcome {
+        buildApproval()?.let { return it }
+        // en modo Plan, sin internet
+        val r = bridge.cargoCheck(planMode) ?: return Outcome(
             "Error: la toolchain de Rust no está instalada.", "No pudo compilar (falta la toolchain)",
         )
         val errors = r.diagnostics.count { it.isError }
@@ -348,9 +348,6 @@ class ProjectTools(
             d.label?.let { sb.append(" (").append(it).append(")") }
             sb.appendLine()
             d.notes.forEach { sb.appendLine("    $it") }
-        }
-        if (denied.isNotEmpty()) {
-            sb.appendLine("El usuario NO permitió bajar estas dependencias: ${denied.sorted().joinToString(", ")}. Sacalas del Cargo.toml o pedile que las agregue él desde Deps. (Se compiló sin internet.)")
         }
         // cargo falló sin diagnósticos (Cargo.toml roto, crate que no existe, sin internet…)
         if (!r.success && errors == 0) {
@@ -372,6 +369,7 @@ class ProjectTools(
             "Es un juego de macroquad: no se puede ejecutar desde acá. Pedile al usuario que toque ▶ para verlo.",
             "Es un juego: lo abrís vos con ▶",
         )
+        buildApproval()?.let { return it }
         if (!runApproved) {
             if (!ask("La IA quiere ejecutar el programa (cargo run) en tu celular. ¿Lo permitís? Vale mientras este proyecto siga abierto.")) {
                 return Outcome("El usuario no permitió ejecutar el programa. No lo vuelvas a pedir en este pedido.", "No le permitiste ejecutar el programa")
@@ -436,7 +434,7 @@ class ProjectTools(
         if (f.isDirectory) return Outcome("Error: '$rel' es una carpeta.", "Quiso escribir sobre la carpeta $rel")
         val before = current(rel, f)
         if (before == content) return Outcome("Sin cambios: '$rel' ya tenía ese contenido.", "$rel ya estaba así")
-        withContext(Dispatchers.IO) { f.parentFile?.mkdirs(); Fs.writeAtomic(f, content) }
+        withContext(Dispatchers.IO) { guard.beforeAiWrite(rel); f.parentFile?.mkdirs(); Fs.writeAtomic(f, content) }
         bridge.onExternalWrite(rel, content)
         val summary = if (before == null) "Creó $rel (${lineCount(content)} líneas)" else "Cambió $rel (${diffStat(before, content)})"
         return Outcome("Listo: '$rel' guardado.", summary, Change(bridge.projectDir, rel, before, content))
@@ -458,7 +456,7 @@ class ProjectTools(
             "El fragmento aparece más de una vez en $rel",
         )
         val after = before.replace(old, new)
-        withContext(Dispatchers.IO) { Fs.writeAtomic(f, after) }
+        withContext(Dispatchers.IO) { guard.beforeAiWrite(rel); Fs.writeAtomic(f, after) }
         bridge.onExternalWrite(rel, after)
         return Outcome("Listo: '$rel' editado.", "Cambió $rel (${diffStat(before, after)})", Change(bridge.projectDir, rel, before, after))
     }
@@ -476,7 +474,7 @@ class ProjectTools(
         if (rel == "Cargo.toml") return Outcome("Error: no se puede borrar el Cargo.toml del proyecto.", "Quiso borrar Cargo.toml (no se permite)")
         if (f.isDirectory) return Outcome("Error: '$rel' es una carpeta; solo se borran archivos.", "Quiso borrar la carpeta $rel (no se permite)")
         val before = current(rel, f) ?: return Outcome("Error: no existe '$rel'.", "Quiso borrar $rel (no existe)")
-        withContext(Dispatchers.IO) { if (!f.delete()) throw java.io.IOException("no se pudo borrar '$rel'") }
+        withContext(Dispatchers.IO) { guard.beforeAiWrite(rel); if (!f.delete()) throw java.io.IOException("no se pudo borrar '$rel'") }
         bridge.onExternalWrite(rel, null)
         return Outcome("Listo: '$rel' borrado.", "Borró $rel", Change(bridge.projectDir, rel, before, null))
     }

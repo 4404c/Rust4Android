@@ -83,6 +83,12 @@ class EditorViewModel(
         liveJob = viewModelScope.launch {
             kotlinx.coroutines.delay(delayMs)
             if (!container.toolchainPaths.isInstalled()) return@launch
+            // R4A (auditoría 2, S1): con cambios de la IA sin aprobar (un build.rs,
+            // Cargo.toml…) no se compila solo: cargo check ejecutaría ese código
+            if (withContext(Dispatchers.IO) { buildGuard.pending().isNotEmpty() }) {
+                _live.value = null
+                return@launch
+            }
             activeTab?.let { it.cachedText = _activeText.value }
             val unsaved = _tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText }
             val env = withContext(Dispatchers.IO) { buildEnv() }
@@ -628,7 +634,21 @@ class EditorViewModel(
         dev.rustdroid.ide.ai.ProjectTools(
             aiBridge,
             history = container.chatStore.project(projectDir, projectName.substringAfterLast('/')),
+            guard = buildGuard,
         )
+    }
+
+    /**
+     * R4A (auditoría 2, S1): lo que la IA cambió en cómo se compila y no
+     * aprobaste. Vive en la carpeta de charlas del proyecto (sigue al
+     * renombrar, se borra con el proyecto).
+     */
+    private val buildGuard by lazy {
+        val filesDir = container.context.filesDir
+        val chats = dev.rustdroid.ide.projects.ProjectLeftovers.chatsDir(
+            filesDir, dev.rustdroid.ide.projects.ProjectLeftovers.canonical(projectDir),
+        )
+        dev.rustdroid.ide.ai.BuildGuard(projectDir, File(chats, "build-guard.txt"))
     }
 
     val chat: dev.rustdroid.ide.ai.ProjectChats by lazy {
@@ -878,6 +898,8 @@ class EditorViewModel(
         runJob = viewModelScope.launch {
             // persist unsaved edits BEFORE the toolchain reads them
             saveAllChanged()
+            // R4A (auditoría 2, S1): compilar con ▶ es tu OK a lo que haya
+            withContext(Dispatchers.IO) { buildGuard.approve() }
             _running.value = true
             _lastResult.value = null
             _problems.value = emptyList()

@@ -42,21 +42,26 @@ class AnthropicChat {
 
     private object SharedClient {
         /**
-         * R4A (auditoría B6): UN cliente para toda la app (antes había uno por
-         * charla, cada uno con sus hilos y conexiones, y nunca se cerraban).
-         * Si cambia la clave, el viejo se cierra.
+         * R4A (auditoría B6): pocos clientes para toda la app (antes había uno
+         * por charla, cada uno con sus hilos y conexiones, y nunca se cerraban).
+         * R4A (auditoría 2, E1): uno POR CLAVE. Antes había uno solo y, al
+         * cambiar de clave, se cerraba: con dos conexiones de Claude trabajando
+         * a la vez, una le cortaba la respuesta a la otra. Solo se cierra el
+         * más viejo si hay más de [MAX] claves distintas.
          */
-        private var cachedKey: String? = null
-        private var cachedClient: AnthropicClient? = null
+        private const val MAX = 4
+        private val clients = LinkedHashMap<String, AnthropicClient>(8, 0.75f, true)
 
         @Synchronized
         fun get(apiKey: String): AnthropicClient {
-            cachedClient?.takeIf { cachedKey == apiKey }?.let { return it }
-            cachedClient?.let { old -> runCatching { old.close() } }
-            return AnthropicOkHttpClient.builder().apiKey(apiKey).build().also {
-                cachedClient = it
-                cachedKey = apiKey
+            clients[apiKey]?.let { return it }
+            val client = AnthropicOkHttpClient.builder().apiKey(apiKey).build()
+            clients[apiKey] = client
+            if (clients.size > MAX) {
+                val oldest = clients.keys.first()
+                clients.remove(oldest)?.let { old -> runCatching { old.close() } }
             }
+            return client
         }
     }
 
