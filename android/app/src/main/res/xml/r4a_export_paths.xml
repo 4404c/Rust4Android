@@ -3,4 +3,6 @@
 <paths>
     <external-path name="exports" path="Download/R4A/" />
     <external-files-path name="exports_private" path="exports/" />
+    <!-- R4A (auditoría B4): copia privada que usa "Instalar" -->
+    <cache-path name="install" path="install/" />
 </paths>

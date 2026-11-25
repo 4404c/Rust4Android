@@ -110,7 +110,9 @@ class ChatGptAuth(private val http: OkHttpClient) {
 
     /** Token de acceso válido para [connectionId]; lo renueva si está por vencer. */
     suspend fun accessToken(context: Context, connectionId: String): String = refreshLock.withLock {
-        val saved = AiSettings.apiKey(context, connectionId)?.let { runCatching { JSONObject(it) }.getOrNull() }
+        // R4A (auditoría B3): Keystore y prefs fuera del hilo principal
+        val saved = withContext(Dispatchers.IO) { AiSettings.apiKey(context, connectionId) }
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?: throw AuthException(SESSION_LOST)
         if (saved.optLong("expires_at") - 60_000 > System.currentTimeMillis()) {
             return@withLock saved.getString("access_token")
@@ -129,7 +131,7 @@ class ChatGptAuth(private val http: OkHttpClient) {
             )
         }
         val updated = store(fresh, clientId, previousRefresh = refresh)
-        AiSettings.setSecret(context, connectionId, updated.toString())
+        withContext(Dispatchers.IO) { AiSettings.setSecret(context, connectionId, updated.toString()) }
         updated.getString("access_token")
     }
 

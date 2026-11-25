@@ -646,9 +646,14 @@ private fun ChangeCard(
 ) {
     val palette = LocalEditorPalette.current
     // el diff se calcula una vez; la tarjeta aparece abierta para ver el cambio enseguida
-    val diff = remember(m.id, change) {
-        change?.takeIf { !it.isDir }?.let { LineDiff.compute(it.before, it.after) }
+    // R4A (auditoría B11): el diff se calcula en un hilo de fondo (con
+    // archivos grandes trababa el chat); aparece apenas está listo
+    val diffState = androidx.compose.runtime.produceState<LineDiff.Result?>(null, m.id, change) {
+        value = change?.takeIf { !it.isDir }?.let { c ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LineDiff.compute(c.before, c.after) }
+        }
     }
+    val diff = diffState.value
     var expanded by remember(m.id) { mutableStateOf(true) }
     var fullScreen by remember(m.id) { mutableStateOf(false) }
     Column(

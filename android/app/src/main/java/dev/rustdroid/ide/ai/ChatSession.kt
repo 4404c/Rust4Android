@@ -190,16 +190,30 @@ class ChatSession(
         val tools = this.tools ?: return
         // la API key activa (se puede cambiar desde la cabecera del chat)
         val cfg = AiSettings.state.value.active
-        val key = cfg?.let { AiSettings.apiKey(context, it.id) }
-        if (cfg == null || !cfg.ready || key == null) {
-            // R4A (auditoría M5): si la clave está pero no se puede leer, decirlo
-            val msg = if (cfg != null && key == null && cfg.provider != AiSettings.Provider.CHATGPT && AiSettings.keyUnreadable(context, cfg.id)) {
-                context.getString(dev.rustdroid.ide.R.string.ai_key_unreadable, cfg.name)
-            } else context.getString(dev.rustdroid.ide.R.string.ai_not_configured)
-            _messages.update { it + ChatMessage(Role.ERROR, msg) }
+        if (cfg == null || !cfg.ready) {
+            _messages.update { it + ChatMessage(Role.ERROR, context.getString(dev.rustdroid.ide.R.string.ai_not_configured)) }
             return
         }
+        // R4A (auditoría B3): descifrar la clave (Keystore) puede tardar: fuera
+        // del hilo principal. busy mientras tanto, para no mandar dos veces.
+        _busy.value = true
+        scope.launch {
+            val key = withContext(Dispatchers.IO) { AiSettings.apiKey(context, cfg.id) }
+            if (key == null) {
+                // R4A (auditoría M5): si la clave está pero no se puede leer, decirlo
+                val unreadable = cfg.provider != AiSettings.Provider.CHATGPT &&
+                    withContext(Dispatchers.IO) { AiSettings.keyUnreadable(context, cfg.id) }
+                val msg = if (unreadable) context.getString(dev.rustdroid.ide.R.string.ai_key_unreadable, cfg.name)
+                else context.getString(dev.rustdroid.ide.R.string.ai_not_configured)
+                _messages.update { it + ChatMessage(Role.ERROR, msg) }
+                _busy.value = false
+                return@launch
+            }
+            startSend(prompt, tools, cfg, key)
+        }
+    }
 
+    private fun startSend(prompt: String, tools: ChatTools, cfg: AiSettings.Connection, key: String) {
         _messages.update { it + ChatMessage(Role.USER, prompt) }
         apiHistory += AiClient.Message("user", prompt)
         _busy.value = true

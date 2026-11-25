@@ -38,15 +38,26 @@ import kotlinx.serialization.json.jsonPrimitive
  */
 class AnthropicChat {
 
-    private var cachedKey: String? = null
-    private var cachedClient: AnthropicClient? = null
+    private fun client(apiKey: String): AnthropicClient = SharedClient.get(apiKey)
 
-    private fun client(apiKey: String): AnthropicClient = synchronized(this) {
-        cachedClient?.takeIf { cachedKey == apiKey }
-            ?: AnthropicOkHttpClient.builder().apiKey(apiKey).build().also {
+    private object SharedClient {
+        /**
+         * R4A (auditoría B6): UN cliente para toda la app (antes había uno por
+         * charla, cada uno con sus hilos y conexiones, y nunca se cerraban).
+         * Si cambia la clave, el viejo se cierra.
+         */
+        private var cachedKey: String? = null
+        private var cachedClient: AnthropicClient? = null
+
+        @Synchronized
+        fun get(apiKey: String): AnthropicClient {
+            cachedClient?.takeIf { cachedKey == apiKey }?.let { return it }
+            cachedClient?.let { old -> runCatching { old.close() } }
+            return AnthropicOkHttpClient.builder().apiKey(apiKey).build().also {
                 cachedClient = it
                 cachedKey = apiKey
             }
+        }
     }
 
     /** Los modelos que puede usar la clave (GET /v1/models). */
@@ -88,9 +99,12 @@ class AnthropicChat {
         }
 
         val job = currentCoroutineContext()[Job]
-        guard {
+        try { guard {
             val acc = MessageAccumulator.create()
             client(apiKey).messages().createStreaming(builder.build()).use { stream ->
+                // R4A (auditoría B7): Detener cierra el stream al toque (antes
+                // esperaba al próximo evento, que puede tardar si Claude piensa)
+                val closer = job?.invokeOnCompletion { runCatching { stream.close() } }
                 val it = stream.stream().iterator()
                 while (it.hasNext()) {
                     if (job?.isActive == false) break // Detener: se cierra el stream
@@ -98,6 +112,7 @@ class AnthropicChat {
                     event.contentBlockDelta().flatMap { d -> d.delta().text() }
                         .ifPresent { t -> if (t.text().isNotEmpty()) onDelta(t.text()) }
                 }
+                closer?.dispose()
             }
             if (job?.isActive == false) throw kotlinx.coroutines.CancellationException()
 
@@ -122,6 +137,10 @@ class AnthropicChat {
             // la respuesta entera (con los bloques de pensamiento) para devolverla igual
             val raw = runCatching { jsonMapper().writeValueAsString(message.toParam()) }.getOrNull()
             AiClient.Reply(text, calls, raw)
+        } } catch (e: Exception) {
+            // cerrar el stream por Detener hace fallar la lectura: es una cancelación, no un error
+            if (job?.isActive == false && e !is kotlinx.coroutines.CancellationException) throw kotlinx.coroutines.CancellationException()
+            throw e
         }
     }
 

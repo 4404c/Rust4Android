@@ -168,7 +168,11 @@ fun EditorScreen(
     val exportedApk by vm.exported.collectAsState()
     var showExport by remember { mutableStateOf(false) }
     // re-read when the drawer opens: Deps may have added macroquad meanwhile
-    var isGame by remember { mutableStateOf(vm.isGameProject()) }
+    // R4A (auditoría B10): leer Cargo.toml fuera del hilo principal
+    var isGame by remember { mutableStateOf(false) }
+    LaunchedEffect(vm) {
+        isGame = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { vm.isGameProject() }
+    }
     if (showExport) {
         val iconScope = androidx.compose.runtime.rememberCoroutineScope()
         ExportApkDialog(

@@ -210,8 +210,11 @@ private fun apkUri(context: Context, apk: File) =
     FileProvider.getUriForFile(context, "dev.rustdroid.ide.export", apk)
 
 private fun installApk(context: Context, apk: File) {
+    // R4A (auditoría B4): instalar la copia privada (la de Descargas la podría
+    // cambiar otra app con permiso de almacenamiento entre exportar e instalar)
+    val private = File(context.cacheDir, "install/${apk.name}")
     val intent = Intent(Intent.ACTION_VIEW)
-        .setDataAndType(apkUri(context, apk), APK_MIME)
+        .setDataAndType(apkUri(context, if (private.isFile) private else apk), APK_MIME)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     context.startActivity(intent)
 }

@@ -844,9 +844,15 @@ class EditorViewModel(
                 else File(ctx.getExternalFilesDir(null), "exports")
                 val out = File(dir, fileName)
                 val icon = exportIconFile.takeIf { it.isFile }?.readBytes()
+                // R4A (auditoría B4): se arma en una carpeta PRIVADA (la que usa
+                // "Instalar", que otra app no puede cambiar) y se copia a Descargas
+                val private = File(ctx.cacheDir, "install/$fileName")
+                private.parentFile?.listFiles()?.forEach { it.delete() } // solo el último
+                private.parentFile?.mkdirs()
                 dev.rustdroid.ide.export.ApkExporter.export(
-                    template, lib, options, key, File(ctx.cacheDir, "export"), out, icon,
+                    template, lib, options, key, File(ctx.cacheDir, "export"), private, icon,
                 )
+                private.copyTo(out, overwrite = true)
                 exportPrefs.edit()
                     .putString("$exportKey|name", options.appName)
                     .putString("$exportKey|package", options.packageName)

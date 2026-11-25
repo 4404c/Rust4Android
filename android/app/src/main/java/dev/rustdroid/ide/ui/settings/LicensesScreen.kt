@@ -105,7 +105,11 @@ fun LicensesScreen(onBack: () -> Unit) {
                 }
             }
         } else {
-            val text = remember(entry) { readLicenseText(context, entry) }
+            // R4A (auditoría B10): leer los archivos de licencia fuera del hilo principal
+            val loaded by androidx.compose.runtime.produceState<Pair<Boolean, String?>>(false to null, entry) {
+                value = true to kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { readLicenseText(context, entry) }
+            }
+            val text = if (loaded.first) loaded.second else ""
             LazyColumn(
                 Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

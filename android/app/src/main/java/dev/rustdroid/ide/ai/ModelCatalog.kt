@@ -6,7 +6,8 @@ import okhttp3.OkHttpClient
 /** R4A: la lista de modelos de una conexión, según el proveedor. */
 object ModelCatalog {
     suspend fun list(context: Context, http: OkHttpClient, c: AiSettings.Connection): List<String> {
-        val key = AiSettings.apiKey(context, c.id)
+        // R4A (auditoría B3): descifrar fuera del hilo principal
+        val key = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { AiSettings.apiKey(context, c.id) }
             ?: throw AiClient.AiException(context.getString(dev.rustdroid.ide.R.string.ai_settings_key_unreadable))
         return when (c.provider) {
             AiSettings.Provider.ANTHROPIC -> AnthropicChat().listModels(key).sorted()
