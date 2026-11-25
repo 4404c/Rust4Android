@@ -88,7 +88,7 @@ fun GateScreen(
             Spacer(Modifier.height(16.dp))
             Text(
                 "R4A",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineMedium.copy(fontFamily = dev.rustdroid.ide.ui.theme.PixelFamily),
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Spacer(Modifier.height(8.dp))

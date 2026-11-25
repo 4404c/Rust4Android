@@ -235,11 +235,11 @@ fun HomeScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "𝚁𝟺𝙰", // 𝚁𝟺𝙰 (R, 4 y A monoespaciadas de Unicode, a pedido)
+                        "R4A",
                         color = MaterialTheme.colorScheme.primary,
-                        // sin negrita ni Courier: así se ve la forma propia de esos caracteres
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Normal,
-                        fontSize = androidx.compose.ui.unit.TextUnit(30f, androidx.compose.ui.unit.TextUnitType.Sp),
+                        // R4A: el título con Press Start 2P, la letra pixel de Ferrdroid
+                        fontFamily = dev.rustdroid.ide.ui.theme.PixelFamily,
+                        fontSize = androidx.compose.ui.unit.TextUnit(22f, androidx.compose.ui.unit.TextUnitType.Sp),
                     )
                 },
                 actions = {
