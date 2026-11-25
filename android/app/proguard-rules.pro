@@ -49,3 +49,7 @@
 # OpenTelemetry (pulled in by the SDK) names this annotation, which is not on
 # the classpath; R8 stops with "Missing class" otherwise.
 -dontwarn com.google.auto.value.AutoValue
+
+# --- R4A: commons-compress 1.28 ---------------------------------------------
+# Optional codecs (zstd) the app never uses; R8 stops with "Missing class".
+-dontwarn com.github.luben.zstd.**
