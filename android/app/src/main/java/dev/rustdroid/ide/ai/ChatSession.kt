@@ -337,8 +337,24 @@ class ChatSession(
             try {
                 return stream(defs)
             } catch (e: AiClient.AiException) {
-                val msg = e.message.orEmpty().lowercase()
-                if (!("tool" in msg || "function" in msg)) throw e
+                if (!ToolErrors.isToolError(e.message)) throw e
+                // R4A (auditoría B17): un tropiezo de UNA respuesta (p. ej. Groq
+                // "tool_use_failed") no apaga las herramientas de toda la charla:
+                // reintenta una vez; si vuelve a fallar, solo este paso sigue sin ellas
+                if (!ToolErrors.meansUnsupported(e.message)) {
+                    _messages.update {
+                        it.dropLast(1) + ChatMessage(Role.TOOL, "La IA se trabó al usar una herramienta; reintenta") + ChatMessage(Role.ASSISTANT, "")
+                    }
+                    try {
+                        return stream(defs)
+                    } catch (e2: AiClient.AiException) {
+                        if (!ToolErrors.isToolError(e2.message)) throw e2
+                        _messages.update {
+                            it.dropLast(1) + ChatMessage(Role.TOOL, "Este paso sigue sin usar el proyecto") + ChatMessage(Role.ASSISTANT, "")
+                        }
+                        return stream(null)
+                    }
+                }
                 toolsSupported = false
                 _messages.update {
                     it.dropLast(1) + ChatMessage(Role.TOOL, "Este modelo no puede usar el proyecto; contesta sin mirarlo") + ChatMessage(Role.ASSISTANT, "")
