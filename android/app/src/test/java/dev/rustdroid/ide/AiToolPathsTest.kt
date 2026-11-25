@@ -34,7 +34,7 @@ class AiToolPathsTest {
         override fun runProblems(): List<Diagnostic> = emptyList()
         override fun liveProblems(): List<LiveDiagnostic> = emptyList()
         override fun onExternalWrite(relativePath: String, content: String?) {}
-        override suspend fun cargoCheck() = null
+        override suspend fun cargoCheck(offline: Boolean) = null
         override suspend fun runProgram(onLine: (String) -> Unit) = null
         override fun isGame() = false
     }

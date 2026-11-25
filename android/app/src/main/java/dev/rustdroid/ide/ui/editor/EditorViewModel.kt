@@ -571,7 +571,7 @@ class EditorViewModel(
         override fun onExternalWrite(relativePath: String, content: String?) {
             if (!closedForAi) this@EditorViewModel.onExternalWrite(relativePath, content)
         }
-        override suspend fun cargoCheck() = aiCheck()
+        override suspend fun cargoCheck(offline: Boolean) = aiCheck(offline)
         override suspend fun runProgram(onLine: (String) -> Unit) = aiRun(onLine)
         override fun isGame() = isGameProject()
     }
@@ -581,12 +581,12 @@ class EditorViewModel(
      * nuevas) sobre la copia sombra con el texto del editor. El resultado
      * también pinta los errores en el editor. null = no hay toolchain.
      */
-    private suspend fun aiCheck(): dev.rustdroid.ide.runtime.LiveResult? {
+    private suspend fun aiCheck(offline: Boolean): dev.rustdroid.ide.runtime.LiveResult? {
         if (!container.toolchainPaths.isInstalled()) return null
         liveJob?.cancel()
         val unsaved = unsavedForAi()
         val env = withContext(Dispatchers.IO) { buildEnv() }
-        return liveChecker.check(projectDir, unsaved, cargoPath, env, offline = false)
+        return liveChecker.check(projectDir, unsaved, cargoPath, env, offline = offline)
             .also { _live.value = it }
     }
 

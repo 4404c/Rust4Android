@@ -60,7 +60,7 @@ class ProjectTools(
          */
         fun onExternalWrite(relativePath: String, content: String?)
         /** Fase 4: cargo check ahora mismo. null = no hay toolchain instalada. */
-        suspend fun cargoCheck(): dev.rustdroid.ide.runtime.LiveResult?
+        suspend fun cargoCheck(offline: Boolean = false): dev.rustdroid.ide.runtime.LiveResult?
         /** Fase 4: cargo run (sin stdin). null = no hay toolchain instalada. */
         suspend fun runProgram(onLine: (String) -> Unit): dev.rustdroid.ide.model.RunResult?
         fun isGame(): Boolean
@@ -296,8 +296,46 @@ class ProjectTools(
 
     // ---------------- fase 4: compilar y probar ----------------
 
+    // ---------------- R4A (auditoría M4): permiso antes de correr código de afuera ----------------
+
+    /**
+     * Le pregunta al usuario en el chat (Permitir / No). Lo pone [ChatSession];
+     * null (por ejemplo en tests) = no se permite.
+     */
+    var approver: (suspend (String) -> Boolean)? = null
+
+    /** Modo Plan: cargo_check sin internet (no baja ni compila crates nuevas). */
+    var planMode: Boolean = false
+
+    /** Crates que ya estaban al abrir el proyecto o que el usuario permitió. */
+    private val knownDeps: MutableSet<String> = dependencyNames().toMutableSet()
+    private var runApproved = false
+
+    /** Nombres en [dependencies], [dev-dependencies] y [build-dependencies] del Cargo.toml raíz. */
+    private fun dependencyNames(): Set<String> = runCatching {
+        val toml = org.tomlj.Toml.parse(File(bridge.projectDir, "Cargo.toml").toPath())
+        listOf("dependencies", "dev-dependencies", "build-dependencies")
+            .flatMap { toml.getTable(it)?.keySet().orEmpty() }
+            .toSet()
+    }.getOrDefault(emptySet())
+
+    private suspend fun ask(text: String): Boolean = approver?.invoke(text) ?: false
+
     private suspend fun cargoCheck(): Outcome {
-        val r = bridge.cargoCheck() ?: return Outcome(
+        // crates nuevas: cargo las bajaría y correría su código (build.rs, macros)
+        val newDeps = withContext(Dispatchers.IO) { dependencyNames() } - knownDeps
+        var offline = planMode
+        var denied: Set<String> = emptySet()
+        if (!planMode && newDeps.isNotEmpty()) {
+            val names = newDeps.sorted().joinToString(", ")
+            if (ask("La IA agregó dependencias nuevas: $names. Para compilar, cargo las va a bajar de internet y su código va a correr en tu celular. ¿Lo permitís?")) {
+                knownDeps += newDeps
+            } else {
+                offline = true
+                denied = newDeps
+            }
+        }
+        val r = bridge.cargoCheck(offline) ?: return Outcome(
             "Error: la toolchain de Rust no está instalada.", "No pudo compilar (falta la toolchain)",
         )
         val errors = r.diagnostics.count { it.isError }
@@ -310,6 +348,9 @@ class ProjectTools(
             d.label?.let { sb.append(" (").append(it).append(")") }
             sb.appendLine()
             d.notes.forEach { sb.appendLine("    $it") }
+        }
+        if (denied.isNotEmpty()) {
+            sb.appendLine("El usuario NO permitió bajar estas dependencias: ${denied.sorted().joinToString(", ")}. Sacalas del Cargo.toml o pedile que las agregue él desde Deps. (Se compiló sin internet.)")
         }
         // cargo falló sin diagnósticos (Cargo.toml roto, crate que no existe, sin internet…)
         if (!r.success && errors == 0) {
@@ -331,6 +372,12 @@ class ProjectTools(
             "Es un juego de macroquad: no se puede ejecutar desde acá. Pedile al usuario que toque ▶ para verlo.",
             "Es un juego: lo abrís vos con ▶",
         )
+        if (!runApproved) {
+            if (!ask("La IA quiere ejecutar el programa (cargo run) en tu celular. ¿Lo permitís? Vale mientras este proyecto siga abierto.")) {
+                return Outcome("El usuario no permitió ejecutar el programa. No lo vuelvas a pedir en este pedido.", "No le permitiste ejecutar el programa")
+            }
+            runApproved = true
+        }
         val out = ArrayList<String>()
         val result = kotlinx.coroutines.withTimeoutOrNull(RUN_TIMEOUT_MS) {
             bridge.runProgram { line -> synchronized(out) { out += line; if (out.size > 300) out.removeAt(0) } }

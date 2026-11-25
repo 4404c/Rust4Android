@@ -224,7 +224,14 @@ class ChatSession(
                                 "Error: estás en modo Plan; no podés usar '${call.name}'. Proponé el plan y esperá que el usuario pase a Build.",
                                 "No usó ${call.name} (modo Plan)",
                             )
-                        } else tools.execute(call.name, call.arguments)
+                        } else {
+                            // R4A (auditoría M4): las herramientas pueden pedir permiso en el chat
+                            (tools as? ProjectTools)?.let { pt ->
+                                pt.approver = ::askApproval
+                                pt.planMode = _mode.value == Mode.PLAN
+                            }
+                            tools.execute(call.name, call.arguments)
+                        }
                         _messages.update { it + toMessage(out) }
                         apiHistory += AiClient.Message("tool", out.result, toolCallId = call.id)
                     }
@@ -380,6 +387,34 @@ class ChatSession(
 
     fun stop() {
         job?.cancel()
+    }
+
+    // ---------------- R4A (auditoría M4): pedir permiso en el chat ----------------
+
+    /** Un pedido de permiso pendiente (tarjeta con Permitir / No permitir). */
+    class Approval(val text: String, internal val answer: kotlinx.coroutines.CompletableDeferred<Boolean>)
+
+    private val _approval = MutableStateFlow<Approval?>(null)
+    val approval: StateFlow<Approval?> = _approval.asStateFlow()
+
+    /** La IA espera acá hasta que el usuario conteste (o toque Detener). */
+    private suspend fun askApproval(text: String): Boolean {
+        val a = Approval(text, kotlinx.coroutines.CompletableDeferred())
+        _approval.value = a
+        _messages.update { it + ChatMessage(Role.TOOL, "Esperando tu permiso…") }
+        return try {
+            val ok = a.answer.await()
+            _messages.update { list ->
+                list.dropLast(1) + ChatMessage(Role.TOOL, if (ok) "Lo permitiste" else "No lo permitiste")
+            }
+            ok
+        } finally {
+            if (_approval.value === a) _approval.value = null
+        }
+    }
+
+    fun answerApproval(allow: Boolean) {
+        _approval.value?.answer?.complete(allow)
     }
 
     /** El antes/después de un cambio (para el diff); null si ya no está en memoria. */

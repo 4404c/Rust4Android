@@ -458,6 +458,10 @@ fun ChatPanel(
             }
         }
 
+        // R4A (auditoría M4): la IA pide permiso para correr código de afuera
+        val approval by vm.approval.collectAsState()
+        approval?.let { ApprovalCard(it.text, onAnswer = vm::answerApproval) }
+
         // key: cada charla tiene su propio borrador
         androidx.compose.runtime.key(vm) {
             ChatInput(
@@ -468,6 +472,28 @@ fun ChatPanel(
                 onStop = { vm.stop() },
                 onFocusChanged = onInputFocusChanged,
             )
+        }
+    }
+}
+
+/** R4A (auditoría M4): "¿Lo permitís?" con dos botones, arriba del cuadro de texto. */
+@Composable
+private fun ApprovalCard(text: String, onAnswer: (Boolean) -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .padding(10.dp),
+    ) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            androidx.compose.material3.TextButton(onClick = { onAnswer(false) }) {
+                Text(stringResource(R.string.ai_approval_deny))
+            }
+            androidx.compose.material3.TextButton(onClick = { onAnswer(true) }) {
+                Text(stringResource(R.string.ai_approval_allow))
+            }
         }
     }
 }
