@@ -54,7 +54,7 @@ fun ChatMarkdown(text: String, color: Color, modifier: Modifier = Modifier) {
                     .padding(8.dp),
             )
             is Block.Heading -> Text(
-                inline(b.text, accent),
+                rememberInline(b.text, accent),
                 color = color,
                 fontWeight = FontWeight.Bold,
                 fontSize = when (b.level) { 1 -> 17.sp; 2 -> 15.sp; else -> 14.sp },
@@ -62,19 +62,19 @@ fun ChatMarkdown(text: String, color: Color, modifier: Modifier = Modifier) {
             is Block.Item -> Row(Modifier.padding(start = (b.indent * 12).dp)) {
                 Text(b.marker, color = accent, style = MaterialTheme.typography.bodySmall)
                 Text(" ", style = MaterialTheme.typography.bodySmall)
-                Text(inline(b.text, accent), color = color, style = MaterialTheme.typography.bodySmall)
+                Text(rememberInline(b.text, accent), color = color, style = MaterialTheme.typography.bodySmall)
             }
             is Block.Quote -> Row {
                 Text("▌", color = accent.copy(alpha = 0.6f), style = MaterialTheme.typography.bodySmall)
                 Text(
-                    inline(b.text, accent),
+                    rememberInline(b.text, accent),
                     color = color.copy(alpha = 0.8f),
                     fontStyle = FontStyle.Italic,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(start = 4.dp),
                 )
             }
-            is Block.Para -> Text(inline(b.text, accent), color = color, style = MaterialTheme.typography.bodySmall)
+            is Block.Para -> Text(rememberInline(b.text, accent), color = color, style = MaterialTheme.typography.bodySmall)
             Block.Rule -> Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 Text("────────", color = color.copy(alpha = 0.4f), style = MaterialTheme.typography.bodySmall)
             }
@@ -142,6 +142,16 @@ private fun parseBlocks(text: String): List<Block> {
 }
 
 /** Estilos en línea. Un marcador sin cerrar se muestra tal cual. */
+/**
+ * R4A (auditoría M9): mientras la IA escribe, el mensaje se redibuja cada
+ * ~16 ms (efecto letra por letra). Sin esto se rearmaba el texto con estilos
+ * de TODOS los bloques en cada cuadro; ahora cada bloque guarda el suyo y
+ * solo se recalcula el que está creciendo (los demás no cambian de texto).
+ */
+@Composable
+private fun rememberInline(text: String, accent: Color): AnnotatedString =
+    remember(text, accent) { inline(text, accent) }
+
 private fun inline(text: String, accent: Color): AnnotatedString = buildAnnotatedString {
     var i = 0
     fun closeOf(token: String, from: Int) = text.indexOf(token, from).takeIf { it > from }
