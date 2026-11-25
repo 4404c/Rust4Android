@@ -1,7 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- R4A (auditoría M5): LISTA CERRADA. Con targetSdk 28 estas reglas valen
+     para la copia en la nube de Google Y para `adb backup` (sin cifrar).
+     - Se copia lo del usuario: proyectos, charlas, íconos de exportación y
+       ajustes.
+     - La clave de firma de juegos (signing/) solo viaja en copias cifradas
+       (nube con bloqueo de pantalla) o al pasar a un celu nuevo; nunca en
+       `adb backup`. Su respaldo manual es el .r4akey de Opciones.
+     - Fuera: las API keys (r4a_ai: cifradas con una clave del Keystore que no
+       viaja, en otro celu no sirven), la toolchain (usr), y cachés grandes
+       (crates en home/, compilaciones en build/, check/ y games/) que además
+       pasaban el tope de 25 MB de la copia en la nube. -->
 <full-backup-content>
-    <!-- Toolchain (files/usr) is a large, re-downloadable install: skip it.
-         Projects and settings ARE backed up. -->
-    <exclude domain="file" path="usr" />
-    <exclude domain="file" path="home/cache" />
+    <include domain="file" path="projects" />
+    <include domain="file" path="chats" />
+    <include domain="file" path="export-icons" />
+    <include domain="file" path="external-projects.txt" />
+    <include domain="file" path="signing" requireFlags="clientSideEncryption" />
+    <include domain="file" path="signing" requireFlags="deviceToDeviceTransfer" />
+    <include domain="sharedpref" path="r4a_prefs.xml" />
+    <include domain="sharedpref" path="r4a_export.xml" />
+    <include domain="sharedpref" path="r4a_chat_drafts.xml" />
 </full-backup-content>

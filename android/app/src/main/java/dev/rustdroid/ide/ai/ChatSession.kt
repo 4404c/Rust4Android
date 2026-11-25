@@ -192,7 +192,11 @@ class ChatSession(
         val cfg = AiSettings.state.value.active
         val key = cfg?.let { AiSettings.apiKey(context, it.id) }
         if (cfg == null || !cfg.ready || key == null) {
-            _messages.update { it + ChatMessage(Role.ERROR, context.getString(dev.rustdroid.ide.R.string.ai_not_configured)) }
+            // R4A (auditoría M5): si la clave está pero no se puede leer, decirlo
+            val msg = if (cfg != null && key == null && cfg.provider != AiSettings.Provider.CHATGPT && AiSettings.keyUnreadable(context, cfg.id)) {
+                context.getString(dev.rustdroid.ide.R.string.ai_key_unreadable, cfg.name)
+            } else context.getString(dev.rustdroid.ide.R.string.ai_not_configured)
+            _messages.update { it + ChatMessage(Role.ERROR, msg) }
             return
         }
 

@@ -1,11 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- R4A (auditoría M5): la misma lista cerrada que backup_rules.xml. Android
+     solo usa este archivo cuando targetSdk >= 31 (hoy es 28): queda listo
+     para cuando se suba. -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="file" path="usr" />
-        <exclude domain="file" path="home/cache" />
+        <include domain="file" path="projects" />
+        <include domain="file" path="chats" />
+        <include domain="file" path="export-icons" />
+        <include domain="file" path="external-projects.txt" />
+        <include domain="file" path="signing" />
+        <include domain="sharedpref" path="r4a_prefs.xml" />
+        <include domain="sharedpref" path="r4a_export.xml" />
+        <include domain="sharedpref" path="r4a_chat_drafts.xml" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="file" path="usr" />
-        <exclude domain="file" path="home/cache" />
+        <include domain="file" path="projects" />
+        <include domain="file" path="chats" />
+        <include domain="file" path="export-icons" />
+        <include domain="file" path="external-projects.txt" />
+        <include domain="file" path="signing" />
+        <include domain="sharedpref" path="r4a_prefs.xml" />
+        <include domain="sharedpref" path="r4a_export.xml" />
+        <include domain="sharedpref" path="r4a_chat_drafts.xml" />
     </device-transfer>
 </data-extraction-rules>

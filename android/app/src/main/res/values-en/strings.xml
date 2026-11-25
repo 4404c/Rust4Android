@@ -370,6 +370,7 @@
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_stop">Stop</string>
     <string name="ai_chat_clear">Clear the chat</string>
+    <string name="ai_key_unreadable">The saved API key of “%1$s” cannot be read (this happens when it came from a backup or another phone). Delete it and add it again in Settings → Artificial intelligence.</string>
     <string name="ai_not_configured">The AI is not set up yet: go to Settings → Artificial intelligence, add an API key and pick a model.</string>
     <string name="ai_settings_title">Artificial intelligence</string>
     <string name="ai_settings_note">Connect an AI with your own API key to use the editor Chat. Needs internet. The key is stored encrypted on the phone.</string>

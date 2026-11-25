@@ -150,6 +150,14 @@ object AiSettings {
         prefs(context).getString(keyPref(id), null)
             ?.let { runCatching { decrypt(it) }.getOrNull() }
 
+    /**
+     * R4A (auditoría M5): hay una clave guardada pero no se puede descifrar
+     * (vino de una copia de seguridad vieja o se borró la clave del Keystore):
+     * el usuario tiene que volver a pegarla.
+     */
+    fun keyUnreadable(context: Context, id: String): Boolean =
+        prefs(context).contains(keyPref(id)) && apiKey(context, id) == null
+
     private fun update(context: Context, id: String, f: (Connection) -> Connection) =
         save(context, _state.value.copy(connections = _state.value.connections.map { if (it.id == id) f(it) else it }))
 
