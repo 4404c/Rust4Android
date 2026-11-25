@@ -57,9 +57,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     buildFeatures {
         compose = true
@@ -87,6 +84,14 @@ android {
         // is F-Droid-only by design, so the policy does not apply. Killing
         // this check un-blocks assembleRelease, which lint-vital gates.
         disable += "ExpiredTargetSdkVersion"
+    }
+}
+
+// R4A (auditoría, código obsoleto): kotlinOptions está deprecado desde
+// Kotlin 2.x; ahora compilerOptions
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
