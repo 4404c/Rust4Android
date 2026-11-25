@@ -377,6 +377,12 @@ class ChatSession(
         scope.launch {
             val error = withContext(Dispatchers.IO) {
                 runCatching {
+                    // R4A (auditoría B9): solo sobre el proyecto abierto (la ruta guardada
+                    // en .changes puede ser de un proyecto que se borró o se movió)
+                    val open = b?.projectDir?.let { runCatching { it.canonicalPath }.getOrNull() }
+                    if (open == null || open != runCatching { change.projectDir.canonicalPath }.getOrNull()) {
+                        return@runCatching "Este cambio es de una carpeta que ya no es la del proyecto abierto; no se deshizo."
+                    }
                     val f = Fs.resolveInside(change.projectDir, change.path)
                     if (change.isDir) {
                         if (f.isDirectory && (f.list()?.isEmpty() != false)) f.delete()

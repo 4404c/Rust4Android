@@ -13,8 +13,6 @@ import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.SocketTimeoutException
@@ -77,7 +75,7 @@ class ChatGptAuth(private val http: OkHttpClient) {
             }.build()
             withContext(Dispatchers.Main) { openBrowser(url) }
 
-            val params = waitForCallback(server)
+            val params = waitForCallback(server, state)
             params["error"]?.let {
                 throw AuthException(if (it == "access_denied") "Cancelaste el inicio de sesión." else "OpenAI respondió: $it")
             }
@@ -157,7 +155,13 @@ class ChatGptAuth(private val http: OkHttpClient) {
     // ---------------- ayudas ----------------
 
     /** Espera el GET del navegador a /auth/callback y le contesta con una página corta. */
-    private fun waitForCallback(server: ServerSocket): Map<String, String> {
+    /**
+     * R4A (auditoría B2): cualquier app del celu puede conectarse a
+     * 127.0.0.1 mientras esperamos. Una vuelta con otro `state` ya no corta el
+     * inicio de sesión: se le contesta 400 y se sigue esperando la verdadera.
+     * La primera línea se lee con tope (8 KB) para que nadie llene la memoria.
+     */
+    private fun waitForCallback(server: ServerSocket, expectedState: String): Map<String, String> {
         server.soTimeout = 5 * 60 * 1000
         while (true) {
             val socket = try {
@@ -169,11 +173,15 @@ class ChatGptAuth(private val http: OkHttpClient) {
             }
             socket.use { s ->
                 s.soTimeout = 10_000
-                val line = BufferedReader(InputStreamReader(s.getInputStream())).readLine().orEmpty()
+                val line = readFirstLine(s.getInputStream(), 8 * 1024)
                 val target = line.split(" ").getOrNull(1).orEmpty()
                 val uri = Uri.parse("http://127.0.0.1$target")
                 if (uri.path != "/auth/callback") {
                     s.getOutputStream().write("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
+                    return@use
+                }
+                if (uri.getQueryParameter("state") != expectedState) {
+                    s.getOutputStream().write("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray())
                     return@use
                 }
                 val ok = uri.getQueryParameter("error") == null
@@ -191,6 +199,17 @@ class ChatGptAuth(private val http: OkHttpClient) {
                 return uri.queryParameterNames.associateWith { uri.getQueryParameter(it).orEmpty() }
             }
         }
+    }
+
+    /** La primera línea (hasta el salto de línea), con [max] bytes como mucho. */
+    private fun readFirstLine(input: java.io.InputStream, max: Int): String {
+        val out = java.io.ByteArrayOutputStream()
+        while (out.size() < max) {
+            val b = input.read()
+            if (b < 0 || b == '\n'.code) break
+            if (b != '\r'.code) out.write(b)
+        }
+        return out.toString(Charsets.UTF_8.name())
     }
 
     private fun postForm(body: FormBody): JSONObject {

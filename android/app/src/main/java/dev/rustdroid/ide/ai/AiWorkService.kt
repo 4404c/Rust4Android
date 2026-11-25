@@ -30,10 +30,17 @@ class AiWorkService : Service() {
             .setContentText(text)
             .setOngoing(true)
             .build()
+        // siempre primero startForeground: Android cierra la app si un
+        // startForegroundService no termina en startForeground (también al parar)
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIF_WORKING, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(NOTIF_WORKING, notif)
+        }
+        if (intent?.action == ACTION_STOP) {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+            stopSelf()
         }
         return START_NOT_STICKY
     }
@@ -43,14 +50,29 @@ class AiWorkService : Service() {
         private const val CHANNEL_DONE = "ai-done"
         private const val NOTIF_WORKING = 77
         private const val EXTRA_TEXT = "text"
+        private const val ACTION_STOP = "dev.rustdroid.ide.ai.STOP"
+
+        /**
+         * R4A (auditoría B8): antes se paraba con stopService justo después de
+         * startForegroundService; si llegaba antes de que el servicio llamara
+         * a startForeground, Android cerraba la app ("did not call
+         * startForeground"). Ahora parar también pasa por onStartCommand.
+         */
+        @Volatile private var started = false
 
         /** Arranca (o actualiza) el servicio con el nombre de los proyectos en los que trabaja. */
         fun update(context: Context, projects: List<String>) {
             val app = context.applicationContext
             if (projects.isEmpty()) {
-                app.stopService(Intent(app, AiWorkService::class.java))
+                if (!started) return
+                started = false
+                runCatching {
+                    val stop = Intent(app, AiWorkService::class.java).setAction(ACTION_STOP)
+                    if (Build.VERSION.SDK_INT >= 26) app.startForegroundService(stop) else app.startService(stop)
+                }
                 return
             }
+            started = true
             val intent = Intent(app, AiWorkService::class.java)
                 .putExtra(EXTRA_TEXT, app.getString(R.string.ai_notif_working_text, projects.joinToString(", ")))
             runCatching {

@@ -52,9 +52,20 @@ class MainActivity : ComponentActivity() {
         captureRsIntent(intent)
     }
 
+    private fun isInsideAppData(path: String?): Boolean {
+        if (path == null) return true
+        val target = runCatching { java.io.File(path).canonicalPath }.getOrNull() ?: return true
+        val data = runCatching { java.io.File(applicationInfo.dataDir).canonicalPath }.getOrNull() ?: return true
+        return target == data || target.startsWith(data + java.io.File.separator) ||
+            target.startsWith("/data/data/$packageName/") || target.startsWith("/data/user/0/$packageName/")
+    }
+
     private fun captureRsIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_VIEW) {
             val uri = intent.data ?: return
+            // R4A (auditoría B5): otra app no puede hacernos abrir (e importar)
+            // un archivo privado de R4A con un file:// a nuestros datos
+            if (uri.scheme == "file" && isInsideAppData(uri.path)) return
             if (uri.toString().endsWith(".rs") || intent.type == "text/x-rust") {
                 pendingOpenRs.value = uri
             }
