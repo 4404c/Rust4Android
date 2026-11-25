@@ -385,6 +385,7 @@
     <string name="ai_key_unreadable">No se pudo leer la API key guardada de «%1$s» (pasa si vino de una copia de seguridad o de otro celular). Borrala y volvé a agregarla en Opciones → Inteligencia artificial.</string>
     <string name="ai_approval_allow">Permitir</string>
     <string name="ai_approval_deny">No permitir</string>
+    <string name="ai_tools_unsupported">⚠ El modelo «%1$s» no acepta herramientas: en esta charla no puede leer, cambiar ni compilar tu proyecto, solo conversar. Para que trabaje con el proyecto, elegí otro modelo desde el menú de arriba del chat y empezá una charla nueva.</string>
     <string name="ai_not_configured">Falta configurar la IA: andá a Opciones → Inteligencia artificial, agregá una API key y elegí un modelo.</string>
     <string name="ai_settings_title">Inteligencia artificial</string>
     <string name="ai_settings_note">Conectá una IA con tu propia API key para usar el Chat del editor. Hace falta internet. La clave se guarda cifrada en el teléfono.</string>

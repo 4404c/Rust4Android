@@ -357,7 +357,10 @@ class ChatSession(
                 }
                 toolsSupported = false
                 _messages.update {
-                    it.dropLast(1) + ChatMessage(Role.TOOL, "Este modelo no puede usar el proyecto; contesta sin mirarlo") + ChatMessage(Role.ASSISTANT, "")
+                    // R4A: aviso bien visible (pedido del usuario): qué modelo y qué hacer
+                    it.dropLast(1) +
+                        ChatMessage(Role.ERROR, context.getString(dev.rustdroid.ide.R.string.ai_tools_unsupported, cfg.model)) +
+                        ChatMessage(Role.ASSISTANT, "")
                 }
             }
         }
