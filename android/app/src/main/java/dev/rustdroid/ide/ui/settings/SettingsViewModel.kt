@@ -58,7 +58,7 @@ class SettingsViewModel(val container: AppContainer) : ViewModel() {
                 dev.rustdroid.ide.projects.ProjectLeftovers.orphanCaches(container.context.filesDir, keep)
                     .forEach { Fs.deleteRecursively(it) }
             }
-            _message.value = "cargo download caches cleared (registry index kept)"
+            _message.value = container.context.getString(dev.rustdroid.ide.R.string.settings_clear_caches_done)
             _busy.value = false
             refreshStorage()
         }

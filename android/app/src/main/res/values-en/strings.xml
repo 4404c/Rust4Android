@@ -79,6 +79,9 @@
     <string name="settings_reverify_note">Re-verify runs the full 12-check suite incl. compiling and running a test program. When it passes you are returned to your projects.</string>
     <string name="settings_storage">Storage</string>
     <string name="settings_clear_caches">Clear cargo caches</string>
+    <string name="settings_clear_caches_title">Clear cargo caches?</string>
+    <string name="settings_clear_caches_text">Downloaded crates and builds of projects that no longer exist are deleted. Your projects are not touched. Crates are downloaded again the next time you build, which needs internet.</string>
+    <string name="settings_clear_caches_done">Cargo caches cleared (the crates.io index is kept)</string>
     <string name="settings_about">About</string>
     <string name="settings_about_app">R4A 0.2.0 — Rust 4 Android. Based on RustDroid (MIT).</string>
     <string name="settings_about_toolchain">Toolchain: rust %1$s (aarch64-linux-android), built from source by GitHub Actions; bundled via the rustdroid-link kit (crt objects, bionic stubs, libunwind.a, cc shim -&gt; ld.lld).</string>
@@ -382,6 +385,7 @@
     <string name="ai_approval_allow">Allow</string>
     <string name="ai_approval_deny">Do not allow</string>
     <string name="ai_tools_unsupported">⚠ The model “%1$s” does not accept tools: in this chat it cannot read, change or build your project, only talk. To work on the project, pick another model from the menu at the top of the chat and start a new chat.</string>
+    <string name="ai_tools_stuck">The model “%1$s” got stuck with the tools and could not continue. Try again, or pick another model from the menu at the top of the chat.</string>
     <string name="ai_not_configured">The AI is not set up yet: go to Settings → Artificial intelligence, add an API key and pick a model.</string>
     <string name="ai_settings_title">Artificial intelligence</string>
     <string name="ai_settings_note">Connect an AI with your own API key to use the editor Chat. Needs internet. The key is stored encrypted on the phone.</string>

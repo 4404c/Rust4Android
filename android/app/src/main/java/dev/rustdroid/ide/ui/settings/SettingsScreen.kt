@@ -163,8 +163,25 @@ fun SettingsScreen(
                     Spacer(Modifier.height(4.dp))
                     storage.forEach { (label, bytes) -> StorageRow(label, bytes) }
                     Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = { vm.clearCaches() }, enabled = !busy) {
+                    // R4A (auditoría 2, E4): antes borraba al toque, sin preguntar
+                    var confirmClear by remember { mutableStateOf(false) }
+                    OutlinedButton(onClick = { confirmClear = true }, enabled = !busy) {
                         Text(stringResource(R.string.settings_clear_caches))
+                    }
+                    if (confirmClear) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { confirmClear = false },
+                            title = { Text(stringResource(R.string.settings_clear_caches_title)) },
+                            text = { Text(stringResource(R.string.settings_clear_caches_text)) },
+                            confirmButton = {
+                                TextButton(onClick = { confirmClear = false; vm.clearCaches() }) {
+                                    Text(stringResource(R.string.common_delete))
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.common_cancel)) }
+                            },
+                        )
                     }
                 }
             }

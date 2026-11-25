@@ -366,7 +366,7 @@ class ChatSession(
                         _messages.update {
                             it.dropLast(1) + ChatMessage(Role.TOOL, "Este paso sigue sin usar el proyecto") + ChatMessage(Role.ASSISTANT, "")
                         }
-                        return stream(null)
+                        return withoutTools(stream, cfg)
                     }
                 }
                 toolsSupported = false
@@ -378,7 +378,23 @@ class ChatSession(
                 }
             }
         }
-        return stream(null)
+        return withoutTools(stream, cfg)
+    }
+
+    /**
+     * R4A (auditoría 2, E3): pedido SIN herramientas. Algunos modelos (Groq
+     * `openai/gpt-oss-20b`) igual intentan usar una, y el proveedor corta con
+     * un error crudo ("Tool choice is none, but model called a tool"). Se
+     * cambia por un aviso claro de qué pasó y qué hacer.
+     */
+    private suspend fun withoutTools(
+        stream: suspend (kotlinx.serialization.json.JsonArray?) -> AiClient.Reply,
+        cfg: AiSettings.Connection,
+    ): AiClient.Reply = try {
+        stream(null)
+    } catch (e: AiClient.AiException) {
+        if (!ToolErrors.isToolError(e.message)) throw e
+        throw AiClient.AiException(context.getString(dev.rustdroid.ide.R.string.ai_tools_stuck, cfg.model))
     }
 
     /**

@@ -83,6 +83,9 @@
     <string name="settings_reverify_note">La verificación corre los 12 chequeos, incluido compilar y ejecutar un programa de prueba. Si pasa, volvés a tus proyectos.</string>
     <string name="settings_storage">Almacenamiento</string>
     <string name="settings_clear_caches">Borrar cachés de cargo</string>
+    <string name="settings_clear_caches_title">¿Borrar cachés de cargo?</string>
+    <string name="settings_clear_caches_text">Se borran las crates bajadas y las compilaciones de proyectos que ya no existen. Tus proyectos no se tocan. Las crates se vuelven a bajar solas la próxima vez que compiles: para eso hace falta internet.</string>
+    <string name="settings_clear_caches_done">Cachés de cargo borradas (el índice de crates.io se mantiene)</string>
     <string name="settings_about">Acerca de</string>
     <string name="settings_about_app">R4A 0.2.0 — Rust 4 Android. Basado en RustDroid (MIT).</string>
     <string name="settings_about_toolchain">Toolchain: rust %1$s (aarch64-linux-android), compilado desde el código fuente en GitHub Actions; empaquetado con el kit rustdroid-link (objetos crt, stubs de bionic, libunwind.a, cc → ld.lld).</string>
@@ -386,6 +389,7 @@
     <string name="ai_approval_allow">Permitir</string>
     <string name="ai_approval_deny">No permitir</string>
     <string name="ai_tools_unsupported">⚠ El modelo «%1$s» no acepta herramientas: en esta charla no puede leer, cambiar ni compilar tu proyecto, solo conversar. Para que trabaje con el proyecto, elegí otro modelo desde el menú de arriba del chat y empezá una charla nueva.</string>
+    <string name="ai_tools_stuck">El modelo «%1$s» se trabó con las herramientas y no pudo seguir. Probá de nuevo, o elegí otro modelo desde el menú de arriba del chat.</string>
     <string name="ai_not_configured">Falta configurar la IA: andá a Opciones → Inteligencia artificial, agregá una API key y elegí un modelo.</string>
     <string name="ai_settings_title">Inteligencia artificial</string>
     <string name="ai_settings_note">Conectá una IA con tu propia API key para usar el Chat del editor. Hace falta internet. La clave se guarda cifrada en el teléfono.</string>
