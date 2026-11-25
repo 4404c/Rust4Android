@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.home
 
+import dev.rustdroid.ide.projects.ProjectLeftovers
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -73,7 +74,14 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
     fun delete(project: ProjectSummary) {
         viewModelScope.launch {
             try {
-                repo.delete(project.dir)
+                val canonical = ProjectLeftovers.canonical(project.dir)
+                withContext(Dispatchers.IO) { repo.delete(project.dir) }
+                // R4A (auditoría B18): también sus cachés, charlas e ícono de exportación
+                container.chatStore.forget(canonical)
+                withContext(Dispatchers.IO) {
+                    ProjectLeftovers.delete(container.context.filesDir, canonical, userData = true)
+                    forgetPrefs(canonical, null)
+                }
             } catch (e: IOException) {
                 _error.value = e.message
             }
@@ -86,7 +94,15 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
     fun rename(project: ProjectSummary, newName: String) {
         viewModelScope.launch {
             try {
-                repo.rename(project.dir, newName)
+                val oldCanonical = ProjectLeftovers.canonical(project.dir)
+                val newDir = withContext(Dispatchers.IO) { repo.rename(project.dir, newName) }
+                // R4A (auditoría B18): las charlas, el ícono y los datos de exportación lo siguen
+                val newCanonical = ProjectLeftovers.canonical(newDir)
+                container.chatStore.forget(oldCanonical)
+                withContext(Dispatchers.IO) {
+                    ProjectLeftovers.move(container.context.filesDir, oldCanonical, newCanonical)
+                    forgetPrefs(oldCanonical, newCanonical)
+                }
             } catch (e: Exception) {
                 _error.value = e.message ?: "rename failed"
             }
@@ -94,6 +110,42 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
                 repo.list()
             }
         }
+    }
+
+    /**
+     * R4A (auditoría B18): prefs con clave por proyecto. [newCanonical] null =
+     * se borran; si no, pasan a la ruta nueva. Exportar: "<ruta>|campo".
+     * Borradores del chat: la clave es la ruta del archivo de la charla.
+     */
+    private fun forgetPrefs(oldCanonical: String, newCanonical: String?) {
+        val ctx = container.context
+        val export = ctx.getSharedPreferences("r4a_export", android.content.Context.MODE_PRIVATE)
+        val e = export.edit()
+        for ((k, v) in export.all) {
+            if (!k.startsWith("$oldCanonical|")) continue
+            e.remove(k)
+            if (newCanonical != null) {
+                val nk = newCanonical + k.removePrefix(oldCanonical)
+                when (v) {
+                    is String -> e.putString(nk, v)
+                    is Int -> e.putInt(nk, v)
+                    is Long -> e.putLong(nk, v)
+                    is Boolean -> e.putBoolean(nk, v)
+                    is Float -> e.putFloat(nk, v)
+                }
+            }
+        }
+        e.apply()
+        val oldChats = ProjectLeftovers.chatsDir(ctx.filesDir, oldCanonical).absolutePath + java.io.File.separator
+        val newChats = newCanonical?.let { ProjectLeftovers.chatsDir(ctx.filesDir, it).absolutePath + java.io.File.separator }
+        val drafts = ctx.getSharedPreferences("r4a_chat_drafts", android.content.Context.MODE_PRIVATE)
+        val d = drafts.edit()
+        for ((k, v) in drafts.all) {
+            if (!k.startsWith(oldChats)) continue
+            d.remove(k)
+            if (newChats != null && v is String) d.putString(newChats + k.removePrefix(oldChats), v)
+        }
+        d.apply()
     }
 
     fun clearError() { _error.value = null }
@@ -193,7 +245,13 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
     /** Forgets a folder opened in place — the folder itself is never touched. */
     fun removeExternal(project: ProjectSummary) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { repo.unregisterExternal(project.dir) }
+            val canonical = ProjectLeftovers.canonical(project.dir)
+            withContext(Dispatchers.IO) {
+                repo.unregisterExternal(project.dir)
+                // R4A (auditoría B18): la carpeta es del usuario y no se toca; sí se
+                // borran los cachés de R4A (las charlas quedan por si la vuelve a abrir)
+                ProjectLeftovers.delete(container.context.filesDir, canonical, userData = false)
+            }
             _projects.value = withContext(Dispatchers.IO) { repo.list() }
         }
     }

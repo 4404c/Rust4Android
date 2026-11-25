@@ -66,6 +66,17 @@ class ChatStore(
             ProjectChats(context, http, repo, projectName, dir, store = this, key = key(projectDir))
         }
 
+    /**
+     * R4A (auditoría B18): el proyecto se borró o cambió de nombre: corta lo
+     * que estén haciendo sus charlas y las suelta de memoria (si no, un
+     * proyecto nuevo con la misma ruta heredaba las charlas viejas).
+     */
+    fun forget(canonicalPath: String) {
+        projects.remove(canonicalPath)?.stopAll()
+        _activity.value = _activity.value - canonicalPath
+        AiWorkService.update(context, _activity.value.values.filter { it.working }.map { it.name })
+    }
+
     /** Las charlas del chat de Inicio (crear proyectos). */
     val home: ProjectChats by lazy {
         ProjectChats(context, http, repo, "Inicio", File(root, "home"), home = true, store = this, key = "home")
@@ -167,6 +178,9 @@ class ProjectChats(
         }
         refreshList()
     }
+
+    /** R4A (auditoría B18): corta todas las charlas de este proyecto. */
+    fun stopAll() = sessions.values.forEach { it.stop() }
 
     fun adopt(from: ChatSession, newName: String) {
         val target = if (_current.value.isEmpty()) _current.value else create()

@@ -38,6 +38,8 @@ class SettingsViewModel(val container: AppContainer) : ViewModel() {
                     "cargo caches (.cargo)" to Fs.sizeOf(java.io.File(files, "home/.cargo")),
                     "download cache" to Fs.sizeOf(paths.cacheDir),
                     "projects" to Fs.sizeOf(container.projectsRoot),
+                    // R4A (auditoría B18): compilaciones de errores en vivo, juegos y proyectos externos
+                    "builds (check, games, build)" to listOf("check", "games", "build").sumOf { Fs.sizeOf(java.io.File(files, it)) },
                 )
             }
         }
@@ -51,6 +53,10 @@ class SettingsViewModel(val container: AppContainer) : ViewModel() {
                 Fs.deleteRecursively(java.io.File(container.context.filesDir, "home/.cargo/registry/src"))
                 Fs.deleteRecursively(container.toolchainPaths.cacheDir)
                 Fs.deleteRecursively(container.toolchainPaths.scratch)
+                // R4A (auditoría B18): compilaciones de proyectos que ya no existen
+                val keep = container.projectRepository.list().map { dev.rustdroid.ide.projects.ProjectLeftovers.canonical(it.dir) }
+                dev.rustdroid.ide.projects.ProjectLeftovers.orphanCaches(container.context.filesDir, keep)
+                    .forEach { Fs.deleteRecursively(it) }
             }
             _message.value = "cargo download caches cleared (registry index kept)"
             _busy.value = false
