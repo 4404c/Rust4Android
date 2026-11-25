@@ -1,10 +1,10 @@
 package dev.rustdroid.ide.ui.editor
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.remember
@@ -420,7 +420,7 @@ fun CodeEditorPane(
     }
 
     // theme flip (claro/oscuro o tema de código): recreate the color scheme in place
-    val codeTheme by dev.rustdroid.ide.util.AppSettings.codeTheme.collectAsState()
+    val codeTheme by dev.rustdroid.ide.util.AppSettings.codeTheme.collectAsStateWithLifecycle()
     LaunchedEffect(dark, codeTheme) {
         editor.setColorScheme(RustEditor.colorScheme(dark, codeTheme))
         RustEditor.applyProblemColors(editor, dark)

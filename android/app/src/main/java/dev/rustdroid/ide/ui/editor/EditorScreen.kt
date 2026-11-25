@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.editor
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import dev.rustdroid.ide.R
 import androidx.compose.ui.res.stringResource
@@ -86,7 +87,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -152,20 +152,20 @@ fun EditorScreen(
     // Mientras el editor está abierto, sus herramientas trabajan sobre él.
     // (attach/detach los hace el VM: ver EditorViewModel.chat)
     val chat = vm.chat
-    val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsState()
+    val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsStateWithLifecycle()
     val chatDrawerState = rememberEdgeDrawerState()
     var moreMenuOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { if (openChat) chatDrawerState.open() }
-    val tabs by vm.tabs.collectAsState()
-    val activeIndex by vm.activeIndex.collectAsState()
-    val activeText by vm.activeText.collectAsState()
-    val tree by vm.tree.collectAsState()
-    val running by vm.running.collectAsState()
-    val gameRunning by vm.gameRunning.collectAsState()
+    val tabs by vm.tabs.collectAsStateWithLifecycle()
+    val activeIndex by vm.activeIndex.collectAsStateWithLifecycle()
+    val activeText by vm.activeText.collectAsStateWithLifecycle()
+    val tree by vm.tree.collectAsStateWithLifecycle()
+    val running by vm.running.collectAsStateWithLifecycle()
+    val gameRunning by vm.gameRunning.collectAsStateWithLifecycle()
     // R4A: find / replace bar under the tabs
     var searchOpen by remember { mutableStateOf(false) }
     // R4A: export APK (games only)
-    val exportedApk by vm.exported.collectAsState()
+    val exportedApk by vm.exported.collectAsStateWithLifecycle()
     var showExport by remember { mutableStateOf(false) }
     // re-read when the drawer opens: Deps may have added macroquad meanwhile
     // R4A (auditoría B10): leer Cargo.toml fuera del hilo principal
@@ -191,26 +191,26 @@ fun EditorScreen(
     exportedApk?.let { apk ->
         ExportedApkDialog(apk, onDismiss = { vm.clearExported() })
     }
-    val problems by vm.problems.collectAsState()
-    val lastResult by vm.lastResult.collectAsState()
-    val bottomTab by vm.bottomTab.collectAsState()
-    val panelCollapsed by vm.panelCollapsed.collectAsState()
+    val problems by vm.problems.collectAsStateWithLifecycle()
+    val lastResult by vm.lastResult.collectAsStateWithLifecycle()
+    val bottomTab by vm.bottomTab.collectAsStateWithLifecycle()
+    val panelCollapsed by vm.panelCollapsed.collectAsStateWithLifecycle()
     // R4A: errors while typing, for the active file
-    val live by vm.live.collectAsState()
+    val live by vm.live.collectAsStateWithLifecycle()
     val activeRel = tabs.getOrNull(activeIndex)?.relativePath
     val liveForFile = remember(live, activeRel) {
         live?.diagnostics?.filter { it.file == activeRel }.orEmpty()
     }
     // R4A: Settings > Appearance > file type icons (on by default)
-    val showFileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
-    val jump by vm.jump.collectAsState()
-    val showCloseConfirm by vm.showCloseConfirm.collectAsState()
-    val consoleLines by vm.console.lines.collectAsState()
+    val showFileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsStateWithLifecycle()
+    val jump by vm.jump.collectAsStateWithLifecycle()
+    val showCloseConfirm by vm.showCloseConfirm.collectAsStateWithLifecycle()
+    val consoleLines by vm.console.lines.collectAsStateWithLifecycle()
 
     // new-file dialog state: name lives locally; success/error come from the
     // VM (one-shot createdFile closes the dialog, createFileError shows inline)
-    val createdFile by vm.createdFile.collectAsState()
-    val createFileError by vm.createFileError.collectAsState()
+    val createdFile by vm.createdFile.collectAsStateWithLifecycle()
+    val createFileError by vm.createFileError.collectAsStateWithLifecycle()
     var showNewFile by remember { mutableStateOf(false) }
     // R4A: el + pregunta: archivo o carpeta
     var newIsFolder by remember { mutableStateOf(false) }
@@ -226,14 +226,14 @@ fun EditorScreen(
     // delete-file dialog state: the row long-press picks the target; the
     // VM's one-shot deletedFile closes the dialog, deleteFileError shows
     // inline (e.g. the root Cargo.toml guard)
-    val deletedFile by vm.deletedFile.collectAsState()
-    val deleteFileError by vm.deleteFileError.collectAsState()
+    val deletedFile by vm.deletedFile.collectAsStateWithLifecycle()
+    val deleteFileError by vm.deleteFileError.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<FileNode?>(null) }
     // R4A: long-press menu (rename/move, delete) and the rename/move dialog
     var fileMenu by remember { mutableStateOf<FileNode?>(null) }
     var pendingMove by remember { mutableStateOf<FileNode?>(null) }
-    val movedFile by vm.movedFile.collectAsState()
-    val moveFileError by vm.moveFileError.collectAsState()
+    val movedFile by vm.movedFile.collectAsStateWithLifecycle()
+    val moveFileError by vm.moveFileError.collectAsStateWithLifecycle()
 
     // Re-entering this screen (e.g. back from the Deps screen) re-runs this
     // effect: pull fresh bytes for any tab that has no unsaved edits AND
@@ -266,7 +266,7 @@ fun EditorScreen(
     // to undo/redo (refreshed on every content change of the editor)
     var canUndo by remember { mutableStateOf(false) }
     // R4A: ⓘ toggle — code suggestions while typing
-    val autoComplete by dev.rustdroid.ide.util.AppSettings.autoComplete.collectAsState()
+    val autoComplete by dev.rustdroid.ide.util.AppSettings.autoComplete.collectAsStateWithLifecycle()
     val appContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(autoComplete, codeEditor) {
         codeEditor?.getComponent(
@@ -342,7 +342,7 @@ fun EditorScreen(
     }
     // R4A: first live check when the project opens, and again whenever the
     // setting is switched back on (switching it off clears the squiggles)
-    val liveCheckEnabled by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
+    val liveCheckEnabled by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsStateWithLifecycle()
     LaunchedEffect(liveCheckEnabled) { vm.scheduleLiveCheck(500) }
     // R4A: a macroquad game finished building — show it full screen
     LaunchedEffect(vm) {

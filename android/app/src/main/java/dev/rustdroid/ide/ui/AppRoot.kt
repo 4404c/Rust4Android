@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.net.Uri
 import dev.rustdroid.ide.R
 import androidx.compose.ui.res.stringResource
@@ -14,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,7 +91,7 @@ fun AppRoot(
             override fun <T : ViewModel> create(modelClass: Class<T>): T = AppViewModel(container) as T
         }
     )
-    val state by vm.toolchainState.collectAsState()
+    val state by vm.toolchainState.collectAsStateWithLifecycle()
     val nav = rememberNavController()
 
     val startDest = if (state is ToolchainState.Ready) Routes.HOME else Routes.GATE
@@ -249,7 +249,7 @@ fun AppRoot(
             // backgrounding that used to kill the re-verify in the first
             // place.
             val passTickEntry = remember { container.toolchainManager.verifyPassTick.value }
-            val passTick by container.toolchainManager.verifyPassTick.collectAsState()
+            val passTick by container.toolchainManager.verifyPassTick.collectAsStateWithLifecycle()
             LaunchedEffect(passTick) {
                 if (passTick > passTickEntry && nav.currentDestination?.route == Routes.SETTINGS) {
                     nav.popBackStack()

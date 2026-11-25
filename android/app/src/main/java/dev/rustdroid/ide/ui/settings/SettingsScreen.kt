@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.settings
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
@@ -38,7 +39,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -66,10 +66,10 @@ fun SettingsScreen(
     onOpenCodeThemes: () -> Unit = {},
 ) {
     val vm: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container))
-    val state by vm.toolchainState.collectAsState()
-    val storage by vm.storage.collectAsState()
-    val busy by vm.busy.collectAsState()
-    val message by vm.message.collectAsState()
+    val state by vm.toolchainState.collectAsStateWithLifecycle()
+    val storage by vm.storage.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(message) {
@@ -436,9 +436,9 @@ private fun ErrorLine(text: String) =
 @Composable
 private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsState()
-    val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsState()
-    val ferrdroidVisible by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsState()
+    val fileIcons by dev.rustdroid.ide.util.AppSettings.fileIcons.collectAsStateWithLifecycle()
+    val liveCheck by dev.rustdroid.ide.util.AppSettings.liveCheck.collectAsStateWithLifecycle()
+    val ferrdroidVisible by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsStateWithLifecycle()
     ExpandableCard(stringResource(R.string.settings_appearance)) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ThemeModeRow()
@@ -483,7 +483,7 @@ private fun AppearanceCard(onOpenCodeThemes: () -> Unit) {
 /** R4A: fila que lleva a la lista de temas de código (para que Opciones no sea eterna). */
 @Composable
 private fun CodeThemeRow(onClick: () -> Unit) {
-    val current by dev.rustdroid.ide.util.AppSettings.codeTheme.collectAsState()
+    val current by dev.rustdroid.ide.util.AppSettings.codeTheme.collectAsStateWithLifecycle()
     Row(
         Modifier
             .fillMaxWidth()
@@ -512,7 +512,7 @@ private fun CodeThemeRow(onClick: () -> Unit) {
 @Composable
 private fun ThemeModeRow() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsState()
+    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsStateWithLifecycle()
     val options = listOf(
         dev.rustdroid.ide.util.AppSettings.ThemeMode.SYSTEM to stringResource(R.string.settings_theme_system),
         dev.rustdroid.ide.util.AppSettings.ThemeMode.LIGHT to stringResource(R.string.settings_theme_light),
@@ -583,7 +583,7 @@ private fun ThemeModeRow() {
 @Composable
 private fun CustomColorsEditor() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val colors by dev.rustdroid.ide.util.AppSettings.customColors.collectAsState()
+    val colors by dev.rustdroid.ide.util.AppSettings.customColors.collectAsStateWithLifecycle()
     var editing by remember { mutableStateOf<Int?>(null) } // 0 principal, 1 secundario, 2 fondo, 3 texto
     val labels = listOf(
         stringResource(R.string.custom_primary) to stringResource(R.string.custom_primary_desc),

@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.home
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import dev.rustdroid.ide.R
 import androidx.compose.ui.res.stringResource
@@ -38,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,12 +75,12 @@ fun HomeScreen(
     /** R4A: abrir el proyecto con el chat de la IA ya abierto. */
     onOpenProjectChat: (String) -> Unit = onOpenProject,
 ) {
-    val aiActivity by container.chatStore.activity.collectAsState()
+    val aiActivity by container.chatStore.activity.collectAsStateWithLifecycle()
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(container))
-    val projects by vm.projects.collectAsState()
-    val creating by vm.creating.collectAsState()
-    val createLog by vm.createLog.collectAsState()
-    val error by vm.error.collectAsState()
+    val projects by vm.projects.collectAsStateWithLifecycle()
+    val creating by vm.creating.collectAsStateWithLifecycle()
+    val createLog by vm.createLog.collectAsStateWithLifecycle()
+    val error by vm.error.collectAsStateWithLifecycle()
 
     var showNewDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<ProjectSummary?>(null) }
@@ -92,7 +92,7 @@ fun HomeScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.refresh() }
 
     // ---- R4A: Ferrdroid, la mascota ----
-    val ferrdroidOn by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsState()
+    val ferrdroidOn by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsStateWithLifecycle()
     val ferrdroid = dev.rustdroid.ide.ui.components.rememberFerrdroidState()
     val res = androidx.compose.ui.platform.LocalContext.current.resources
     val tips = remember { res.getStringArray(R.array.ferrdroid_tips).toList() }
@@ -101,7 +101,7 @@ fun HomeScreen(
 
     // ---- R4A: tour de Ferrdroid (primera vez, u Opciones → Ver presentación) ----
     val appContext = androidx.compose.ui.platform.LocalContext.current
-    val tourSeen by dev.rustdroid.ide.util.AppSettings.tourSeen.collectAsState()
+    val tourSeen by dev.rustdroid.ide.util.AppSettings.tourSeen.collectAsStateWithLifecycle()
     var tourOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(tourSeen) {
         if (!tourSeen && !tourOpen) {

@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.terminal
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Context
 import androidx.compose.ui.res.stringResource
 import android.view.KeyEvent
@@ -44,7 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -102,9 +102,9 @@ fun TerminalScreen(
     val vm: TerminalViewModel = viewModel(
         factory = TerminalViewModel.factory(container.terminalCenter)
     )
-    val allSessions by vm.sessions.collectAsState()
-    val currentId by vm.currentId.collectAsState()
-    val createError by vm.lastCreateError.collectAsState()
+    val allSessions by vm.sessions.collectAsStateWithLifecycle()
+    val currentId by vm.currentId.collectAsStateWithLifecycle()
+    val createError by vm.lastCreateError.collectAsStateWithLifecycle()
 
     // Review P2 fix: TerminalCenter.sessions is PROCESS-GLOBAL (deliberately
     // — it survives this screen's own rotation/navigation), so this screen

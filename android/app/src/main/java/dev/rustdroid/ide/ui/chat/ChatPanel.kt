@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.chat
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +49,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,14 +85,14 @@ fun ChatPanel(
     home: Boolean = false,
 ) {
     // la charla actual del proyecto (cambia con "Nueva charla" o la lista)
-    val vm by chats.current.collectAsState()
-    val chatList by chats.list.collectAsState()
-    val allMessages by vm.messages.collectAsState()
-    val hiddenBefore by vm.hiddenBefore.collectAsState()
+    val vm by chats.current.collectAsStateWithLifecycle()
+    val chatList by chats.list.collectAsStateWithLifecycle()
+    val allMessages by vm.messages.collectAsStateWithLifecycle()
+    val hiddenBefore by vm.hiddenBefore.collectAsStateWithLifecycle()
     // lo de visitas anteriores queda oculto hasta deslizar hacia abajo
     val messages = remember(allMessages, hiddenBefore) { allMessages.drop(hiddenBefore) }
-    val busy by vm.busy.collectAsState()
-    val aiState by AiSettings.state.collectAsState()
+    val busy by vm.busy.collectAsStateWithLifecycle()
+    val aiState by AiSettings.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val listState = rememberLazyListState()
 
@@ -219,7 +219,7 @@ fun ChatPanel(
             }
             // modo Plan (solo mira y propone) / Build (cambia archivos); no en Inicio
             if (!home) {
-                val mode by vm.mode.collectAsState()
+                val mode by vm.mode.collectAsStateWithLifecycle()
                 val plan = mode == ChatSession.Mode.PLAN
                 // PLAN va en el color complementario del principal (BUILD usa el principal)
                 val chipColor = if (plan) complementary(MaterialTheme.colorScheme.primary) else MaterialTheme.colorScheme.primary
@@ -459,7 +459,7 @@ fun ChatPanel(
         }
 
         // R4A (auditoría M4): la IA pide permiso para correr código de afuera
-        val approval by vm.approval.collectAsState()
+        val approval by vm.approval.collectAsStateWithLifecycle()
         approval?.let { ApprovalCard(it.text, onAnswer = vm::answerApproval) }
 
         // key: cada charla tiene su propio borrador

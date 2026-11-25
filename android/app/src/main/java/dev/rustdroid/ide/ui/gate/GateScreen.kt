@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.gate
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.Manifest
 import dev.rustdroid.ide.R
 import androidx.compose.ui.res.stringResource
@@ -28,7 +29,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +49,7 @@ fun GateScreen(
     onReady: () -> Unit,
 ) {
     val manager = container.toolchainManager
-    val state by manager.state.collectAsState()
+    val state by manager.state.collectAsStateWithLifecycle()
 
     val notifPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()

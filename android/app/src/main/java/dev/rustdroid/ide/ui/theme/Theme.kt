@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.theme
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -8,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
@@ -115,8 +115,8 @@ val LocalDarkTheme = staticCompositionLocalOf { true }
 /** R4A: oscuro según Opciones → Apariencia (Sistema / Claro / Oscuro). */
 @Composable
 fun rememberDarkTheme(): Boolean {
-    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsState()
-    val custom by dev.rustdroid.ide.util.AppSettings.customColors.collectAsState()
+    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsStateWithLifecycle()
+    val custom by dev.rustdroid.ide.util.AppSettings.customColors.collectAsStateWithLifecycle()
     return when (mode) {
         dev.rustdroid.ide.util.AppSettings.ThemeMode.LIGHT -> false
         dev.rustdroid.ide.util.AppSettings.ThemeMode.DARK -> true
@@ -130,8 +130,8 @@ fun RustDroidTheme(
     darkTheme: Boolean = rememberDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsState()
-    val custom by dev.rustdroid.ide.util.AppSettings.customColors.collectAsState()
+    val mode by dev.rustdroid.ide.util.AppSettings.themeMode.collectAsStateWithLifecycle()
+    val custom by dev.rustdroid.ide.util.AppSettings.customColors.collectAsStateWithLifecycle()
     val isCustom = mode == dev.rustdroid.ide.util.AppSettings.ThemeMode.CUSTOM
     val scheme = when {
         isCustom -> CustomScheme.build(custom)

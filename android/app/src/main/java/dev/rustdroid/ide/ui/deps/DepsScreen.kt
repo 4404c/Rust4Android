@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.deps
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.clickable
 import dev.rustdroid.ide.R
 import androidx.compose.ui.res.stringResource
@@ -47,7 +48,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -77,16 +77,16 @@ fun DepsScreen(
         key = "deps-$projectName",
         factory = DepsViewModel.factory(container, projectName),
     )
-    val deps by vm.deps.collectAsState()
-    val query by vm.query.collectAsState()
-    val results by vm.results.collectAsState()
-    val searching by vm.searching.collectAsState()
-    val message by vm.message.collectAsState()
-    val fetching by vm.fetching.collectAsState()
-    val fetchLog by vm.fetchLog.collectAsState()
-    val popular by vm.popular.collectAsState()
-    val installing by vm.installing.collectAsState()
-    val updates by vm.updates.collectAsState()
+    val deps by vm.deps.collectAsStateWithLifecycle()
+    val query by vm.query.collectAsStateWithLifecycle()
+    val results by vm.results.collectAsStateWithLifecycle()
+    val searching by vm.searching.collectAsStateWithLifecycle()
+    val message by vm.message.collectAsStateWithLifecycle()
+    val fetching by vm.fetching.collectAsStateWithLifecycle()
+    val fetchLog by vm.fetchLog.collectAsStateWithLifecycle()
+    val popular by vm.popular.collectAsStateWithLifecycle()
+    val installing by vm.installing.collectAsStateWithLifecycle()
+    val updates by vm.updates.collectAsStateWithLifecycle()
     // R4A: crate whose update the user tapped (confirmation dialog)
     var confirmUpdate by remember { mutableStateOf<String?>(null) }
     confirmUpdate?.let { name ->

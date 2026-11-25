@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.settings
 
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +35,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
 fun AiSettingsCard(container: AppContainer) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val state by AiSettings.state.collectAsState()
+    val state by AiSettings.state.collectAsStateWithLifecycle()
     val client = remember { AiClient(container.http) }
     val claude = remember { dev.rustdroid.ide.ai.AnthropicChat() }
     val chatgpt = remember { dev.rustdroid.ide.ai.ChatGptClient(container.http) }
@@ -139,7 +139,7 @@ fun AiSettingsCard(container: AppContainer) {
     }
 
     if (editingRule) {
-        val current by AiSettings.rule.collectAsState()
+        val current by AiSettings.rule.collectAsStateWithLifecycle()
         var text by remember { mutableStateOf(current) }
         AlertDialog(
             onDismissRequest = { editingRule = false },
