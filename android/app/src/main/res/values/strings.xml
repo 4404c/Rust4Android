@@ -271,6 +271,14 @@
     <string name="signing_restore_title">¿Restaurar la clave?</string>
     <string name="signing_restore_text">La clave actual se reemplaza por la del respaldo. Los juegos que exportaste con la clave actual no se van a poder actualizar con la nueva.</string>
     <string name="signing_restore_confirm">Restaurar</string>
+    <string name="signing_password_title">Contraseña del respaldo</string>
+    <string name="signing_password_text">El respaldo se guarda cifrado con esta contraseña. Sin ella no se puede restaurar: si la olvidás, ese respaldo no sirve más.</string>
+    <string name="signing_password_hint">Contraseña</string>
+    <string name="signing_password_repeat">Repetí la contraseña</string>
+    <string name="signing_password_short">Tiene que tener al menos %1$d caracteres</string>
+    <string name="signing_password_mismatch">Las contraseñas no coinciden</string>
+    <string name="signing_wrong_password">Contraseña incorrecta</string>
+    <string name="signing_old_backup">Este respaldo es de antes y no tiene contraseña. Después de restaurarlo, guardá uno nuevo (con contraseña) y borrá el viejo.</string>
     <string name="signing_restored">Clave restaurada</string>
     <string name="signing_restore_failed">Ese archivo no es un respaldo de clave de R4A</string>
     <string name="export_icon_crop_title">Recortar ícono</string>

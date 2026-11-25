@@ -267,6 +267,14 @@
     <string name="signing_restore_title">Restore the key?</string>
     <string name="signing_restore_text">The current key is replaced by the backup. Games you exported with the current key can not be updated with the new one.</string>
     <string name="signing_restore_confirm">Restore</string>
+    <string name="signing_password_title">Backup password</string>
+    <string name="signing_password_text">The backup is saved encrypted with this password. Without it the backup cannot be restored: if you forget it, that backup is useless.</string>
+    <string name="signing_password_hint">Password</string>
+    <string name="signing_password_repeat">Repeat the password</string>
+    <string name="signing_password_short">It must have at least %1$d characters</string>
+    <string name="signing_password_mismatch">The passwords do not match</string>
+    <string name="signing_wrong_password">Wrong password</string>
+    <string name="signing_old_backup">This is an older backup without a password. After restoring it, save a new one (with a password) and delete the old one.</string>
     <string name="signing_restored">Key restored</string>
     <string name="signing_restore_failed">That file is not an R4A key backup</string>
     <string name="export_icon_crop_title">Crop icon</string>

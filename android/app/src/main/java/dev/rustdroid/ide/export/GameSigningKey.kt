@@ -56,27 +56,57 @@ object GameSigningKey {
         java.security.MessageDigest.getInstance("SHA-256").digest(key.certificate.encoded)
             .take(6).joinToString(":") { "%02X".format(it) }
 
+    /** R4A (auditoría M6): the backup password is wrong (or the file was altered). */
+    class WrongPasswordException : Exception("wrong password")
+
     /**
-     * A backup file (.r4akey): a zip with the private key and its certificate.
-     * Whoever has it can sign updates of the user's games — keep it private.
+     * A backup file (.r4akey). R4A (auditoría M6): since 2026-11 it is
+     * ENCRYPTED with a password the user picks: `R4AKEY2` + newline + iterations
+     * (4 bytes) + salt (16) + IV (12) + AES-256-GCM of the zip with the
+     * private key and its certificate; the AES key comes from the password
+     * with PBKDF2-HMAC-SHA256. Older backups were the bare zip (no password):
+     * [restore] still reads them.
      */
-    fun backup(dir: File): ByteArray {
+    fun backup(dir: File, password: CharArray): ByteArray {
         require(exists(dir)) { "no key" }
-        val out = ByteArrayOutputStream()
-        java.util.zip.ZipOutputStream(out).use { z ->
+        require(password.size >= MIN_PASSWORD) { "password too short" }
+        val zip = ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(zip).use { z ->
             for (name in listOf(KEY_FILE, CERT_FILE)) {
                 z.putNextEntry(java.util.zip.ZipEntry(name))
                 z.write(File(dir, name).readBytes())
                 z.closeEntry()
             }
         }
+        val random = SecureRandom()
+        val salt = ByteArray(16).also(random::nextBytes)
+        val iv = ByteArray(12).also(random::nextBytes)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, aesKey(password, salt, ITERATIONS), javax.crypto.spec.GCMParameterSpec(128, iv))
+        cipher.updateAAD(MAGIC)
+        val ct = cipher.doFinal(zip.toByteArray())
+        val out = ByteArrayOutputStream()
+        out.write(MAGIC)
+        out.write(java.nio.ByteBuffer.allocate(4).putInt(ITERATIONS).array())
+        out.write(salt)
+        out.write(iv)
+        out.write(ct)
         return out.toByteArray()
     }
 
-    /** Restore a [backup], replacing the current key. Throws if it is not valid. */
-    fun restore(dir: File, backup: ByteArray): Key {
+    /** true = needs a password to [restore] (new format); false = old backup without password. */
+    fun isEncrypted(backup: ByteArray): Boolean =
+        backup.size > MAGIC.size && backup.copyOfRange(0, MAGIC.size).contentEquals(MAGIC)
+
+    /**
+     * Restore a [backup], replacing the current key. Throws
+     * [WrongPasswordException] for a wrong/missing password, or another
+     * exception if it is not a valid backup; the current key is untouched then.
+     */
+    fun restore(dir: File, backup: ByteArray, password: CharArray? = null): Key {
+        val zip = if (isEncrypted(backup)) decrypt(backup, password ?: throw WrongPasswordException()) else backup
         val files = HashMap<String, ByteArray>()
-        java.util.zip.ZipInputStream(backup.inputStream()).use { z ->
+        java.util.zip.ZipInputStream(zip.inputStream()).use { z ->
             while (true) {
                 val e = z.nextEntry ?: break
                 if (e.name == KEY_FILE || e.name == CERT_FILE) files[e.name] = z.readBytes()
@@ -93,6 +123,37 @@ object GameSigningKey {
         File(dir, CERT_FILE).writeBytes(certBytes)
         return Key(key, cert)
     }
+
+    private fun decrypt(backup: ByteArray, password: CharArray): ByteArray {
+        val buf = java.nio.ByteBuffer.wrap(backup, MAGIC.size, backup.size - MAGIC.size)
+        val iterations = buf.int
+        if (iterations !in 10_000..10_000_000) error("not an R4A key backup")
+        val salt = ByteArray(16).also { buf.get(it) }
+        val iv = ByteArray(12).also { buf.get(it) }
+        val ct = ByteArray(buf.remaining()).also { buf.get(it) }
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE, aesKey(password, salt, iterations), javax.crypto.spec.GCMParameterSpec(128, iv))
+        cipher.updateAAD(MAGIC)
+        return try {
+            cipher.doFinal(ct)
+        } catch (e: javax.crypto.AEADBadTagException) {
+            throw WrongPasswordException()
+        }
+    }
+
+    private fun aesKey(password: CharArray, salt: ByteArray, iterations: Int): javax.crypto.SecretKey {
+        val spec = javax.crypto.spec.PBEKeySpec(password, salt, iterations, 256)
+        try {
+            val raw = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            return javax.crypto.spec.SecretKeySpec(raw, "AES")
+        } finally {
+            spec.clearPassword()
+        }
+    }
+
+    const val MIN_PASSWORD = 8
+    private const val ITERATIONS = 210_000
+    private val MAGIC = "R4AKEY2\n".toByteArray(Charsets.US_ASCII)
 
     fun create(owner: String): Key {
         val gen = KeyPairGenerator.getInstance("RSA")

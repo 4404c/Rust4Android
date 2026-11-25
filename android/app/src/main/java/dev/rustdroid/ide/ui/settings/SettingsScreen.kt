@@ -255,55 +255,132 @@ private fun SigningKeyCard() {
             else null,
         )
     }
-    var pendingRestore by remember { mutableStateOf<android.net.Uri?>(null) }
+    // R4A (auditoría M6): el respaldo .r4akey va cifrado con una contraseña
+    var pendingRestore by remember { mutableStateOf<Pair<ByteArray, Boolean>?>(null) }
+    var askSavePassword by remember { mutableStateOf(false) }
+    var savePassword by remember { mutableStateOf<CharArray?>(null) }
     fun toast(id: Int, vararg args: Any) =
         android.widget.Toast.makeText(context, context.getString(id, *args), android.widget.Toast.LENGTH_LONG).show()
 
     val save = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        val password = savePassword
+        savePassword = null
+        if (uri == null || password == null) return@rememberLauncherForActivityResult
         scope.launch {
             val ok = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
                     val key = dev.rustdroid.ide.export.GameSigningKey.loadOrCreate(dir)
-                    context.contentResolver.openOutputStream(uri)?.use {
-                        it.write(dev.rustdroid.ide.export.GameSigningKey.backup(dir))
-                    } ?: error("no output")
+                    val bytes = dev.rustdroid.ide.export.GameSigningKey.backup(dir, password)
+                    context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("no output")
                     dev.rustdroid.ide.export.GameSigningKey.fingerprint(key)
                 }.getOrNull()
             }
+            java.util.Arrays.fill(password, ' ')
             if (ok != null) { fingerprint = ok; toast(R.string.signing_saved) } else toast(R.string.signing_save_failed)
         }
     }
     val open = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
-    ) { uri -> if (uri != null) pendingRestore = uri }
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+            }
+            if (bytes == null) toast(R.string.signing_restore_failed)
+            else pendingRestore = bytes to dev.rustdroid.ide.export.GameSigningKey.isEncrypted(bytes)
+        }
+    }
 
-    pendingRestore?.let { uri ->
+    if (askSavePassword) {
+        var pw1 by remember { mutableStateOf("") }
+        var pw2 by remember { mutableStateOf("") }
+        val minLen = dev.rustdroid.ide.export.GameSigningKey.MIN_PASSWORD
+        val tooShort = pw1.length < minLen
+        val mismatch = pw2.isNotEmpty() && pw1 != pw2
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { pendingRestore = null },
-            title = { Text(stringResource(R.string.signing_restore_title)) },
-            text = { Text(stringResource(R.string.signing_restore_text)) },
+            onDismissRequest = { askSavePassword = false },
+            title = { Text(stringResource(R.string.signing_password_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.signing_password_text), style = MaterialTheme.typography.bodySmall)
+                    PasswordField(pw1, { pw1 = it }, stringResource(R.string.signing_password_hint))
+                    PasswordField(pw2, { pw2 = it }, stringResource(R.string.signing_password_repeat))
+                    if (pw1.isNotEmpty() && tooShort) ErrorLine(stringResource(R.string.signing_password_short, minLen))
+                    else if (mismatch) ErrorLine(stringResource(R.string.signing_password_mismatch))
+                }
+            },
             confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    pendingRestore = null
-                    scope.launch {
-                        val fp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            runCatching {
-                                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                                    ?: error("no input")
-                                dev.rustdroid.ide.export.GameSigningKey.fingerprint(
-                                    dev.rustdroid.ide.export.GameSigningKey.restore(dir, bytes),
-                                )
-                            }.getOrNull()
-                        }
-                        if (fp != null) { fingerprint = fp; toast(R.string.signing_restored) } else toast(R.string.signing_restore_failed)
-                    }
-                }) { Text(stringResource(R.string.signing_restore_confirm)) }
+                androidx.compose.material3.TextButton(
+                    enabled = !tooShort && pw1 == pw2,
+                    onClick = {
+                        savePassword = pw1.toCharArray()
+                        askSavePassword = false
+                        save.launch("r4a-clave-juegos.r4akey")
+                    },
+                ) { Text(stringResource(R.string.signing_save)) }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { pendingRestore = null }) {
+                androidx.compose.material3.TextButton(onClick = { askSavePassword = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
+    pendingRestore?.let { pending ->
+        val (bytes, encrypted) = pending
+        var pw by remember(pending) { mutableStateOf("") }
+        var wrong by remember(pending) { mutableStateOf(false) }
+        var working by remember(pending) { mutableStateOf(false) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { if (!working) pendingRestore = null },
+            title = { Text(stringResource(R.string.signing_restore_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.signing_restore_text))
+                    if (encrypted) {
+                        PasswordField(pw, { pw = it; wrong = false }, stringResource(R.string.signing_password_hint))
+                        if (wrong) ErrorLine(stringResource(R.string.signing_wrong_password))
+                    } else {
+                        Text(
+                            stringResource(R.string.signing_old_backup),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    enabled = !working && (!encrypted || pw.isNotEmpty()),
+                    onClick = {
+                        working = true
+                        val password = pw.toCharArray()
+                        scope.launch {
+                            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                runCatching {
+                                    dev.rustdroid.ide.export.GameSigningKey.fingerprint(
+                                        dev.rustdroid.ide.export.GameSigningKey.restore(dir, bytes, password.takeIf { encrypted }),
+                                    )
+                                }
+                            }
+                            java.util.Arrays.fill(password, ' ')
+                            working = false
+                            val fp = result.getOrNull()
+                            when {
+                                fp != null -> { fingerprint = fp; pendingRestore = null; toast(R.string.signing_restored) }
+                                result.exceptionOrNull() is dev.rustdroid.ide.export.GameSigningKey.WrongPasswordException -> wrong = true
+                                else -> { pendingRestore = null; toast(R.string.signing_restore_failed) }
+                            }
+                        }
+                    },
+                ) { Text(stringResource(R.string.signing_restore_confirm)) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(enabled = !working, onClick = { pendingRestore = null }) {
                     Text(stringResource(R.string.common_cancel))
                 }
             },
@@ -323,7 +400,7 @@ private fun SigningKeyCard() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { save.launch("r4a-clave-juegos.r4akey") }) {
+                OutlinedButton(onClick = { askSavePassword = true }) {
                     Text(stringResource(R.string.signing_save))
                 }
                 OutlinedButton(onClick = { open.launch(arrayOf("*/*")) }) {
@@ -333,6 +410,27 @@ private fun SigningKeyCard() {
         }
     }
 }
+
+/** R4A (auditoría M6): campo de contraseña (oculta). */
+@Composable
+private fun PasswordField(value: String, onChange: (String) -> Unit, label: String) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        singleLine = true,
+        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+            autoCorrectEnabled = false,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun ErrorLine(text: String) =
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
 
 /** R4A: appearance / editor toggles. Changes apply right away (AppSettings flows). */
 @Composable

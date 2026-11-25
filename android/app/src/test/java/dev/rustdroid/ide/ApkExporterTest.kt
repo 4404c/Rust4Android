@@ -59,11 +59,20 @@ class ApkExporterTest {
     fun `a key backup restores the same key elsewhere`() {
         val dirA = tmp.newFolder("a")
         val original = GameSigningKey.loadOrCreate(dirA)
-        val backup = GameSigningKey.backup(dirA)
+        val backup = GameSigningKey.backup(dirA, "clave-secreta".toCharArray())
+        assertTrue(GameSigningKey.isEncrypted(backup))
 
         val dirB = tmp.newFolder("b")
-        GameSigningKey.loadOrCreate(dirB) // a different key that gets replaced
-        GameSigningKey.restore(dirB, backup)
+        val other = GameSigningKey.loadOrCreate(dirB) // a different key that gets replaced
+
+        // R4A (auditoría M6): wrong or missing password → nothing changes
+        for (pw in listOf("otra-clave-mal".toCharArray(), null)) {
+            val wrong = runCatching { GameSigningKey.restore(dirB, backup, pw) }
+            assertTrue(wrong.exceptionOrNull() is GameSigningKey.WrongPasswordException)
+            assertEquals(other.certificate, GameSigningKey.loadOrCreate(dirB).certificate)
+        }
+
+        GameSigningKey.restore(dirB, backup, "clave-secreta".toCharArray())
         val restored = GameSigningKey.loadOrCreate(dirB)
         assertEquals(original.certificate, restored.certificate)
         assertEquals(GameSigningKey.fingerprint(original), GameSigningKey.fingerprint(restored))
@@ -71,6 +80,29 @@ class ApkExporterTest {
         // garbage is rejected and the current key stays
         val bad = runCatching { GameSigningKey.restore(dirB, "hola".toByteArray()) }
         assertTrue(bad.isFailure)
+        assertEquals(original.certificate, GameSigningKey.loadOrCreate(dirB).certificate)
+
+        // the private key is not readable inside the encrypted file
+        val pk8 = java.io.File(dirA, "r4a-games.pk8").readBytes()
+        assertTrue(java.util.Collections.indexOfSubList(backup.toList(), pk8.toList().take(64)) < 0)
+    }
+
+    @Test
+    fun `old backups without password still restore`() {
+        // R4A (auditoría M6): the pre-2026-11 format was the bare zip
+        val dirA = tmp.newFolder("old")
+        val original = GameSigningKey.loadOrCreate(dirA)
+        val zip = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(zip).use { z ->
+            for (name in listOf("r4a-games.pk8", "r4a-games.der")) {
+                z.putNextEntry(java.util.zip.ZipEntry(name))
+                z.write(java.io.File(dirA, name).readBytes())
+                z.closeEntry()
+            }
+        }
+        assertTrue(!GameSigningKey.isEncrypted(zip.toByteArray()))
+        val dirB = tmp.newFolder("new")
+        GameSigningKey.restore(dirB, zip.toByteArray())
         assertEquals(original.certificate, GameSigningKey.loadOrCreate(dirB).certificate)
     }
 
