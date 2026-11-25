@@ -131,11 +131,15 @@ fun LicensesScreen(onBack: () -> Unit) {
     }
 }
 
+/**
+ * R4A (auditoría B16): TODOS los archivos de la entrada, uno debajo del otro.
+ * Antes devolvía solo el primero que abría, así que los avisos NOTICE
+ * ([LicenseEntry.file2]: Jackson, FastDoubleParser, Schubfach…) estaban en
+ * la APK pero no se veían.
+ */
 private fun readLicenseText(context: android.content.Context, entry: LicenseEntry): String? {
-    for (name in listOfNotNull(entry.file, entry.file2)) {
-        runCatching {
-            return context.assets.open("licenses/$name").readBytes().decodeToString()
-        }
+    val parts = listOfNotNull(entry.file, entry.file2).mapNotNull { name ->
+        runCatching { context.assets.open("licenses/$name").use { it.readBytes() }.decodeToString() }.getOrNull()
     }
-    return null
+    return parts.takeIf { it.isNotEmpty() }?.joinToString("\n\n" + "─".repeat(40) + "\n\n")
 }

@@ -248,6 +248,15 @@ class EditorViewModel(
     private val _panelCollapsed = MutableStateFlow(false)
     val panelCollapsed: StateFlow<Boolean> = _panelCollapsed.asStateFlow()
 
+    /**
+     * R4A (auditoría B14): archivos que se están leyendo para abrir. Al abrir
+     * un .rs desde otra app, init y el LaunchedEffect de EditorScreen pedían
+     * el mismo archivo casi a la vez; como la lectura es asíncrona, el chequeo
+     * de pestaña repetida no veía la primera y quedaban dos pestañas iguales.
+     * (Declarado ANTES de init, que ya llama a openFile.)
+     */
+    private val opening = HashSet<String>()
+
     init {
         refreshTree()
         // deep-linked file ("open with" import) wins; otherwise open the
@@ -266,6 +275,7 @@ class EditorViewModel(
             setActive(idx)
             return
         }
+        if (!opening.add(relativePath)) return
         val file = File(projectDir, relativePath)
         viewModelScope.launch {
             try {
@@ -274,6 +284,8 @@ class EditorViewModel(
                 setActive(_tabs.value.size - 1)
             } catch (e: IOException) {
                 console.system(str(R.string.vm_editor_cannot_open, relativePath, e.message.orEmpty()))
+            } finally {
+                opening.remove(relativePath)
             }
         }
     }

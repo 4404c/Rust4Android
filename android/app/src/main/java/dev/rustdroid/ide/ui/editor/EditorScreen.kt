@@ -1630,9 +1630,23 @@ private val IMAGE_EXTS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
 /** R4A: muestra una imagen del proyecto; se agranda con dos dedos. */
 @Composable
 private fun ImagePreviewDialog(file: File, onDismiss: () -> Unit) {
+    // tamaño real de la foto (la que se muestra puede estar achicada)
+    var originalSize by remember(file) { mutableStateOf<Pair<Int, Int>?>(null) }
     val bitmap by produceState<android.graphics.Bitmap?>(null, file) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            runCatching { android.graphics.BitmapFactory.decodeFile(file.path) }.getOrNull()
+            // R4A (auditoría B15): una foto de 12-50 MP a tamaño completo ocupa
+            // 50-200 MB y puede cerrar la app; se achica a ≤ 2048 px de lado
+            runCatching {
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(file.path, bounds)
+                originalSize = bounds.outWidth to bounds.outHeight
+                var sample = 1
+                while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 2048) sample *= 2
+                android.graphics.BitmapFactory.decodeFile(
+                    file.path,
+                    android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
+                )
+            }.getOrNull()
         }
     }
     var scale by remember { mutableStateOf(1f) }
@@ -1651,7 +1665,7 @@ private fun ImagePreviewDialog(file: File, onDismiss: () -> Unit) {
             Text(file.name, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
             val b = bitmap
             Text(
-                if (b != null) "${b.width} × ${b.height} px" else "",
+                originalSize?.takeIf { b != null }?.let { (w, h) -> "$w × $h px" } ?: "",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
