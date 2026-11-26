@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import org.json.JSONArray
 import org.json.JSONObject
@@ -161,7 +164,22 @@ class ChatSession(
     fun attach(tools: ChatTools) {
         this.tools = tools
         detachedWhileBusy = false
+        // R4A: si la charla guardada tiene pedidos de herramienta rotos, se limpia y se guarda
+        if (!_busy.value) {
+            val fixed = HistoryRepair.dropUnknownTools(apiHistory.toList(), knownTools(tools))
+            if (fixed != apiHistory) {
+                apiHistory.clear()
+                apiHistory += fixed
+                save()
+            }
+        }
     }
+
+    /** Herramientas de este chat + las de Inicio (una charla adoptada las trae). */
+    private fun knownTools(tools: ChatTools): Set<String> =
+        tools.definitions.mapNotNull {
+            it.jsonObject["function"]?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull
+        }.toSet() + HOME_TOOLS
 
     /**
      * true = el usuario salió del proyecto mientras la IA trabajaba: sigue con
@@ -359,7 +377,8 @@ class ChatSession(
     /** Si el modelo rechaza las herramientas, reintenta sin ellas. */
     private suspend fun askWith(tools: ChatTools, cfg: AiSettings.Connection, key: String, effort: String): AiClient.Reply {
         // R4A (auditoría M8): resultados viejos de herramientas recortados (no con Claude)
-        val history = if (cfg.provider == AiSettings.Provider.ANTHROPIC) apiHistory.toList() else HistoryTrim.forRequest(apiHistory.toList())
+        val clean = HistoryRepair.dropUnknownTools(apiHistory.toList(), knownTools(tools))
+        val history = if (cfg.provider == AiSettings.Provider.ANTHROPIC) clean else HistoryTrim.forRequest(clean)
         val messages = listOf(AiClient.Message("system", systemPrompt())) + history
         // modo Plan: solo las herramientas para mirar
         val defs = if (_mode.value == Mode.PLAN && !home) tools.definitionsFor(tools.planTools) else tools.definitions
@@ -760,5 +779,6 @@ class ChatSession(
         const val MAX_STEPS = 20
         const val MAX_RATE_RETRIES = 4
         const val MAX_RATE_WAIT_SEC = 65.0
+        val HOME_TOOLS = setOf("list_projects", "create_project")
     }
 }

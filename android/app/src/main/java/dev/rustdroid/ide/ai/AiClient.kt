@@ -152,8 +152,12 @@ class AiClient(baseHttp: OkHttpClient) {
             }
             val source = resp.body?.source() ?: throw AiException("Respuesta vacía")
             val text = StringBuilder()
-            // index → (id, nombre, argumentos) que van llegando en pedazos
-            val calls = sortedMapOf<Int, Triple<StringBuilder, StringBuilder, StringBuilder>>()
+            // cada llamada: (id, nombre, argumentos) que van llegando en pedazos.
+            // Gemini manda dos llamadas en paralelo con el MISMO index (y cada
+            // una completa, con su propio id): un id nuevo abre otra llamada,
+            // si no se pegaban en una sola ("read_filecargo_check" → error 400).
+            val calls = ArrayList<Triple<StringBuilder, StringBuilder, StringBuilder>>()
+            val slotOf = HashMap<Int, Int>()
             val extras = HashMap<Int, String>()
             while (true) {
                 val line = source.readUtf8Line() ?: break
@@ -171,9 +175,16 @@ class AiClient(baseHttp: OkHttpClient) {
                 (delta["tool_calls"] as? JsonArray)?.forEachIndexed { pos, el ->
                     val tc = el.jsonObject
                     val index = tc["index"]?.jsonPrimitive?.intOrNull ?: pos
-                    val acc = calls.getOrPut(index) { Triple(StringBuilder(), StringBuilder(), StringBuilder()) }
-                    tc["id"]?.jsonPrimitive?.contentOrNull?.let { acc.first.append(it) }
-                    (tc["extra_content"] as? JsonObject)?.let { extras[index] = it.toString() }
+                    val id = tc["id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() }
+                    var slot = slotOf[index]
+                    if (slot == null || (id != null && calls[slot].first.isNotEmpty() && calls[slot].first.toString() != id)) {
+                        calls += Triple(StringBuilder(), StringBuilder(), StringBuilder())
+                        slot = calls.size - 1
+                        slotOf[index] = slot
+                    }
+                    val acc = calls[slot]
+                    if (id != null && acc.first.isEmpty()) acc.first.append(id)
+                    (tc["extra_content"] as? JsonObject)?.let { extras[slot] = it.toString() }
                     val fn = tc["function"]?.jsonObject
                     fn?.get("name")?.jsonPrimitive?.contentOrNull?.let { acc.second.append(it) }
                     fn?.get("arguments")?.jsonPrimitive?.contentOrNull?.let { acc.third.append(it) }
@@ -181,7 +192,7 @@ class AiClient(baseHttp: OkHttpClient) {
             }
             Reply(
                 content = text.toString(),
-                toolCalls = calls.map { (i, acc) ->
+                toolCalls = calls.mapIndexed { i, acc ->
                     ToolCall(
                         id = acc.first.toString().ifEmpty { "call_$i" },
                         name = acc.second.toString(),

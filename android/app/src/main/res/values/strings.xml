@@ -350,6 +350,7 @@
     <string name="ai_chat_divider_now">antes ↑  ·  ahora ↓</string>
     <string name="ai_console_run">La IA ejecuta el programa (cargo run)…</string>
     <string name="ai_chat_retry">Reintentar</string>
+    <string name="ai_chat_bad_request_hint">Si sigue fallando, abrí una charla nueva con +</string>
     <string name="ai_chat_copy">Copiar</string>
     <string name="ai_notif_channel_working">IA trabajando</string>
     <string name="ai_notif_channel_done">IA terminó</string>

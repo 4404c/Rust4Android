@@ -346,6 +346,7 @@
     <string name="ai_chat_divider_now">before ↑  ·  now ↓</string>
     <string name="ai_console_run">The AI runs the program (cargo run)…</string>
     <string name="ai_chat_retry">Retry</string>
+    <string name="ai_chat_bad_request_hint">If it keeps failing, start a new chat with +</string>
     <string name="ai_chat_copy">Copy</string>
     <string name="ai_notif_channel_working">AI working</string>
     <string name="ai_notif_channel_done">AI finished</string>

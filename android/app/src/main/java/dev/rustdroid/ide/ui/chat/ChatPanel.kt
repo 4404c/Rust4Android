@@ -461,6 +461,18 @@ fun ChatPanel(
                             }
                         }
                     }
+                    // R4A: un 400 (pedido inválido) suele repetirse; los pasajeros (red, 429, 503) no.
+                    // También al reabrir una charla que terminó así (ahí no hay Reintentar).
+                    if (!busy && messages.lastOrNull()?.let { it.role == ChatSession.Role.ERROR && isBadRequest(it.text) } == true) {
+                        item(key = "retry-hint") {
+                            Text(
+                                stringResource(R.string.ai_chat_bad_request_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                     // entre paso y paso (usando herramientas) también se ve que sigue trabajando
                     if (busy && messages.lastOrNull()?.role != ChatSession.Role.ASSISTANT) {
                         item(key = "working") {
@@ -826,3 +838,10 @@ private fun complementary(c: Color): Color {
     hsv[0] = (hsv[0] + 180f) % 360f
     return Color(android.graphics.Color.HSVToColor(hsv))
 }
+
+/**
+ * R4A: el error es un 400 ("pedido inválido"): el proveedor rechaza la charla
+ * tal como está, así que Reintentar suele no alcanzar. Todos los clientes lo
+ * escriben como "Error 400…" (ver AiClient, ChatGptClient, AnthropicChat).
+ */
+internal fun isBadRequest(error: String): Boolean = Regex("""^Error 400\b""").containsMatchIn(error.trimStart())
