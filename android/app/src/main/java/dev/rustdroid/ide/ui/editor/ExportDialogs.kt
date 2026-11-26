@@ -187,18 +187,49 @@ private fun DefaultGameIcon(modifier: Modifier) {
 @Composable
 fun ExportedApkDialog(apk: File, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    // R4A (alcance de archivos): en modo seguro el APK queda en la copia privada
+    // de R4A; "Guardar como…" lo copia donde elijas (sin permiso de almacenamiento)
+    val isPrivate = apk.absolutePath.startsWith(context.cacheDir.absolutePath)
+    val saveAs = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument(APK_MIME),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ok = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { out -> apk.inputStream().use { it.copyTo(out) } }
+                ?: error("no output")
+        }.isSuccess
+        android.widget.Toast.makeText(
+            context,
+            if (ok) context.getString(R.string.export_saved_to, uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':') ?: apk.name)
+            else context.getString(R.string.common_failed),
+            android.widget.Toast.LENGTH_LONG,
+        ).show()
+        onDismiss()
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.export_ready_title)) },
-        text = { Text(stringResource(R.string.export_ready_text, apk.absolutePath)) },
+        text = {
+            Text(
+                if (isPrivate) stringResource(R.string.export_ready_private)
+                else stringResource(R.string.export_ready_text, apk.absolutePath),
+            )
+        },
         confirmButton = {
             TextButton(onClick = { installApk(context, apk); onDismiss() }) {
                 Text(stringResource(R.string.export_install))
             }
         },
         dismissButton = {
-            TextButton(onClick = { shareApk(context, apk); onDismiss() }) {
-                Text(stringResource(R.string.export_share))
+            androidx.compose.foundation.layout.Row {
+                if (isPrivate) {
+                    TextButton(onClick = { runCatching { saveAs.launch(apk.name) } }) {
+                        Text(stringResource(R.string.export_save_as))
+                    }
+                }
+                TextButton(onClick = { shareApk(context, apk); onDismiss() }) {
+                    Text(stringResource(R.string.export_share))
+                }
             }
         },
     )

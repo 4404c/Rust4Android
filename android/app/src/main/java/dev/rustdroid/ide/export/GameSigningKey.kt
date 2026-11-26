@@ -30,13 +30,74 @@ object GameSigningKey {
     class Key(val privateKey: PrivateKey, val certificate: X509Certificate)
 
     private const val KEY_FILE = "r4a-games.pk8"
+    private const val SEALED_KEY_FILE = "r4a-games.pk8.sealed"
     private const val CERT_FILE = "r4a-games.der"
 
+    /**
+     * R4A (alcance de archivos): cifra la clave privada en disco. En la app es
+     * Android Keystore ([KeystoreSealer], la pone RustDroidApp): un programa
+     * que corre en R4A puede leer el archivo, pero no descifrarlo. null =
+     * archivo sin cifrar (tests en la JVM).
+     */
+    interface Sealer {
+        fun seal(plain: ByteArray): ByteArray
+        fun open(sealed: ByteArray): ByteArray
+    }
+
+    @Volatile
+    var sealer: Sealer? = null
+
+    /**
+     * Los bytes PKCS#8 de la clave, o null si no hay. Una clave vieja sin
+     * cifrar se cifra acá (y se borra la sin cifrar solo si la cifrada se
+     * puede abrir y es idéntica). Si la cifrada no se puede abrir, tira error:
+     * NUNCA se crea otra clave encima (perderla = los juegos no se actualizan).
+     */
+    @Synchronized
+    private fun readKeyBytes(dir: File): ByteArray? {
+        val sealed = File(dir, SEALED_KEY_FILE)
+        val plain = File(dir, KEY_FILE)
+        val s = sealer
+        if (sealed.isFile) {
+            val opener = s ?: error("the game signing key is encrypted and can not be opened here")
+            return opener.open(sealed.readBytes())
+        }
+        if (!plain.isFile) return null
+        val bytes = plain.readBytes()
+        if (s != null) runCatching { writeSealed(dir, bytes, s); plain.delete() }
+        return bytes
+    }
+
+    @Synchronized
+    private fun writeKeyBytes(dir: File, bytes: ByteArray) {
+        dir.mkdirs()
+        val s = sealer
+        if (s == null) {
+            File(dir, KEY_FILE).writeBytes(bytes)
+            File(dir, SEALED_KEY_FILE).delete()
+        } else {
+            writeSealed(dir, bytes, s)
+            File(dir, KEY_FILE).delete()
+        }
+    }
+
+    /** Escribe la cifrada y comprueba que se abre igual antes de darla por buena. */
+    private fun writeSealed(dir: File, bytes: ByteArray, s: Sealer) {
+        val data = s.seal(bytes)
+        check(s.open(data).contentEquals(bytes)) { "the sealed key does not open back" }
+        val tmp = File(dir, "$SEALED_KEY_FILE.tmp")
+        tmp.writeBytes(data)
+        if (!tmp.renameTo(File(dir, SEALED_KEY_FILE))) {
+            tmp.delete()
+            error("could not save the sealed key")
+        }
+    }
+
     fun loadOrCreate(dir: File, owner: String = "R4A"): Key {
-        val keyFile = File(dir, KEY_FILE)
         val certFile = File(dir, CERT_FILE)
-        if (keyFile.isFile && certFile.isFile) {
-            val key = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyFile.readBytes()))
+        val keyBytes = readKeyBytes(dir)
+        if (keyBytes != null && certFile.isFile) {
+            val key = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(keyBytes))
             val cert = CertificateFactory.getInstance("X.509")
                 .generateCertificate(certFile.inputStream()) as X509Certificate
             return Key(key, cert)
@@ -44,12 +105,13 @@ object GameSigningKey {
         val created = create(owner)
         dir.mkdirs()
         certFile.writeBytes(created.certificate.encoded)
-        keyFile.writeBytes(created.privateKey.encoded)
+        writeKeyBytes(dir, created.privateKey.encoded)
         return created
     }
 
     /** Is there a key already (some game was exported or a backup restored)? */
-    fun exists(dir: File) = File(dir, KEY_FILE).isFile && File(dir, CERT_FILE).isFile
+    fun exists(dir: File) =
+        (File(dir, KEY_FILE).isFile || File(dir, SEALED_KEY_FILE).isFile) && File(dir, CERT_FILE).isFile
 
     /** Short fingerprint of the certificate, to tell keys apart ("AB:12:…"). */
     fun fingerprint(key: Key): String =
@@ -72,9 +134,12 @@ object GameSigningKey {
         require(password.size >= MIN_PASSWORD) { "password too short" }
         val zip = ByteArrayOutputStream()
         java.util.zip.ZipOutputStream(zip).use { z ->
-            for (name in listOf(KEY_FILE, CERT_FILE)) {
+            // el respaldo lleva la clave sin el cifrado del Keystore (es de este
+            // celu); va protegida con la contraseña del usuario
+            val keyBytes = readKeyBytes(dir) ?: error("no key")
+            for ((name, bytes) in listOf(KEY_FILE to keyBytes, CERT_FILE to File(dir, CERT_FILE).readBytes())) {
                 z.putNextEntry(java.util.zip.ZipEntry(name))
-                z.write(File(dir, name).readBytes())
+                z.write(bytes)
                 z.closeEntry()
             }
         }
@@ -119,7 +184,7 @@ object GameSigningKey {
         val cert = CertificateFactory.getInstance("X.509")
             .generateCertificate(certBytes.inputStream()) as X509Certificate
         dir.mkdirs()
-        File(dir, KEY_FILE).writeBytes(keyBytes)
+        writeKeyBytes(dir, keyBytes)
         File(dir, CERT_FILE).writeBytes(certBytes)
         return Key(key, cert)
     }

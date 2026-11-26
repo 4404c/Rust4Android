@@ -20,6 +20,15 @@ class ProjectLeftoversTest {
         ProjectLeftovers.caches(files, canonical).forEach { File(it, "x/y.bin").apply { parentFile.mkdirs(); writeText("z") } }
         File(ProjectLeftovers.chatsDir(files, canonical), "1.json").apply { parentFile.mkdirs(); writeText("{}") }
         ProjectLeftovers.exportIcon(files, canonical).apply { parentFile.mkdirs(); writeText("png") }
+        File(ProjectLeftovers.runHome(files, canonical), "partida.sav").apply { parentFile.mkdirs(); writeText("nivel 3") }
+    }
+
+    @Test
+    fun `run home matches the HOME cargo and the program get`() {
+        val files = tmp.newFolder("files")
+        val project = tmp.newFolder("files", "projects", "p")
+        val canonical = ProjectLeftovers.canonical(project)
+        assertEquals(ProcEnv.projectHome(files, project), ProjectLeftovers.runHome(files, canonical))
     }
 
     @Test
@@ -40,7 +49,9 @@ class ProjectLeftoversTest {
         ProjectLeftovers.caches(files, a).forEach { assertFalse(it.exists()) }
         assertFalse(ProjectLeftovers.chatsDir(files, a).exists())
         assertFalse(ProjectLeftovers.exportIcon(files, a).exists())
+        assertFalse(ProjectLeftovers.runHome(files, a).exists())
         ProjectLeftovers.caches(files, b).forEach { assertTrue(it.exists()) }
+        assertTrue(ProjectLeftovers.runHome(files, b).exists())
         assertTrue(ProjectLeftovers.chatsDir(files, b).exists())
     }
 
@@ -52,6 +63,7 @@ class ProjectLeftoversTest {
         ProjectLeftovers.delete(files, c, userData = false)
         ProjectLeftovers.caches(files, c).forEach { assertFalse(it.exists()) }
         assertTrue(ProjectLeftovers.chatsDir(files, c).exists())
+        assertTrue(ProjectLeftovers.runHome(files, c).exists())
     }
 
     @Test
@@ -64,6 +76,8 @@ class ProjectLeftoversTest {
         assertTrue(File(ProjectLeftovers.chatsDir(files, new), "1.json").isFile)
         assertFalse(ProjectLeftovers.chatsDir(files, old).exists())
         assertTrue(ProjectLeftovers.exportIcon(files, new).isFile)
+        assertEquals("nivel 3", File(ProjectLeftovers.runHome(files, new), "partida.sav").readText())
+        assertFalse(ProjectLeftovers.runHome(files, old).exists())
         ProjectLeftovers.caches(files, old).forEach { assertFalse(it.exists()) }
     }
 }

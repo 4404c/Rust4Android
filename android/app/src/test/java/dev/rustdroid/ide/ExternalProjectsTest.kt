@@ -113,13 +113,18 @@ class ExternalProjectsTest {
     }
 
     @Test
-    fun `vanished external folders drop out of the list instead of crashing`() {
+    fun `vanished external folders stay listed as unreachable instead of crashing`() {
         val repo = repo()
         val ext = tmp.newFolder("extfolder")
         repo.registerExternal(ext)
         // the folder is deleted/moved on storage (by the user, not by us)
         ext.deleteRecursively()
-        assertEquals(0, repo.list().count { it.external })
+        // R4A (alcance de archivos): se muestra con aviso (sin permiso en modo
+        // seguro pasa lo mismo), en vez de desaparecer sin explicación
+        val listed = repo.list().filter { it.external }
+        assertEquals(1, listed.size)
+        assertTrue(listed[0].unreachable)
+        assertEquals("extfolder", listed[0].name)
     }
 
     @Test

@@ -22,6 +22,8 @@ class RustDroidApp : Application() {
         // instead of vanishing with the process. Chained to the platform
         // handler so the system crash flow is unchanged.
         CrashRecorder.install(filesDir)
+        // R4A (alcance de archivos): la clave que firma los juegos, cifrada con el Keystore
+        dev.rustdroid.ide.export.GameSigningKey.sealer = dev.rustdroid.ide.export.KeystoreSealer
         container = AppContainer(this)
         dev.rustdroid.ide.util.AppSettings.init(this)
         dev.rustdroid.ide.ai.AiSettings.init(this)

@@ -485,6 +485,55 @@
     <string name="ai_ask_run">La IA quiere correr el programa en tu celular. %1$s ¿Lo permitís? Vale mientras este proyecto siga abierto.</string>
     <string name="ai_ask_build">La IA cambió %1$s. Al compilar, cargo baja crates de internet y corre su código (y el de build.rs) en tu celular. %2$s%3$s ¿Lo permitís?</string>
     <string name="ai_ask_new_crates">Crates nuevas: %1$s.</string>
-    <string name="ai_ask_reach_project">Lo que corre puede leer, cambiar y borrar tus proyectos de R4A.</string>
-    <string name="ai_ask_reach_storage">Lo que corre puede leer, cambiar y borrar tus proyectos de R4A y los archivos de la memoria del celular (R4A tiene permiso de almacenamiento).</string>
+    <string name="ai_ask_reach_project">Lo que corre puede leer, cambiar y borrar tus proyectos de R4A, pero no la memoria del celular (modo seguro).</string>
+    <string name="ai_ask_reach_storage">Lo que corre puede leer, cambiar y borrar tus proyectos de R4A y los archivos de la memoria del celular (Opciones → Seguridad → Acceso al celular está permitido).</string>
+    <!-- R4A (alcance de archivos): modo seguro -->
+    <string name="settings_group_security">Seguridad</string>
+    <string name="phone_access_title">Acceso al celular</string>
+    <string name="phone_access_intro">Qué pueden tocar la IA y los programas que corrés.</string>
+    <string name="phone_access_safe">Solo el proyecto (recomendado)</string>
+    <string name="phone_access_safe_desc">Los programas que corrés no pueden ver tus fotos, descargas ni otras carpetas del celular.</string>
+    <string name="phone_access_phone">El proyecto y la memoria del celular</string>
+    <string name="phone_access_phone_desc">Para abrir proyectos que están afuera de R4A (por ejemplo en Scripts/). Los programas que corras van a poder leer, cambiar y borrar cualquier archivo de la memoria del celular. Usalo solo con código en el que confiás.</string>
+    <string name="phone_access_ai_note">La IA siempre trabaja solo dentro del proyecto abierto, elijas lo que elijas.</string>
+    <string name="phone_access_pending">El permiso de almacenamiento todavía está: se saca cuando cierres R4A.</string>
+    <string name="phone_access_apply_now">Aplicar ahora</string>
+    <string name="phone_access_confirm_title">¿Dar acceso al celular?</string>
+    <string name="phone_access_confirm_text">Los programas que corras en R4A (y el código de las crates al compilar) van a poder leer, cambiar y borrar cualquier archivo de la memoria del celular: fotos, descargas, documentos. Android te va a pedir el permiso.</string>
+    <string name="phone_access_confirm_yes">Entiendo, permitir</string>
+    <string name="phone_access_denied">Android no dio el permiso. Si antes tocaste «No volver a preguntar», tenés que darlo en los ajustes de R4A.</string>
+    <string name="phone_access_open_settings">Abrir ajustes</string>
+    <string name="phone_access_copying">Copiando proyectos a R4A…</string>
+    <string name="phone_access_question_title">Nuevo: modo seguro</string>
+    <string name="phone_access_question_text">Ahora R4A puede trabajar sin el permiso de almacenamiento. Así, los programas que corrés no pueden tocar tus fotos, descargas ni otras carpetas del celular. La IA ya trabajaba solo en el proyecto.</string>
+    <plurals name="phone_access_question_projects">
+        <item quantity="one">Tenés %1$d proyecto afuera de R4A (%2$s). Se copia a R4A; el original queda donde está, sin cambios.</item>
+        <item quantity="other">Tenés %1$d proyectos afuera de R4A (%2$s). Se copian a R4A; los originales quedan donde están, sin cambios.</item>
+    </plurals>
+    <string name="phone_access_use_safe">Usar modo seguro</string>
+    <string name="phone_access_copy_and_safe">Copiar y usar modo seguro</string>
+    <string name="phone_access_keep">Dejar el acceso al celular</string>
+    <string name="phone_access_apply_title">Modo seguro</string>
+    <plurals name="phone_access_copied">
+        <item quantity="one">Se copió %d proyecto a R4A.</item>
+        <item quantity="other">Se copiaron %d proyectos a R4A.</item>
+    </plurals>
+    <string name="phone_access_copy_failed">No se pudo copiar: %s</string>
+    <string name="phone_access_copy_failed_nothing">No se pudo copiar: %s. R4A sigue con acceso al celular; los que sí se copiaron ya están en R4A.</string>
+    <string name="phone_access_apply_text_auto">R4A deja el permiso de almacenamiento cuando se cierra. Cerrala ahora para que se aplique.</string>
+    <string name="phone_access_apply_text_manual">En esta versión de Android, el permiso se saca a mano: en los ajustes de R4A, Permisos → Archivos y contenido multimedia → No permitir.</string>
+    <string name="phone_access_done">Listo: R4A está en modo seguro.</string>
+    <string name="phone_access_close_now">Cerrar R4A ahora</string>
+    <string name="phone_access_later">Después</string>
+    <string name="phone_access_folder_blocked_title">Modo seguro</string>
+    <string name="phone_access_folder_blocked_text">R4A está en modo seguro: no abre carpetas del celular en su lugar. Podés importar una copia: elegís la carpeta y R4A la copia a sus proyectos (la original no se toca). Para eso Android te pide el permiso un momento, y R4A lo devuelve al cerrarse. O podés permitir el acceso al celular en Opciones.</string>
+    <string name="phone_access_go_settings">Ir a Opciones</string>
+    <string name="phone_access_import_copy">Importar una copia</string>
+    <string name="home_unreachable_card">No se puede abrir desde R4A (tocá para ver por qué)</string>
+    <string name="home_unreachable_safe">Este proyecto está afuera de R4A (%1$s) y R4A está en modo seguro, así que no puede leerlo. Para usarlo: permití el acceso al celular en Opciones, o quitalo de la lista e importá una copia con el botón de carpeta. Quitarlo de la lista no borra nada.</string>
+    <string name="home_unreachable_missing">R4A no encuentra esta carpeta (%1$s): puede que la hayas movido o borrado. Quitarla de la lista no borra nada.</string>
+    <string name="home_unreachable_remove">Quitar de la lista</string>
+    <string name="export_save_as">Guardar como…</string>
+    <string name="export_saved_to">Guardado en %s</string>
+    <string name="export_ready_private">El APK está listo. R4A está en modo seguro y no lo guarda en Descargas: tocá «Guardar como…» para elegir dónde dejarlo, o instalalo o compartilo directamente.</string>
 </resources>

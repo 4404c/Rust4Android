@@ -123,6 +123,8 @@ class EditorViewModel(
         cargoTargetDir = ProcEnv.redirectedTargetDir(
             container.context.filesDir, projectDir,
         ),
+        // R4A (alcance de archivos): HOME/TMPDIR propios de este proyecto
+        projectHome = ProcEnv.projectHome(container.context.filesDir, projectDir),
     )
 
     // ---- tabs ----
@@ -864,16 +866,16 @@ class EditorViewModel(
                 val key = dev.rustdroid.ide.export.GameSigningKey.loadOrCreate(File(ctx.filesDir, "signing"))
                 val fileName = options.appName.replace(Regex("[^A-Za-z0-9._ -]"), "_").trim()
                     .ifEmpty { "juego" } + "-" + options.versionName + ".apk"
-                // Download/R4A when shared storage is writable, else app storage
+                // Download/R4A when shared storage is writable. R4A (alcance de
+                // archivos): in safe mode (no storage permission) the APK stays
+                // in the private copy; the dialog offers "Guardar como…" (SAF)
                 val public = File(
                     android.os.Environment.getExternalStoragePublicDirectory(
                         android.os.Environment.DIRECTORY_DOWNLOADS,
                     ),
                     "R4A",
                 )
-                val dir = if ((public.isDirectory || public.mkdirs()) && public.canWrite()) public
-                else File(ctx.getExternalFilesDir(null), "exports")
-                val out = File(dir, fileName)
+                val publicOk = (public.isDirectory || public.mkdirs()) && public.canWrite()
                 val icon = exportIconFile.takeIf { it.isFile }?.readBytes()
                 // R4A (auditoría B4): se arma en una carpeta PRIVADA (la que usa
                 // "Instalar", que otra app no puede cambiar) y se copia a Descargas
@@ -884,7 +886,7 @@ class EditorViewModel(
                     template, lib, options, key, File(ctx.cacheDir, "export"), private, icon,
                     dev.rustdroid.ide.export.GameAssets.collect(projectDir),
                 )
-                private.copyTo(out, overwrite = true)
+                val out = if (publicOk) File(public, fileName).also { private.copyTo(it, overwrite = true) } else private
                 exportPrefs.edit()
                     .putString("$exportKey|name", options.appName)
                     .putString("$exportKey|package", options.packageName)

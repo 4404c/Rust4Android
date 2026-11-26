@@ -18,6 +18,7 @@ object AppSettings {
     private const val KEY_AUTO_COMPLETE = "auto_complete"
     private const val KEY_THEME_MODE = "theme_mode"
     private const val KEY_CODE_THEME = "code_theme"
+    private const val KEY_PHONE_ACCESS = "phone_access"
 
     /** R4A: Chat IA en el editor (cajón a la derecha). Activado por defecto. */
     private val _aiChatEnabled = MutableStateFlow(true)
@@ -35,6 +36,23 @@ object AppSettings {
     fun setAiAskBeforeDelete(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("ai_ask_before_delete", on).apply()
         _aiAskBeforeDelete.value = on
+    }
+
+    /**
+     * R4A (alcance de archivos): false = modo seguro, R4A no tiene permiso de
+     * almacenamiento y lo que corre (cargo, programas, juegos) no ve la
+     * memoria del celular. true = el usuario permitió el acceso al celular
+     * (proyectos en Scripts/, Descargas…). La IA queda siempre en el proyecto.
+     */
+    private val _phoneAccess = MutableStateFlow(false)
+    val phoneAccess: StateFlow<Boolean> = _phoneAccess.asStateFlow()
+
+    /** Ya se eligió el modo (en Opciones o en la pregunta de Inicio). */
+    fun phoneAccessDecided(context: Context): Boolean = prefs(context).contains(KEY_PHONE_ACCESS)
+
+    fun setPhoneAccess(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean(KEY_PHONE_ACCESS, on).apply()
+        _phoneAccess.value = on
     }
 
     /** Ferrdroid (la mascota) en el inicio. */
@@ -114,6 +132,7 @@ object AppSettings {
         _tourSeen.value = prefs(context).getBoolean("tour_seen", false)
         _aiChatEnabled.value = prefs(context).getBoolean("ai_chat_enabled", true)
         _aiAskBeforeDelete.value = prefs(context).getBoolean("ai_ask_before_delete", true)
+        _phoneAccess.value = prefs(context).getBoolean(KEY_PHONE_ACCESS, false)
         prefs(context).let { p ->
             _customColors.value = CustomColors(
                 p.getInt("custom_primary", DEFAULT_CUSTOM.primary),

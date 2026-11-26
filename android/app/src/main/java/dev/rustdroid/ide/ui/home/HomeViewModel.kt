@@ -113,41 +113,8 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
         }
     }
 
-    /**
-     * R4A (auditoría B18): prefs con clave por proyecto. [newCanonical] null =
-     * se borran; si no, pasan a la ruta nueva. Exportar: "<ruta>|campo".
-     * Borradores del chat: la clave es la ruta del archivo de la charla.
-     */
-    private fun forgetPrefs(oldCanonical: String, newCanonical: String?) {
-        val ctx = container.context
-        val export = ctx.getSharedPreferences("r4a_export", android.content.Context.MODE_PRIVATE)
-        val e = export.edit()
-        for ((k, v) in export.all) {
-            if (!k.startsWith("$oldCanonical|")) continue
-            e.remove(k)
-            if (newCanonical != null) {
-                val nk = newCanonical + k.removePrefix(oldCanonical)
-                when (v) {
-                    is String -> e.putString(nk, v)
-                    is Int -> e.putInt(nk, v)
-                    is Long -> e.putLong(nk, v)
-                    is Boolean -> e.putBoolean(nk, v)
-                    is Float -> e.putFloat(nk, v)
-                }
-            }
-        }
-        e.apply()
-        val oldChats = ProjectLeftovers.chatsDir(ctx.filesDir, oldCanonical).absolutePath + java.io.File.separator
-        val newChats = newCanonical?.let { ProjectLeftovers.chatsDir(ctx.filesDir, it).absolutePath + java.io.File.separator }
-        val drafts = ctx.getSharedPreferences("r4a_chat_drafts", android.content.Context.MODE_PRIVATE)
-        val d = drafts.edit()
-        for ((k, v) in drafts.all) {
-            if (!k.startsWith(oldChats)) continue
-            d.remove(k)
-            if (newChats != null && v is String) d.putString(newChats + k.removePrefix(oldChats), v)
-        }
-        d.apply()
-    }
+    private fun forgetPrefs(oldCanonical: String, newCanonical: String?) =
+        PhoneAccess.movePrefs(container.context, oldCanonical, newCanonical)
 
     fun clearError() { _error.value = null }
 
@@ -239,6 +206,44 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
             result.fold(
                 onSuccess = { ref -> onDone(ref, null) },
                 onFailure = { onDone(null, it.message ?: "could not open the folder as a project") },
+            )
+        }
+    }
+
+    /**
+     * R4A (alcance de archivos): modo seguro — copia a R4A una carpeta
+     * elegida con el selector de Android (no hace falta permiso de
+     * almacenamiento). [onDone] recibe el ref del proyecto nuevo o un error.
+     */
+    fun importTree(treeUri: Uri, onDone: (String?, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val tree = dev.rustdroid.ide.projects.SafTree(container.context.contentResolver, treeUri)
+                    val dir = repo.importTree(tree, tree.rootId, tree.displayName())
+                    repo.refOf(dir)
+                }
+            }
+            _projects.value = withContext(Dispatchers.IO) { repo.list() }
+            result.fold(
+                onSuccess = { onDone(it, null) },
+                onFailure = { onDone(null, it.message ?: "could not copy the folder") },
+            )
+        }
+    }
+
+    /**
+     * R4A (alcance de archivos): modo seguro en Android 13+ — copia a R4A una
+     * carpeta elegida en el selector propio de R4A (con el permiso prestado un
+     * momento; después se devuelve). [onDone] recibe el ref nuevo o un error.
+     */
+    fun importFolderCopy(dir: File, onDone: (String?, String?) -> Unit) {
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { repo.refOf(repo.importFolder(dir)) } }
+            _projects.value = withContext(Dispatchers.IO) { repo.list() }
+            result.fold(
+                onSuccess = { onDone(it, null) },
+                onFailure = { onDone(null, it.message ?: "could not copy the folder") },
             )
         }
     }

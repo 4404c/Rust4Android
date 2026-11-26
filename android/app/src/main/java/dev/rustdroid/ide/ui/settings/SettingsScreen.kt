@@ -96,6 +96,9 @@ fun SettingsScreen(
             SettingsHeader(stringResource(R.string.settings_group_editor))
             EditorCard(onOpenCodeThemes)
 
+            SettingsHeader(stringResource(R.string.settings_group_security))
+            PhoneAccessCard(container)
+
             SettingsHeader(stringResource(R.string.settings_group_general))
             LanguageCard()
             AppearanceCard()
@@ -483,6 +486,162 @@ private fun AppearanceCard() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+/**
+ * R4A (alcance de archivos): qué pueden tocar la IA y los programas.
+ * "Solo el proyecto" = R4A sin permiso de almacenamiento (por defecto).
+ */
+@Composable
+private fun PhoneAccessCard(container: AppContainer) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val phoneAccess by dev.rustdroid.ide.util.AppSettings.phoneAccess.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var confirmAccess by remember { mutableStateOf(false) }
+    var copyQuestion by remember { mutableStateOf<List<String>?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<dev.rustdroid.ide.ui.home.PhoneAccess.GoSafeResult?>(null) }
+    var denied by remember { mutableStateOf(false) }
+    // se vuelve a mirar al volver de los ajustes de Android
+    var hasPermission by remember { mutableStateOf(dev.rustdroid.ide.ui.home.PhoneAccess.hasStoragePermission(context)) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                hasPermission = dev.rustdroid.ide.ui.home.PhoneAccess.hasStoragePermission(context)
+            }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    val permission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        hasPermission = granted
+        if (granted) dev.rustdroid.ide.util.AppSettings.setPhoneAccess(context, true) else denied = true
+    }
+    fun goSafe(copy: Boolean) {
+        busy = true
+        scope.launch {
+            result = dev.rustdroid.ide.ui.home.PhoneAccess.goSafe(container, copy)
+            busy = false
+            hasPermission = dev.rustdroid.ide.ui.home.PhoneAccess.hasStoragePermission(context)
+        }
+    }
+
+    ExpandableCard(stringResource(R.string.phone_access_title)) {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                stringResource(R.string.phone_access_intro),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            PhoneAccessOption(
+                selected = !phoneAccess,
+                title = stringResource(R.string.phone_access_safe),
+                description = stringResource(R.string.phone_access_safe_desc),
+            ) {
+                if (!phoneAccess || busy) return@PhoneAccessOption
+                val names = dev.rustdroid.ide.ui.home.PhoneAccess.readableExternal(container).map { it.name }
+                if (names.isEmpty()) goSafe(copy = false) else copyQuestion = names
+            }
+            PhoneAccessOption(
+                selected = phoneAccess,
+                title = stringResource(R.string.phone_access_phone),
+                description = stringResource(R.string.phone_access_phone_desc),
+            ) {
+                if (!phoneAccess && !busy) confirmAccess = true
+            }
+            if (!phoneAccess && hasPermission) {
+                // eligió modo seguro pero el permiso todavía está (falta cerrar R4A)
+                Text(
+                    stringResource(R.string.phone_access_pending),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedButton(onClick = { goSafe(copy = false) }, enabled = !busy) {
+                    Text(stringResource(R.string.phone_access_apply_now))
+                }
+            }
+            Text(
+                stringResource(R.string.phone_access_ai_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
+    if (confirmAccess) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmAccess = false },
+            title = { Text(stringResource(R.string.phone_access_confirm_title)) },
+            text = { Text(stringResource(R.string.phone_access_confirm_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmAccess = false
+                    if (dev.rustdroid.ide.ui.home.PhoneAccess.hasStoragePermission(context)) {
+                        dev.rustdroid.ide.util.AppSettings.setPhoneAccess(context, true)
+                    } else {
+                        permission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    }
+                }) { Text(stringResource(R.string.phone_access_confirm_yes)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmAccess = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+    if (denied) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { denied = false },
+            text = { Text(stringResource(R.string.phone_access_denied)) },
+            confirmButton = {
+                TextButton(onClick = { denied = false; dev.rustdroid.ide.ui.home.PhoneAccess.openAppSettings(context) }) {
+                    Text(stringResource(R.string.phone_access_open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { denied = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+    copyQuestion?.let { names ->
+        dev.rustdroid.ide.ui.home.SafeModeQuestionDialog(
+            externalNames = names,
+            onSafe = { copyQuestion = null; goSafe(copy = true) },
+            onKeepAccess = { copyQuestion = null },
+            onDismiss = { copyQuestion = null },
+        )
+    }
+    if (busy) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            text = { Text(stringResource(R.string.phone_access_copying)) },
+            confirmButton = {},
+        )
+    }
+    result?.let { dev.rustdroid.ide.ui.home.SafeModeResultDialog(it) { result = null } }
+}
+
+@Composable
+private fun PhoneAccessOption(selected: Boolean, title: String, description: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.Top,
+    ) {
+        androidx.compose.material3.RadioButton(selected = selected, onClick = onClick)
+        Column(Modifier.padding(start = 4.dp, top = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

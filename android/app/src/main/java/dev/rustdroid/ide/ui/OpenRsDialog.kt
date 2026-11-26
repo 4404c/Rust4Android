@@ -79,7 +79,7 @@ fun OpenRsDialog(
             },
             onFailure = { loadError = it.message ?: "cannot read the file" },
         )
-        projects = withContext(Dispatchers.IO) { repo.list() }
+        projects = withContext(Dispatchers.IO) { repo.list().filterNot { it.unreachable } }
     }
 
     val nameOk = name.matches(Regex("[a-zA-Z][a-zA-Z0-9_-]*"))

@@ -83,7 +83,7 @@ class HomeTools(private val repo: dev.rustdroid.ide.projects.ProjectRepository) 
     }
 
     private suspend fun listProjects(): ProjectTools.Outcome {
-        val list = withContext(Dispatchers.IO) { repo.list() }
+        val list = withContext(Dispatchers.IO) { repo.list().filterNot { it.unreachable } }
         val text = if (list.isEmpty()) "(no hay proyectos todavía)"
         else list.joinToString("\n") { "${it.name} (${it.dependencyCount} dependencias)" }
         return ProjectTools.Outcome(text, "Miró tus proyectos (${list.size})")

@@ -133,6 +133,119 @@ fun HomeScreen(
         )
     }
 
+    // ---- R4A (alcance de archivos): modo seguro y la pregunta de una vez ----
+    val phoneAccess by dev.rustdroid.ide.util.AppSettings.phoneAccess.collectAsStateWithLifecycle()
+    var safeQuestion by remember { mutableStateOf<List<String>?>(null) }
+    var safeBusy by remember { mutableStateOf(false) }
+    var safeResult by remember { mutableStateOf<PhoneAccess.GoSafeResult?>(null) }
+    var folderBlocked by remember { mutableStateOf(false) }
+    var unreachableTarget by remember { mutableStateOf<ProjectSummary?>(null) }
+    val safeScope = androidx.compose.runtime.rememberCoroutineScope()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (dev.rustdroid.ide.util.AppSettings.phoneAccessDecided(appContext)) return@LaunchedEffect
+        if (PhoneAccess.hasStoragePermission(appContext)) {
+            // ya tenía el permiso (instalación de antes): se pregunta una vez
+            safeQuestion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                PhoneAccess.readableExternal(container).map { it.name }
+            }
+        } else {
+            dev.rustdroid.ide.util.AppSettings.setPhoneAccess(appContext, false)
+        }
+    }
+    safeQuestion?.let { names ->
+        if (!tourOpen) SafeModeQuestionDialog(
+            externalNames = names,
+            onSafe = {
+                safeQuestion = null
+                safeBusy = true
+                safeScope.launch {
+                    safeResult = PhoneAccess.goSafe(container, copy = true)
+                    safeBusy = false
+                    vm.refresh()
+                }
+            },
+            onKeepAccess = {
+                safeQuestion = null
+                dev.rustdroid.ide.util.AppSettings.setPhoneAccess(appContext, true)
+            },
+        )
+    }
+    // modo seguro: "abrir carpeta" importa una COPIA con el selector de Android (sin permiso)
+    val importTreePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            safeBusy = true
+            vm.importTree(uri) { ref, err ->
+                safeBusy = false
+                if (ref != null) onOpenProject(ref) else vm.reportError(err ?: "")
+            }
+        }
+    }
+    // Android 13+: el selector de Android no lista nada en algunos celulares
+    // (probado: moto g54, Android 15). Se presta el permiso un momento, se elige
+    // en el selector propio de R4A, se copia y R4A lo devuelve al cerrarse.
+    var showImportPicker by remember { mutableStateOf(false) }
+    val importDeniedMsg = stringResource(R.string.home_storage_required)
+    fun importDone(copied: Int) {
+        val automatic = if (PhoneAccess.hasStoragePermission(appContext)) PhoneAccess.revokeStorage(appContext) else null
+        if (automatic != null || copied > 0) {
+            safeResult = PhoneAccess.GoSafeResult.Done(PhoneAccess.CopyResult(copied, emptyList()), automatic)
+        }
+    }
+    val importPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) showImportPicker = true else vm.reportError(importDeniedMsg)
+    }
+    val startImport = {
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (PhoneAccess.hasStoragePermission(appContext)) showImportPicker = true
+            else importPermission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            runCatching { importTreePicker.launch(null) }.onFailure { vm.reportError(it.message ?: "") }
+        }
+    }
+    if (showImportPicker) {
+        FolderPickerDialog(
+            root = vm.storageRoot,
+            onPick = { dir ->
+                showImportPicker = false
+                safeBusy = true
+                vm.importFolderCopy(dir) { ref, err ->
+                    safeBusy = false
+                    if (ref == null) vm.reportError(err ?: "")
+                    importDone(if (ref != null) 1 else 0)
+                }
+            },
+            onDismiss = { showImportPicker = false; importDone(0) },
+        )
+    }
+    if (safeBusy) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {},
+            text = { Text(stringResource(R.string.phone_access_copying)) },
+            confirmButton = {},
+        )
+    }
+    safeResult?.let { SafeModeResultDialog(it) { safeResult = null } }
+    if (folderBlocked) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { folderBlocked = false },
+            title = { Text(stringResource(R.string.phone_access_folder_blocked_title)) },
+            text = { Text(stringResource(R.string.phone_access_folder_blocked_text)) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    folderBlocked = false
+                    startImport()
+                }) {
+                    Text(stringResource(R.string.phone_access_import_copy))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { folderBlocked = false; onOpenSettings() }) {
+                    Text(stringResource(R.string.phone_access_go_settings))
+                }
+            },
+        )
+    }
+
     androidx.compose.runtime.LaunchedEffect(Unit) {
         // saluda una vez por sesión de la app; sin proyectos, explica cómo empezar
         kotlinx.coroutines.delay(400)
@@ -185,7 +298,9 @@ fun HomeScreen(
     // R4A: R4A's own folder picker (the system one refuses some folders
     // "to protect your privacy"); the system picker stays as a fallback
     val openFolderPicker = {
-        when (val perm = vm.storagePermissionToRequest()) {
+        // R4A (alcance de archivos): en modo seguro R4A no pide el permiso
+        if (!phoneAccess) folderBlocked = true
+        else when (val perm = vm.storagePermissionToRequest()) {
             null -> showFolderPicker = true
             else -> storagePermission.launch(perm)
         }
@@ -320,14 +435,18 @@ fun HomeScreen(
                     ProjectCard(
                         project = project,
                         onClick = {
-                            onOpenProject(container.projectRepository.refOf(project.dir))
+                            if (project.unreachable) unreachableTarget = project
+                            else onOpenProject(container.projectRepository.refOf(project.dir))
                         },
                         onOpenTerminal = {
                             onOpenTerminal(container.projectRepository.refOf(project.dir))
                         },
                         onDelete = { deleteTarget = project },
                         onRename = { if (!project.external) renameTarget = project },
-                        onOpenChat = { onOpenProjectChat(container.projectRepository.refOf(project.dir)) },
+                        onOpenChat = {
+                            if (project.unreachable) unreachableTarget = project
+                            else onOpenProjectChat(container.projectRepository.refOf(project.dir))
+                        },
                         ai = aiActivity[container.chatStore.keyOf(project.dir)],
                     )
                 }
@@ -350,6 +469,36 @@ fun HomeScreen(
                 }
             },
             onDismiss = { if (!creating) showNewDialog = false },
+        )
+    }
+
+    // R4A (alcance de archivos): proyecto de afuera que R4A no puede leer
+    unreachableTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { unreachableTarget = null },
+            title = { Text(target.name) },
+            text = {
+                Text(
+                    stringResource(
+                        if (phoneAccess) R.string.home_unreachable_missing else R.string.home_unreachable_safe,
+                        target.dir.path,
+                    ),
+                )
+            },
+            confirmButton = {
+                if (!phoneAccess) {
+                    TextButton(onClick = { unreachableTarget = null; onOpenSettings() }) {
+                        Text(stringResource(R.string.phone_access_go_settings))
+                    }
+                } else {
+                    TextButton(onClick = { unreachableTarget = null }) { Text(stringResource(R.string.common_dismiss)) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.removeExternal(target); unreachableTarget = null }) {
+                    Text(stringResource(R.string.home_unreachable_remove))
+                }
+            },
         )
     }
 
@@ -447,7 +596,11 @@ private fun ProjectCard(
                     )
                 }
                 val fmt = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
-                Text(
+                if (project.unreachable) Text(
+                    stringResource(R.string.home_unreachable_card),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                ) else Text(
                     stringResource(R.string.home_modified, fmt.format(Date(project.lastModifiedMs))) +
                         when {
                             project.dependencyCount >= 0 -> stringResource(R.string.home_deps_count, project.dependencyCount)
@@ -505,7 +658,7 @@ private fun ProjectCard(
                             onClick = { menu = false; onRename() },
                         )
                     }
-                    androidx.compose.material3.DropdownMenuItem(
+                    if (!project.unreachable) androidx.compose.material3.DropdownMenuItem(
                         text = { Text(stringResource(R.string.terminal_title)) },
                         leadingIcon = { Icon(RdIcons.Terminal, null) },
                         onClick = { menu = false; onOpenTerminal() },

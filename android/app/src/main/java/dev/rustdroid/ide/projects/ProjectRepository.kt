@@ -62,13 +62,19 @@ class ProjectRepository(
         val internal = dirs.map { dir ->
             summary(dir, external = false)
         }
-        // Folders opened in place. Registered-but-vanished folders (deleted
-        // or unmounted storage) silently drop out of the list instead of
-        // crashing the Home screen.
+        // Folders opened in place. R4A (alcance de archivos): one R4A can not
+        // read (safe mode without storage permission, deleted, unmounted)
+        // stays in the list as `unreachable`, so Home can say why, instead
+        // of silently dropping out.
         val external = readRegistry()
             .map { File(it) }
-            .filter { it.isDirectory && it.canRead() }
-            .map { dir -> summary(dir, external = true) }
+            .map { dir ->
+                if (dir.isDirectory && dir.canRead()) summary(dir, external = true)
+                else dev.rustdroid.ide.model.ProjectSummary(
+                    name = dir.name, dir = dir, lastModifiedMs = 0L, dependencyCount = -1,
+                    external = true, unreachable = true,
+                )
+            }
         return (internal + external).sortedByDescending { it.lastModifiedMs }
     }
 
@@ -152,6 +158,112 @@ class ProjectRepository(
         if (canonical in paths) return null
         writeRegistry(paths + canonical)
         return File(canonical)
+    }
+
+    /** R4A: every registered external folder, readable right now or not. */
+    fun registeredExternal(): List<File> = readRegistry().map(::File)
+
+    /**
+     * R4A (alcance de archivos): copies an external project INTO R4A's own
+     * projects folder and forgets the external one. The original folder is
+     * only read, never changed. Skips `target/` (build output, rebuilt) and
+     * symlinks (never followed out of the folder). The copy gets a project
+     * name R4A accepts ("R4A RUST PRUEBAS" -> "R4A_RUST_PRUEBAS"), with
+     * `_2`, `_3`… when taken. Returns the new project folder.
+     */
+    fun copyIntoR4A(dir: File): File {
+        val target = importFolder(dir, addCargo = false)
+        unregisterExternal(dir)
+        return target
+    }
+
+    /**
+     * R4A (alcance de archivos): copies any folder into R4A's projects
+     * (same rules as [copyIntoR4A]) without touching the original;
+     * [addCargo] adds Cargo.toml + src/main.rs when missing. Returns the
+     * new project folder.
+     */
+    fun importFolder(dir: File, addCargo: Boolean = true): File {
+        if (!dir.isDirectory) throw IOException("'${dir.path}' is not a folder")
+        val target = newProjectDir(dir.name)
+        val tmp = File(projectsRoot, ".copy-" + target.name)
+        Fs.deleteRecursively(tmp)
+        try {
+            copyTree(dir, tmp, top = true)
+            if (!tmp.renameTo(target)) throw IOException("could not copy '${dir.name}'")
+        } finally {
+            if (tmp.exists()) Fs.deleteRecursively(tmp)
+        }
+        if (addCargo) ensureCargoProject(target, target.name)
+        return target
+    }
+
+    /** A free folder in R4A's projects for a project called [folderName] (`_2`, `_3`… when taken). */
+    private fun newProjectDir(folderName: String): File {
+        projectsRoot.mkdirs()
+        val base = internalNameFor(folderName)
+        var target = File(projectsRoot, base)
+        var n = 2
+        while (target.exists()) target = File(projectsRoot, "${base}_${n++}")
+        return target
+    }
+
+    /**
+     * R4A (alcance de archivos): a folder read through Android's folder
+     * picker (SAF), which needs no storage permission. Pure, so the copy
+     * itself is tested on the JVM with a fake.
+     */
+    interface TreeSource {
+        class Entry(val id: String, val name: String, val isDirectory: Boolean, val size: Long)
+        fun children(id: String): List<Entry>
+        fun open(id: String): java.io.InputStream
+    }
+
+    /**
+     * R4A (alcance de archivos): imports a COPY of a folder picked with
+     * Android's picker into R4A's projects (safe mode: no storage
+     * permission). Skips `target/`, refuses odd names and folders bigger
+     * than [maxBytes]; adds Cargo.toml + src/main.rs only when missing.
+     * Returns the new project folder.
+     */
+    fun importTree(source: TreeSource, rootId: String, displayName: String, maxBytes: Long = 300L * 1024 * 1024): File {
+        val target = newProjectDir(displayName)
+        val tmp = File(projectsRoot, ".import-" + target.name)
+        Fs.deleteRecursively(tmp)
+        var total = 0L
+        var files = 0
+        fun copy(id: String, to: File, top: Boolean) {
+            if (!to.mkdirs() && !to.isDirectory) throw IOException("could not create '${to.path}'")
+            for (e in source.children(id)) {
+                if (e.name.isEmpty() || e.name == "." || e.name == ".." || '/' in e.name || '\\' in e.name) continue
+                if (top && e.name == "target") continue
+                val dest = File(to, e.name)
+                if (e.isDirectory) { copy(e.id, dest, top = false); continue }
+                total += maxOf(0L, e.size)
+                if (total > maxBytes || ++files > 50_000) throw IOException("the folder is too big to copy into R4A")
+                source.open(e.id).use { input -> dest.outputStream().use { input.copyTo(it) } }
+            }
+        }
+        try {
+            copy(rootId, tmp, top = true)
+            if (!tmp.renameTo(target)) throw IOException("could not copy '$displayName'")
+        } finally {
+            if (tmp.exists()) Fs.deleteRecursively(tmp)
+        }
+        ensureCargoProject(target, target.name)
+        return target
+    }
+
+    private fun copyTree(from: File, to: File, top: Boolean) {
+        if (!to.mkdirs() && !to.isDirectory) throw IOException("could not create '${to.path}'")
+        val children = from.listFiles() ?: throw IOException("cannot read '${from.path}'")
+        for (child in children) {
+            if (java.nio.file.Files.isSymbolicLink(child.toPath())) continue
+            if (top && child.name == "target") continue
+            val dest = File(to, child.name)
+            if (child.isDirectory) copyTree(child, dest, top = false)
+            else child.copyTo(dest, overwrite = false)
+        }
     }
 
     /** Forgets an external folder. Its files are never touched. */
@@ -469,6 +581,21 @@ class ProjectRepository(
     }
 
     companion object {
+        /**
+         * R4A: a project name R4A accepts (same rule as [rename]: a letter,
+         * then letters, digits, `-` and `_`) made from any folder name.
+         */
+        fun internalNameFor(folderName: String): String {
+            val clean = folderName.trim()
+                .replace(Regex("[^A-Za-z0-9_-]+"), "_")
+                .trim('_')
+            return when {
+                clean.isEmpty() -> "proyecto"
+                clean[0].isLetter() -> clean
+                else -> "p_$clean"
+            }
+        }
+
         /** src/main.rs stub for toolchain-free project scaffolds. */
         const val TEMPLATE_MAIN_RS =
             "fn main() {\n    println!(\"Hello from R4A!\");\n}\n"

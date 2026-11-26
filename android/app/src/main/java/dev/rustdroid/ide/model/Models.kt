@@ -96,6 +96,12 @@ data class ProjectSummary(
      * (plain-folder editing).
      */
     val external: Boolean = false,
+    /**
+     * R4A (alcance de archivos): an external folder R4A can not read right
+     * now (safe mode — no storage permission — or the folder is gone). Shown
+     * with a notice instead of silently dropping out of the list.
+     */
+    val unreachable: Boolean = false,
 )
 
 /** A node in the editor file tree. */

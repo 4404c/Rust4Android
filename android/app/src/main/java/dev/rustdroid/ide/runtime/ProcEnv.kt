@@ -80,6 +80,23 @@ object ProcEnv {
     }
 
     /**
+     * R4A (alcance de archivos): HOME of what runs for ONE project (cargo,
+     * build.rs, the program): files/run/<16 hex of the project's canonical
+     * path>. A program that writes or deletes under `~` (or a crate that
+     * "cleans its data folder") hits this folder, not the shared HOME with
+     * the crate cache, other projects' data or R4A's settings. Accident
+     * protection, not a wall: absolute paths still reach anything R4A can.
+     * CARGO_HOME stays shared (the crate cache).
+     */
+    fun projectHome(filesDir: File, projectDir: File): File {
+        val sha = MessageDigest.getInstance("SHA-256")
+            .digest(projectDir.canonicalPath.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+            .take(16)
+        return File(File(filesDir, "run"), sha)
+    }
+
+    /**
      * Environment for cargo/rustc invocations. [extraPath] is prepended
      * after the toolchain bin (e.g. system bin dir on device).
      *
@@ -119,14 +136,17 @@ object ProcEnv {
          *  patch), and verbose mode floods both cargo's stderr and the
          *  console. Pass true only while actively debugging TLS setup. */
         httpDebug: Boolean = false,
+        /** R4A: [projectHome] — HOME and TMPDIR of this project's runs; null = shared HOME (terminal, toolchain). */
+        projectHome: File? = null,
     ): Map<String, String> {
         ensureDirs(filesDir)
+        projectHome?.let { File(it, "tmp").mkdirs() }
         return buildMap {
-            put("HOME", homeDir(filesDir).absolutePath)
+            put("HOME", (projectHome ?: homeDir(filesDir)).absolutePath)
             put("CARGO_HOME", cargoHome(filesDir).absolutePath)
             put("PATH", "${binDir(prefix).absolutePath}:$extraPath:/system/xbin")
             put("LD_LIBRARY_PATH", libDir(prefix).absolutePath)
-            put("TMPDIR", tmpDir(filesDir).absolutePath)
+            put("TMPDIR", (projectHome?.let { File(it, "tmp") } ?: tmpDir(filesDir)).absolutePath)
             // plain output: the parser reads severity markers directly and
             // the console panel colors by stream (stdout/stderr)
             put("CARGO_TERM_COLOR", "never")

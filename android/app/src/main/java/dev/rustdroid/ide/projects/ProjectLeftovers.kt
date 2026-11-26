@@ -13,7 +13,8 @@ import java.security.MessageDigest
  * - Cachés (se rearman solos): `check/<k>` (errores en vivo),
  *   `games/<k>` (compilaciones del juego), `build/<k>` (target de proyectos
  *   externos). k = 16 hex del SHA-256 de la ruta.
- * - Del usuario: `chats/<sha1>` (charlas y cambios) y `export-icons/<k>.png`.
+ * - Del usuario: `chats/<sha1>` (charlas y cambios), `export-icons/<k>.png`
+ *   y `run/<k>` (HOME de lo que corre en el proyecto: lo que el programa guarda en `~`).
  *
  * Mantener en sincronía con LiveChecker.key, GameBuild.key,
  * ProcEnv.redirectedTargetDir, ChatStore.project y EditorViewModel.exportIconFile.
@@ -31,6 +32,10 @@ object ProjectLeftovers {
     fun chatsDir(filesDir: File, canonicalPath: String): File =
         File(filesDir, "chats/" + hex(MessageDigest.getInstance("SHA-1").digest(canonicalPath.toByteArray())))
 
+    /** R4A (alcance de archivos): mismo lugar que ProcEnv.projectHome. */
+    fun runHome(filesDir: File, canonicalPath: String): File =
+        File(filesDir, "run/${key16(canonicalPath)}")
+
     fun exportIcon(filesDir: File, canonicalPath: String): File =
         File(filesDir, "export-icons/${key16(canonicalPath)}.png")
 
@@ -39,6 +44,7 @@ object ProjectLeftovers {
         caches(filesDir, canonicalPath).forEach { Fs.deleteRecursively(it) }
         if (userData) {
             Fs.deleteRecursively(chatsDir(filesDir, canonicalPath))
+            Fs.deleteRecursively(runHome(filesDir, canonicalPath))
             exportIcon(filesDir, canonicalPath).delete()
         }
     }
@@ -53,6 +59,15 @@ object ProjectLeftovers {
             if (!oldChats.renameTo(newChats)) {
                 oldChats.copyRecursively(newChats, overwrite = false)
                 Fs.deleteRecursively(oldChats)
+            }
+        }
+        val oldRun = runHome(filesDir, oldCanonical)
+        val newRun = runHome(filesDir, newCanonical)
+        if (oldRun.isDirectory && !newRun.exists()) {
+            newRun.parentFile?.mkdirs()
+            if (!oldRun.renameTo(newRun)) {
+                oldRun.copyRecursively(newRun, overwrite = false)
+                Fs.deleteRecursively(oldRun)
             }
         }
         val oldIcon = exportIcon(filesDir, oldCanonical)

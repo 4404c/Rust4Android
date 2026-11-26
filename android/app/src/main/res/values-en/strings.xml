@@ -481,6 +481,55 @@
     <string name="ai_ask_run">The AI wants to run the program on your phone. %1$s Allow it? It lasts while this project stays open.</string>
     <string name="ai_ask_build">The AI changed %1$s. When building, cargo downloads crates from the internet and runs their code (and build.rs) on your phone. %2$s%3$s Allow it?</string>
     <string name="ai_ask_new_crates">New crates: %1$s.</string>
-    <string name="ai_ask_reach_project">What runs can read, change and delete your R4A projects.</string>
-    <string name="ai_ask_reach_storage">What runs can read, change and delete your R4A projects and the files in your phone\'s storage (R4A has storage permission).</string>
+    <string name="ai_ask_reach_project">What runs can read, change and delete your R4A projects, but not the phone\'s storage (safe mode).</string>
+    <string name="ai_ask_reach_storage">What runs can read, change and delete your R4A projects and the files in the phone\'s storage (Settings → Security → Phone access is allowed).</string>
+    <!-- R4A (file reach): safe mode -->
+    <string name="settings_group_security">Security</string>
+    <string name="phone_access_title">Phone access</string>
+    <string name="phone_access_intro">What the AI and the programs you run can touch.</string>
+    <string name="phone_access_safe">Only the project (recommended)</string>
+    <string name="phone_access_safe_desc">Programs you run can\'t see your photos, downloads or other folders on the phone.</string>
+    <string name="phone_access_phone">The project and the phone\'s storage</string>
+    <string name="phone_access_phone_desc">To open projects outside R4A (for example in Scripts/). Programs you run will be able to read, change and delete any file in the phone\'s storage. Use it only with code you trust.</string>
+    <string name="phone_access_ai_note">The AI always works only inside the open project, whatever you pick.</string>
+    <string name="phone_access_pending">The storage permission is still there: it is removed when you close R4A.</string>
+    <string name="phone_access_apply_now">Apply now</string>
+    <string name="phone_access_confirm_title">Give access to the phone?</string>
+    <string name="phone_access_confirm_text">Programs you run in R4A (and crate code while building) will be able to read, change and delete any file in the phone\'s storage: photos, downloads, documents. Android will ask you for the permission.</string>
+    <string name="phone_access_confirm_yes">I understand, allow</string>
+    <string name="phone_access_denied">Android did not grant the permission. If you tapped “Don\'t ask again” before, grant it in R4A\'s settings.</string>
+    <string name="phone_access_open_settings">Open settings</string>
+    <string name="phone_access_copying">Copying projects into R4A…</string>
+    <string name="phone_access_question_title">New: safe mode</string>
+    <string name="phone_access_question_text">R4A can now work without the storage permission. That way, programs you run can\'t touch your photos, downloads or other folders on the phone. The AI already worked only in the project.</string>
+    <plurals name="phone_access_question_projects">
+        <item quantity="one">You have %1$d project outside R4A (%2$s). It is copied into R4A; the original stays where it is, unchanged.</item>
+        <item quantity="other">You have %1$d projects outside R4A (%2$s). They are copied into R4A; the originals stay where they are, unchanged.</item>
+    </plurals>
+    <string name="phone_access_use_safe">Use safe mode</string>
+    <string name="phone_access_copy_and_safe">Copy and use safe mode</string>
+    <string name="phone_access_keep">Keep phone access</string>
+    <string name="phone_access_apply_title">Safe mode</string>
+    <plurals name="phone_access_copied">
+        <item quantity="one">%d project was copied into R4A.</item>
+        <item quantity="other">%d projects were copied into R4A.</item>
+    </plurals>
+    <string name="phone_access_copy_failed">Could not copy: %s</string>
+    <string name="phone_access_copy_failed_nothing">Could not copy: %s. R4A still has phone access; the ones that were copied are already in R4A.</string>
+    <string name="phone_access_apply_text_auto">R4A gives up the storage permission when it closes. Close it now to apply it.</string>
+    <string name="phone_access_apply_text_manual">On this Android version the permission is removed by hand: in R4A\'s settings, Permissions → Files and media → Don\'t allow.</string>
+    <string name="phone_access_done">Done: R4A is in safe mode.</string>
+    <string name="phone_access_close_now">Close R4A now</string>
+    <string name="phone_access_later">Later</string>
+    <string name="phone_access_folder_blocked_title">Safe mode</string>
+    <string name="phone_access_folder_blocked_text">R4A is in safe mode: it does not open phone folders in place. You can import a copy: you pick the folder and R4A copies it into its projects (the original is not touched). For that Android asks you for the permission for a moment, and R4A gives it back when it closes. Or you can allow phone access in Settings.</string>
+    <string name="phone_access_go_settings">Go to Settings</string>
+    <string name="phone_access_import_copy">Import a copy</string>
+    <string name="home_unreachable_card">Can\'t be opened from R4A (tap to see why)</string>
+    <string name="home_unreachable_safe">This project is outside R4A (%1$s) and R4A is in safe mode, so it can\'t read it. To use it: allow phone access in Settings, or remove it from the list and import a copy with the folder button. Removing it from the list deletes nothing.</string>
+    <string name="home_unreachable_missing">R4A can\'t find this folder (%1$s): you may have moved or deleted it. Removing it from the list deletes nothing.</string>
+    <string name="home_unreachable_remove">Remove from list</string>
+    <string name="export_save_as">Save as…</string>
+    <string name="export_saved_to">Saved to %s</string>
+    <string name="export_ready_private">The APK is ready. R4A is in safe mode and does not save it to Downloads: tap “Save as…” to pick where to keep it, or install or share it directly.</string>
 </resources>

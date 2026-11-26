@@ -30,6 +30,22 @@ class ProcEnvTest {
     }
 
     @Test
+    fun `project home gives each project its own HOME and TMPDIR but the shared crate cache`() {
+        val prefix = tmp.newFolder("usr3")
+        val files = tmp.newFolder("files3")
+        val a = tmp.newFolder("files3", "projects", "a")
+        val b = tmp.newFolder("files3", "projects", "b")
+        val homeA = ProcEnv.projectHome(files, a)
+        val env = ProcEnv.env(prefix, files, caBundle = null, projectHome = homeA)
+        assertEquals(homeA.absolutePath, env["HOME"])
+        assertEquals(File(homeA, "tmp").absolutePath, env["TMPDIR"])
+        assertTrue(File(homeA, "tmp").isDirectory)
+        assertEquals(ProcEnv.cargoHome(files).absolutePath, env["CARGO_HOME"])
+        assertTrue(ProcEnv.projectHome(files, b) != homeA)
+        assertTrue(homeA.toPath().startsWith(File(files, "run").toPath()))
+    }
+
+    @Test
     fun `dirs are created on demand`() {
         val prefix = tmp.newFolder("usr2")
         val files = tmp.newFolder("files2")
