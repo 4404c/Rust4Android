@@ -40,7 +40,10 @@ class ChatStore(
         _activity.value = _activity.value + (key to now)
         // servicio en primer plano mientras alguna trabaja; aviso al terminar sin mirar
         AiWorkService.update(context, _activity.value.values.filter { it.working }.map { it.name })
-        if (!working && finishedUnseen) AiWorkService.notifyFinished(context, name, error)
+        if (!working && finishedUnseen) {
+            val ref = if (key == "home") null else repo.refOf(File(key))
+            AiWorkService.notifyFinished(context, name, ref, error)
+        }
     }
 
     fun isUnread(key: String) = _activity.value[key]?.unread == true

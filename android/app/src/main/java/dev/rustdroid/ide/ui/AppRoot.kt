@@ -84,6 +84,7 @@ fun AppRoot(
     container: AppContainer,
     pendingOpenRs: androidx.compose.runtime.MutableState<Uri?>,
     onPendingRsConsumed: () -> Unit,
+    pendingOpenChat: androidx.compose.runtime.MutableState<String?>? = null,
 ) {
     val vm: AppViewModel = viewModel(
         factory = object : ViewModelProvider.Factory {
@@ -268,6 +269,20 @@ fun AppRoot(
             // Plan §7.5: the in-app license surface — the BusyBox GPL
             // source-asset URL is REQUIRED content here.
             dev.rustdroid.ide.ui.settings.LicensesScreen(onBack = { nav.popBackStack() })
+        }
+    }
+
+    // R4A: se tocó la notificación "La IA terminó en…": ese proyecto con el chat.
+    // Reemplaza cualquier editor abierto; Atrás vuelve a Inicio.
+    val openChatRef = pendingOpenChat?.value
+    LaunchedEffect(openChatRef, state) {
+        val ref = openChatRef ?: return@LaunchedEffect
+        if (state !is ToolchainState.Ready) return@LaunchedEffect
+        pendingOpenChat.value = null
+        if (!container.projectRepository.resolve(ref).isDirectory) return@LaunchedEffect
+        nav.navigate(Routes.editor(ref, chat = true)) {
+            popUpTo(Routes.HOME)
+            launchSingleTop = true
         }
     }
 

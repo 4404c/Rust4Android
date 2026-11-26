@@ -48,7 +48,12 @@ class ProjectRepository(
 
     /** The ref a project directory is navigated by. */
     fun refOf(dir: File): String =
-        if (dir.parentFile == projectsRoot) dir.name else dir.absolutePath
+        if (dir.parentFile == projectsRoot || isInternalCanonical(dir)) dir.name else dir.absolutePath
+
+    // las charlas guardan la ruta canónica (/data/data/...), que no es igual a projectsRoot (/data/user/0/...)
+    private fun isInternalCanonical(dir: File): Boolean = runCatching {
+        dir.canonicalFile.parentFile == projectsRoot.canonicalFile
+    }.getOrDefault(false)
 
     fun list(): List<dev.rustdroid.ide.model.ProjectSummary> {
         val dirs = projectsRoot.listFiles()

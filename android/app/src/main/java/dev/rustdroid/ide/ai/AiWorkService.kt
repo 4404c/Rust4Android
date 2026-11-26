@@ -80,23 +80,33 @@ class AiWorkService : Service() {
             }
         }
 
-        /** "La IA terminó en <proyecto>". Tocarla abre R4A. */
-        fun notifyFinished(context: Context, project: String, error: Boolean) {
+        /** Extra del intent: ref del proyecto a abrir con el chat (lo lee MainActivity). */
+        const val EXTRA_OPEN_CHAT = "dev.rustdroid.ide.OPEN_CHAT"
+
+        /**
+         * "La IA terminó en <proyecto>". Tocarla abre ese proyecto con el chat
+         * ([ref] = ref de ProjectRepository; null = solo abre R4A, p. ej. Inicio).
+         */
+        fun notifyFinished(context: Context, project: String, ref: String?, error: Boolean) {
             val app = context.applicationContext
             createChannels(app)
-            val n = base(app, CHANNEL_DONE)
+            val id = 1000 + (project.hashCode() and 0xffff)
+            val n = base(app, CHANNEL_DONE, ref, id)
                 .setContentTitle(app.getString(if (error) R.string.ai_notif_error_title else R.string.ai_notif_done_title, project))
                 .setContentText(app.getString(R.string.ai_notif_done_text))
                 .setAutoCancel(true)
                 .build()
             val nm = app.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            runCatching { nm.notify(1000 + (project.hashCode() and 0xffff), n) }
+            runCatching { nm.notify(id, n) }
         }
 
-        private fun base(context: Context, channel: String): Notification.Builder {
+        private fun base(context: Context, channel: String, ref: String? = null, requestCode: Int = 0): Notification.Builder {
+            val intent = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            if (ref != null) intent.putExtra(EXTRA_OPEN_CHAT, ref)
+            // un requestCode por proyecto: si no, FLAG_UPDATE_CURRENT pisaría el ref de otra notificación
             val open = PendingIntent.getActivity(
-                context, 0,
-                Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                context, requestCode,
+                intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             @Suppress("DEPRECATION")

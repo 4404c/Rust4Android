@@ -15,6 +15,9 @@ class MainActivity : ComponentActivity() {
     /** Set from ACTION_VIEW .rs intents until AppRoot consumes it (navigates to the imported file). */
     private val pendingOpenRs = mutableStateOf<Uri?>(null)
 
+    /** R4A: ref del proyecto a abrir con el chat (se tocó "La IA terminó en…"). */
+    private val pendingOpenChat = mutableStateOf<String?>(null)
+
     // R4A: UI language chosen in Settings (Spanish by default)
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(dev.rustdroid.ide.util.AppLanguage.wrap(newBase))
@@ -24,6 +27,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         captureRsIntent(intent)
+        captureChatIntent(intent)
         val container = (application as RustDroidApp).container
         setContent {
             RustDroidTheme {
@@ -31,6 +35,7 @@ class MainActivity : ComponentActivity() {
                     container,
                     pendingOpenRs = pendingOpenRs,
                     onPendingRsConsumed = { pendingOpenRs.value = null },
+                    pendingOpenChat = pendingOpenChat,
                 )
             }
         }
@@ -50,6 +55,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         captureRsIntent(intent)
+        captureChatIntent(intent)
+    }
+
+    private fun captureChatIntent(intent: Intent?) {
+        val ref = intent?.getStringExtra(dev.rustdroid.ide.ai.AiWorkService.EXTRA_OPEN_CHAT) ?: return
+        intent.removeExtra(dev.rustdroid.ide.ai.AiWorkService.EXTRA_OPEN_CHAT)
+        pendingOpenChat.value = ref
     }
 
     private fun isInsideAppData(path: String?): Boolean {

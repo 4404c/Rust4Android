@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- R4A (debug only): simulates "the AI finished" to test the
+             notification without calling any AI provider. Only adb (shell
+             holds DUMP) can send it:
+             adb shell am broadcast -a dev.rustdroid.ide.DEBUG_AI_DONE -n dev.rustdroid.ide/.ai.DebugAiDoneReceiver -\-es project <ref> -->
+        <receiver
+            android:name=".ai.DebugAiDoneReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP">
+            <intent-filter>
+                <action android:name="dev.rustdroid.ide.DEBUG_AI_DONE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
