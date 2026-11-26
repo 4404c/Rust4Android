@@ -553,4 +553,5 @@
     <string name="restore_reading">Reading the backup…</string>
     <string name="restore_restoring">Restoring…</string>
     <string name="restore_failed">Could not restore the backup: %s</string>
+    <string name="vm_export_code_bumped">version %1$d is not above the installed game; exporting as version %2$d so it can update</string>
 </resources>

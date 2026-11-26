@@ -557,4 +557,5 @@
     <string name="restore_reading">Leyendo la copia…</string>
     <string name="restore_restoring">Restaurando…</string>
     <string name="restore_failed">No se pudo restaurar la copia: %s</string>
+    <string name="vm_export_code_bumped">la versión %1$d ya es igual o menor que la del juego instalado; se exporta como versión %2$d para que se pueda actualizar</string>
 </resources>

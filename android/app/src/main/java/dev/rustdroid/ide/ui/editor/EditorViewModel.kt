@@ -792,11 +792,15 @@ class EditorViewModel(
     fun exportDefaults(): dev.rustdroid.ide.export.ApkExporter.Options {
         val p = exportPrefs
         val k = exportKey
-        val lastCode = p.getInt("$k|code", 0)
+        val pkg = p.getString("$k|package", null)
+            ?: dev.rustdroid.ide.export.ApkExporter.suggestPackage(projectDir.name)
+        // R4A: the saved counter is lost if R4A is reinstalled, but the game
+        // installed on the phone keeps its version: always go above both, or
+        // Android refuses the update ("el paquete no es válido")
+        val lastCode = maxOf(p.getInt("$k|code", 0), installedGameVersion(pkg))
         return dev.rustdroid.ide.export.ApkExporter.Options(
             appName = p.getString("$k|name", null) ?: projectDir.name,
-            packageName = p.getString("$k|package", null)
-                ?: dev.rustdroid.ide.export.ApkExporter.suggestPackage(projectDir.name),
+            packageName = pkg,
             versionCode = lastCode + 1,
             versionName = p.getString("$k|version", null)?.let { bumpVersion(it) } ?: "1.0",
         )
@@ -860,8 +864,22 @@ class EditorViewModel(
     fun clearExported() { _exported.value = null }
 
     fun exportApk(options: dev.rustdroid.ide.export.ApkExporter.Options) {
-        startCargo(listOf(cargoPath, "build", "--lib", "--release"), game = true, export = options)
+        // R4A: a version code at or below the installed game's would be
+        // refused as a downgrade; bump it instead of failing at install time
+        val installed = installedGameVersion(options.packageName)
+        val opts = if (options.versionCode <= installed) {
+            console.system(str(R.string.vm_export_code_bumped, options.versionCode, installed + 1))
+            options.copy(versionCode = installed + 1)
+        } else options
+        startCargo(listOf(cargoPath, "build", "--lib", "--release"), game = true, export = opts)
     }
+
+    /** versionCode of the exported game already installed on this phone, or 0. */
+    private fun installedGameVersion(pkg: String): Int = runCatching {
+        val info = container.context.packageManager.getPackageInfo(pkg, 0)
+        if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode.toInt()
+        else @Suppress("DEPRECATION") info.versionCode
+    }.getOrDefault(0)
 
     private suspend fun writeApk(lib: File, options: dev.rustdroid.ide.export.ApkExporter.Options) {
         console.system(str(R.string.vm_export_packing))
