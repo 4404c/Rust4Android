@@ -17,10 +17,21 @@ on:
       - 'android/terminal-emulator/**'
       - 'android/terminal-view/**'
       - '.github/workflows/android.yml'
+  # Every pull request to main builds the app and runs the JVM tests, with
+  # no path filter: a required status check that never runs (a docs-only
+  # PR) would block the merge forever. Needs no secrets, so PRs from forks
+  # work too (GitHub runs them with a read-only token).
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# A new push to the same PR cancels the run that is still going.
+concurrency:
+  group: android-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   app:

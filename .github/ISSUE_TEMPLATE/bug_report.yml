@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in R4A doesn't work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Please check the [existing issues](https://github.com/4404c/Rust4Android/issues) first.
+        **Don't paste API keys, passwords or other private data.** For security problems, see [SECURITY.md](https://github.com/4404c/Rust4Android/blob/main/SECURITY.md) instead.
+  - type: input
+    id: version
+    attributes:
+      label: R4A version
+      description: Settings → About.
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Phone model
+      placeholder: "Motorola moto g54"
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version
+      placeholder: "15"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, step by step?
+      placeholder: |
+        1. Open a project made from the Game template
+        2. Tap Run
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Include error messages or console output if there are any. Screenshots help too.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: AI provider and model (if it's about the AI chat), crates you use, how often it happens…

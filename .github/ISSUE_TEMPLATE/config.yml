@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and help
+    url: https://github.com/4404c/Rust4Android/discussions
+    about: Ask how to do something, share what you made, or talk about ideas.
+  - name: Security problem
+    url: https://github.com/4404c/Rust4Android/security/advisories/new
+    about: Report a vulnerability privately. Please don't open a public issue.

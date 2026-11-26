@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest an idea or an improvement for R4A.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the idea! Please check the [existing issues](https://github.com/4404c/Rust4Android/issues) first, in case someone already asked for it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Tell us the problem or the situation, not only the solution. "I want to … but …"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: How could R4A help?
+      description: Your idea of how it could work.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything else?
+      description: Workarounds you use today, other apps that do it well, screenshots or sketches.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself.
