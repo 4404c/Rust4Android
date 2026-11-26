@@ -198,6 +198,16 @@ class ProjectRepository(
         return target
     }
 
+    /** R4A (copia de seguridad): a free project name from [base] (`_2`, `_3`… when taken). */
+    fun freeProjectName(base: String): String = newProjectDir(base).name
+
+    /** R4A (copia de seguridad): is [name] already used by a project folder? */
+    fun projectNameTaken(name: String): Boolean = File(projectsRoot, name).exists()
+
+    /** R4A (copia de seguridad): restores a backup .zip as the new project [name]; never overwrites. */
+    fun restoreBackup(input: java.io.InputStream, name: String, withChats: Boolean, chatsDirFor: (File) -> File): File =
+        ProjectBackup.restore(input, projectsRoot, name, withChats, chatsDirFor)
+
     /** A free folder in R4A's projects for a project called [folderName] (`_2`, `_3`… when taken). */
     private fun newProjectDir(folderName: String): File {
         projectsRoot.mkdirs()

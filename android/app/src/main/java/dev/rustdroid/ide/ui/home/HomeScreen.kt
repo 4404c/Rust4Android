@@ -101,6 +101,14 @@ fun HomeScreen(
 
     androidx.compose.runtime.LaunchedEffect(Unit) { vm.refresh() }
 
+    // R4A: copia de seguridad de un proyecto (.zip) y restaurarla
+    val backup = rememberProjectBackup()
+    val restore = rememberProjectRestore(
+        container,
+        onRestored = { ref -> showNewDialog = false; vm.refresh(); onOpenProject(ref) },
+        onError = { vm.reportError(it) },
+    )
+
     // ---- R4A: Ferrdroid, la mascota ----
     val ferrdroidOn by dev.rustdroid.ide.util.AppSettings.ferrdroidVisible.collectAsStateWithLifecycle()
     val ferrdroid = dev.rustdroid.ide.ui.components.rememberFerrdroidState()
@@ -443,6 +451,7 @@ fun HomeScreen(
                         },
                         onDelete = { deleteTarget = project },
                         onRename = { if (!project.external) renameTarget = project },
+                        onBackup = { backup(project.dir, project.name) },
                         onOpenChat = {
                             if (project.unreachable) unreachableTarget = project
                             else onOpenProjectChat(container.projectRepository.refOf(project.dir))
@@ -469,6 +478,7 @@ fun HomeScreen(
                 }
             },
             onDismiss = { if (!creating) showNewDialog = false },
+            onRestore = restore,
         )
     }
 
@@ -568,6 +578,7 @@ private fun ProjectCard(
     onOpenTerminal: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
+    onBackup: () -> Unit = {},
     onOpenChat: () -> Unit = {},
     /** Qué hace la IA en este proyecto (ruedita, "te escribió", error). */
     ai: dev.rustdroid.ide.ai.ChatStore.Activity? = null,
@@ -662,6 +673,11 @@ private fun ProjectCard(
                         text = { Text(stringResource(R.string.terminal_title)) },
                         leadingIcon = { Icon(RdIcons.Terminal, null) },
                         onClick = { menu = false; onOpenTerminal() },
+                    )
+                    if (!project.unreachable) androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(stringResource(R.string.backup_menu)) },
+                        leadingIcon = { Icon(RdIcons.Folder, null) },
+                        onClick = { menu = false; onBackup() },
                     )
                     androidx.compose.material3.DropdownMenuItem(
                         text = {
@@ -768,6 +784,7 @@ private fun NewProjectDialog(
     log: String?,
     onCreate: (String, ProjectTemplate) -> Unit,
     onDismiss: () -> Unit,
+    onRestore: () -> Unit = {},
 ) {
     var name by remember { mutableStateOf("") }
     var template by remember { mutableStateOf(ProjectTemplate.CONSOLE) }
@@ -798,6 +815,12 @@ private fun NewProjectDialog(
                     ProjectTemplate.entries.forEach { t ->
                         TemplateOption(t, selected = t == template, enabled = !busy) { template = t }
                     }
+                }
+                // R4A: o traer un proyecto de una copia de seguridad
+                TextButton(onClick = onRestore, enabled = !busy) {
+                    Icon(RdIcons.FolderOpen, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.restore_button))
                 }
                 if (busy) {
                     Text(stringResource(R.string.home_running_cargo_new), style = MaterialTheme.typography.bodySmall)

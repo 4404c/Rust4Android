@@ -532,4 +532,24 @@
     <string name="export_save_as">Save as…</string>
     <string name="export_saved_to">Saved to %s</string>
     <string name="export_ready_private">The APK is ready. R4A is in safe mode and does not save it to Downloads: tap “Save as…” to pick where to keep it, or install or share it directly.</string>
+    <!-- R4A: project backup -->
+    <string name="backup_menu">Back up…</string>
+    <string name="backup_title">Back up “%s”</string>
+    <string name="backup_text">The project is saved as a .zip wherever you choose (for example, Downloads). It does not include target/: that is rebuilt on its own.</string>
+    <string name="backup_with_chats">Include the AI chats</string>
+    <string name="backup_no_chats">This project has no AI chats.</string>
+    <string name="backup_save">Save…</string>
+    <string name="backup_saving">Saving the backup…</string>
+    <string name="backup_done_title">Backup saved</string>
+    <string name="backup_done_text">%1$s (%2$s). To get it back: New project → Restore backup (.zip).</string>
+    <string name="backup_failed">Could not save the backup: %s</string>
+    <string name="restore_button">Restore backup (.zip)</string>
+    <string name="restore_title">Restore backup</string>
+    <string name="restore_text">A new project is created from the backup. None of your existing projects is touched.</string>
+    <string name="restore_taken">There is already a project with that name: pick another one.</string>
+    <string name="restore_with_chats">Also bring the AI chats</string>
+    <string name="restore_confirm">Restore</string>
+    <string name="restore_reading">Reading the backup…</string>
+    <string name="restore_restoring">Restoring…</string>
+    <string name="restore_failed">Could not restore the backup: %s</string>
 </resources>

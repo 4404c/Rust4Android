@@ -536,4 +536,24 @@
     <string name="export_save_as">Guardar como…</string>
     <string name="export_saved_to">Guardado en %s</string>
     <string name="export_ready_private">El APK está listo. R4A está en modo seguro y no lo guarda en Descargas: tocá «Guardar como…» para elegir dónde dejarlo, o instalalo o compartilo directamente.</string>
+    <!-- R4A: copia de seguridad de un proyecto -->
+    <string name="backup_menu">Copia de seguridad…</string>
+    <string name="backup_title">Copia de «%s»</string>
+    <string name="backup_text">Se guarda el proyecto en un .zip, donde vos elijas (por ejemplo, Descargas). No incluye target/: se vuelve a compilar solo.</string>
+    <string name="backup_with_chats">Incluir las charlas con la IA</string>
+    <string name="backup_no_chats">Este proyecto no tiene charlas con la IA.</string>
+    <string name="backup_save">Guardar…</string>
+    <string name="backup_saving">Guardando la copia…</string>
+    <string name="backup_done_title">Copia guardada</string>
+    <string name="backup_done_text">%1$s (%2$s). Para recuperarla: Nuevo proyecto → Restaurar copia (.zip).</string>
+    <string name="backup_failed">No se pudo guardar la copia: %s</string>
+    <string name="restore_button">Restaurar copia (.zip)</string>
+    <string name="restore_title">Restaurar copia</string>
+    <string name="restore_text">Se crea un proyecto nuevo con lo que hay en la copia. No se toca ningún proyecto que ya tengas.</string>
+    <string name="restore_taken">Ya hay un proyecto con ese nombre: elegí otro.</string>
+    <string name="restore_with_chats">Traer también las charlas con la IA</string>
+    <string name="restore_confirm">Restaurar</string>
+    <string name="restore_reading">Leyendo la copia…</string>
+    <string name="restore_restoring">Restaurando…</string>
+    <string name="restore_failed">No se pudo restaurar la copia: %s</string>
 </resources>

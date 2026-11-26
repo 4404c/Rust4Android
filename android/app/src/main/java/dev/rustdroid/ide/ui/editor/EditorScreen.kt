@@ -155,6 +155,8 @@ fun EditorScreen(
     val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsStateWithLifecycle()
     val chatDrawerState = rememberEdgeDrawerState()
     var moreMenuOpen by remember { mutableStateOf(false) }
+    // R4A: copia de seguridad del proyecto (⋮ → Copia de seguridad…)
+    val backup = dev.rustdroid.ide.ui.home.rememberProjectBackup()
     LaunchedEffect(Unit) { if (openChat) chatDrawerState.open() }
     val tabs by vm.tabs.collectAsStateWithLifecycle()
     val activeIndex by vm.activeIndex.collectAsStateWithLifecycle()
@@ -657,6 +659,15 @@ fun EditorScreen(
                                 Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.editor_more))
                             }
                             DropdownMenu(expanded = moreMenuOpen, onDismissRequest = { moreMenuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.backup_menu)) },
+                                    leadingIcon = { Icon(RdIcons.Folder, null) },
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        // lo que está sin guardar entra en la copia
+                                        vm.saveAllThen { backup(vm.projectDir, vm.projectDir.name) }
+                                    },
+                                )
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.search_title)) },
                                     leadingIcon = { Icon(Icons.Filled.Search, null) },
