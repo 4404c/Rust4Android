@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ui.home
 
+import dev.rustdroid.ide.projects.ProjectTemplate
 import dev.rustdroid.ide.projects.ProjectLeftovers
 import android.Manifest
 import android.content.pm.PackageManager
@@ -44,14 +45,14 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
         }
     }
 
-    fun create(name: String, isLib: Boolean, game: Boolean, onDone: (Boolean) -> Unit) {
+    fun create(name: String, template: ProjectTemplate, onDone: (Boolean) -> Unit) {
         if (_creating.value) return
         _creating.value = true
         _createLog.value = null
         viewModelScope.launch {
             try {
                 val lines = StringBuilder()
-                val dir = repo.create(name, isLib, game) { line ->
+                val dir = repo.create(name, template) { line ->
                     lines.appendLine(line)
                     _createLog.value = lines.toString()
                 }

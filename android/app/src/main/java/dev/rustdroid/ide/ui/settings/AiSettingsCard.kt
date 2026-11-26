@@ -109,6 +109,13 @@ fun AiSettingsCard(container: AppContainer) {
                 description = stringResource(R.string.settings_ai_chat_desc),
                 checked = chatOn,
             ) { dev.rustdroid.ide.util.AppSettings.setAiChatEnabled(context, it) }
+            // R4A: confirmar antes de que la IA borre un archivo
+            val askDelete by dev.rustdroid.ide.util.AppSettings.aiAskBeforeDelete.collectAsStateWithLifecycle()
+            SwitchRow(
+                title = stringResource(R.string.settings_ai_ask_delete),
+                description = stringResource(R.string.settings_ai_ask_delete_desc),
+                checked = askDelete,
+            ) { dev.rustdroid.ide.util.AppSettings.setAiAskBeforeDelete(context, it) }
             Text(
                 stringResource(R.string.ai_settings_note),
                 style = MaterialTheme.typography.bodySmall,

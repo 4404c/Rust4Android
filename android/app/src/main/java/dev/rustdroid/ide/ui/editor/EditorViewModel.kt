@@ -7,7 +7,9 @@ import dev.rustdroid.ide.R
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.rustdroid.ide.di.AppContainer
+import dev.rustdroid.ide.model.ConsoleLine
 import dev.rustdroid.ide.model.Diagnostic
+import dev.rustdroid.ide.model.Stream
 import dev.rustdroid.ide.model.EditorTab
 import dev.rustdroid.ide.model.FileNode
 import dev.rustdroid.ide.model.JumpRequest
@@ -1047,7 +1049,8 @@ class EditorViewModel(
     fun sendStdin(line: String) {
         // echo into the (selectable) console so the input is visible in
         // the output history and can be copied with the rest
-        console.system("> $line")
+        // R4A: like a terminal — what you typed, as plain output
+        console.echoInput(line)
         stdinPipe.sendLine(line)
     }
 

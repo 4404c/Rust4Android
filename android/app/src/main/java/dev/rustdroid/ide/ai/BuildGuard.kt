@@ -24,11 +24,15 @@ class BuildGuard(private val projectDir: File, private val store: File?) {
     /** Ruta relativa → huella de antes del primer cambio de la IA ("-" = no existía). */
     private val baseline: LinkedHashMap<String, String> by lazy { load() }
 
+    /** R4A: las crates de [dependencies] antes del primer cambio de la IA al Cargo.toml. */
+    private var depsBaseline: Set<String>? = null
+
     /** Llamar ANTES de que la IA escriba o borre [rel]. */
     @Synchronized
     fun beforeAiWrite(rel: String) {
         if (!isSensitive(rel) || rel in baseline) return
         baseline[rel] = hash(rel)
+        if (rel == "Cargo.toml") depsBaseline = deps()
         save()
     }
 
@@ -41,8 +45,21 @@ class BuildGuard(private val projectDir: File, private val store: File?) {
     fun approve() {
         if (baseline.isEmpty()) return
         baseline.clear()
+        depsBaseline = null
         save()
     }
+
+    /** R4A: crates que la IA agregó al Cargo.toml y todavía no se aprobaron. */
+    @Synchronized
+    fun newCrates(): List<String> {
+        baseline // carga lo guardado
+        val before = depsBaseline ?: return emptyList()
+        return (deps() - before).sorted()
+    }
+
+    private fun deps(): Set<String> = runCatching {
+        dev.rustdroid.ide.projects.CargoToml.readDependencies(File(projectDir, "Cargo.toml")).map { it.name }.toSet()
+    }.getOrDefault(emptySet())
 
     private fun hash(rel: String): String {
         val f = File(projectDir, rel)
@@ -55,6 +72,10 @@ class BuildGuard(private val projectDir: File, private val store: File?) {
         val map = LinkedHashMap<String, String>()
         runCatching {
             store?.takeIf { it.isFile }?.readLines()?.forEach { line ->
+                if (line.startsWith(DEPS_KEY)) {
+                    depsBaseline = line.removePrefix(DEPS_KEY).split(',').filter { it.isNotEmpty() }.toSet()
+                    return@forEach
+                }
                 val tab = line.lastIndexOf('\t')
                 if (tab > 0) map[line.substring(0, tab)] = line.substring(tab + 1)
             }
@@ -69,12 +90,16 @@ class BuildGuard(private val projectDir: File, private val store: File?) {
                 s.delete()
             } else {
                 s.parentFile?.mkdirs()
-                dev.rustdroid.ide.util.Fs.writeAtomic(s, baseline.entries.joinToString("\n") { "${it.key}\t${it.value}" })
+                val lines = baseline.entries.map { "${it.key}\t${it.value}" } +
+                    listOfNotNull(depsBaseline?.let { DEPS_KEY + it.joinToString(",") })
+                dev.rustdroid.ide.util.Fs.writeAtomic(s, lines.joinToString("\n"))
             }
         }
     }
 
     companion object {
+        private const val DEPS_KEY = "#deps\t"
+
         /**
          * Archivos que deciden qué código corre al compilar: manifiestos y
          * lockfile (de dónde salen las crates), `.cargo/` (fuentes, linker),

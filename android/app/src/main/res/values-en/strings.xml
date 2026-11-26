@@ -66,7 +66,6 @@
     <string name="common_cancel">Cancel</string>
     <string name="home_new_cargo_project">New cargo project</string>
     <string name="common_name">Name</string>
-    <string name="home_lib_checkbox">Library (--lib) instead of binary (--bin)</string>
     <string name="home_running_cargo_new">running cargo new…</string>
     <string name="common_create">Create</string>
     <string name="home_rename_title">Rename project</string>
@@ -223,7 +222,6 @@
     <string name="vm_game_note">game (macroquad): built as an app from a copy of the project — your files are not changed</string>
     <string name="vm_game_opening">opening the game… (back to return)</string>
     <string name="vm_game_cannot_build">could not prepare the game (%1$s)</string>
-    <string name="home_game_checkbox">Game (macroquad)</string>
     <string name="vm_deps_added_fontdue">added %1$s = \"%2$s\" and fontdue = \"=0.9.3\" (newer ones need Rust 1.87) — downloading…</string>
     <string name="vm_game_closed">(game closed)</string>
     <string name="vm_game_crashed">the game stopped because of an error — see the lines above</string>
@@ -446,4 +444,32 @@
     <string name="settings_editor_card">Code and files</string>
     <string name="settings_ai_chat">AI chat in the editor</string>
     <string name="settings_ai_chat_desc">Shows the AI button and the chat panel inside each project</string>
+    <!-- R4A: New project templates -->
+    <string name="tpl_pick">Template</string>
+    <string name="tpl_console">Console (empty)</string>
+    <string name="tpl_console_desc">A program that prints to the console. The usual starting point.</string>
+    <string name="tpl_interactive">Interactive program</string>
+    <string name="tpl_interactive_desc">Asks for your name and a number, and answers. You type in the console.</string>
+    <string name="tpl_game">2D game (macroquad)</string>
+    <string name="tpl_game_desc">A ball that bounces and follows your finger. Can be exported as an APK.</string>
+    <string name="tpl_structs">Structs and tests</string>
+    <string name="tpl_structs_desc">An example with struct, impl and tests. Run them with cargo test in the Terminal.</string>
+    <string name="tpl_library">Library</string>
+    <string name="tpl_library_desc">Code to reuse from other projects (--lib), with an example test.</string>
+    <string name="tpl_needs_internet">The first build needs internet (it downloads the crates).</string>
+    <!-- R4A: AI permissions -->
+    <string name="settings_ai_ask_delete">Ask before deleting files</string>
+    <string name="settings_ai_ask_delete_desc">The AI asks you before deleting a file. For folders it always asks.</string>
+    <string name="ai_delete_yes">Delete</string>
+    <string name="ai_delete_no">No</string>
+    <string name="ai_ask_delete_file">The AI wants to delete %1$s. You can undo it later.</string>
+    <plurals name="ai_ask_delete_dir">
+        <item quantity="one">The AI wants to delete the folder %1$s (%2$d file). You can undo it later.</item>
+        <item quantity="other">The AI wants to delete the folder %1$s (%2$d files). You can undo it later.</item>
+    </plurals>
+    <string name="ai_ask_run">The AI wants to run the program on your phone. %1$s Allow it? It lasts while this project stays open.</string>
+    <string name="ai_ask_build">The AI changed %1$s. When building, cargo downloads crates from the internet and runs their code (and build.rs) on your phone. %2$s%3$s Allow it?</string>
+    <string name="ai_ask_new_crates">New crates: %1$s.</string>
+    <string name="ai_ask_reach_project">What runs can read, change and delete your R4A projects.</string>
+    <string name="ai_ask_reach_storage">What runs can read, change and delete your R4A projects and the files in your phone\'s storage (R4A has storage permission).</string>
 </resources>

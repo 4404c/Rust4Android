@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -60,6 +59,17 @@ import dev.rustdroid.ide.ui.components.ConfirmDialog
 import dev.rustdroid.ide.ui.components.EmptyState
 import dev.rustdroid.ide.ui.components.RdIcons
 import dev.rustdroid.ide.ui.components.ferrdroidActivity
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import dev.rustdroid.ide.projects.ProjectTemplate
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -330,8 +340,8 @@ fun HomeScreen(
         NewProjectDialog(
             busy = creating,
             log = createLog,
-            onCreate = { name, isLib, game ->
-                vm.create(name, isLib, game) { ok ->
+            onCreate = { name, template ->
+                vm.create(name, template) { ok ->
                     if (ok) {
                         showNewDialog = false
                         ferrdroid.cheer(2500)
@@ -603,12 +613,11 @@ private fun AdoptFolderDialog(
 private fun NewProjectDialog(
     busy: Boolean,
     log: String?,
-    onCreate: (String, Boolean, Boolean) -> Unit,
+    onCreate: (String, ProjectTemplate) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
-    var isLib by remember { mutableStateOf(false) }
-    var isGame by remember { mutableStateOf(false) }
+    var template by remember { mutableStateOf(ProjectTemplate.CONSOLE) }
     val nameOk = name.matches(Regex("[a-zA-Z][a-zA-Z0-9_-]*"))
 
     AlertDialog(
@@ -627,14 +636,15 @@ private fun NewProjectDialog(
                         if (name.isNotEmpty() && !nameOk) Text(stringResource(R.string.common_name_rule))
                     },
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isLib, onCheckedChange = { isLib = it; if (it) isGame = false }, enabled = !busy)
-                    Text(stringResource(R.string.home_lib_checkbox))
-                }
-                // R4A: game template (macroquad), runs as an app
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = isGame, onCheckedChange = { isGame = it; if (it) isLib = false }, enabled = !busy)
-                    Text(stringResource(R.string.home_game_checkbox))
+                // R4A: plantillas — una tarjeta por plantilla, se elige una
+                Text(stringResource(R.string.tpl_pick), style = MaterialTheme.typography.labelLarge)
+                Column(
+                    Modifier.selectableGroup().heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    ProjectTemplate.entries.forEach { t ->
+                        TemplateOption(t, selected = t == template, enabled = !busy) { template = t }
+                    }
                 }
                 if (busy) {
                     Text(stringResource(R.string.home_running_cargo_new), style = MaterialTheme.typography.bodySmall)
@@ -651,12 +661,49 @@ private fun NewProjectDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onCreate(name, isLib, isGame) },
+                onClick = { onCreate(name, template) },
                 enabled = !busy && nameOk,
             ) { Text(stringResource(R.string.common_create)) }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+/** R4A: one template card in Nuevo proyecto: radio, name, one line, internet note. */
+@Composable
+private fun TemplateOption(t: ProjectTemplate, selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(
+                if (selected) 2.dp else 1.dp,
+                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape,
+            )
+            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null, enabled = enabled)
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(t.title), style = MaterialTheme.typography.titleSmall)
+            Text(
+                stringResource(t.description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (t.needsInternet) {
+                Text(
+                    stringResource(R.string.tpl_needs_internet),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
+            }
+        }
+    }
 }
 
 @Composable

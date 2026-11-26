@@ -1,5 +1,6 @@
 package dev.rustdroid.ide.ai
 
+import dev.rustdroid.ide.projects.ProjectTemplate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -60,7 +61,7 @@ class HomeTools(private val repo: dev.rustdroid.ide.projects.ProjectRepository) 
             "create_project",
             "Crea un proyecto de R4A NUEVO (cargo new). Después el usuario lo abre con el botón \"Abrir proyecto\" y ahí se escribe el código.",
             "name" to "Nombre: empieza con letra; solo letras, números, - y _ (por ejemplo pelota_rebota)",
-            "template" to "\"basico\" (hola mundo) o \"juego\" (macroquad con una pelota de ejemplo)",
+            "template" to "\"consola\" (hola mundo), \"interactivo\" (lee lo que escribe el usuario), \"juego\" (macroquad con una pelota de ejemplo), \"structs\" (struct, impl y tests) o \"biblioteca\" (--lib con un test)",
         )
     }
 
@@ -93,10 +94,11 @@ class HomeTools(private val repo: dev.rustdroid.ide.projects.ProjectRepository) 
             "Error: nombre inválido. Tiene que empezar con letra y tener solo letras, números, - y _.",
             "Nombre de proyecto inválido: $name",
         )
-        val game = template.lowercase().let { "jueg" in it || "game" in it || "macroquad" in it }
-        val dir = repo.create(name, isLib = false, game = game)
+        val tpl = ProjectTemplate.fromId(template)
+        val game = tpl == ProjectTemplate.GAME
+        val dir = repo.create(name, tpl)
         return ProjectTools.Outcome(
-            "Listo: proyecto '$name' creado (${if (game) "juego con macroquad" else "básico"}). " +
+            "Listo: proyecto '$name' creado (plantilla ${tpl.id}). " +
                 "Pedile al usuario que toque \"Abrir proyecto\" para seguir; recién ahí vas a poder escribir el código.",
             "Creó el proyecto $name${if (game) " (juego)" else ""}",
             newProjectRef = repo.refOf(dir),

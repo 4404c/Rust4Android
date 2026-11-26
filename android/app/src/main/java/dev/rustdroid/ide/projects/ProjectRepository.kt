@@ -162,8 +162,7 @@ class ProjectRepository(
      */
     suspend fun create(
         name: String,
-        isLib: Boolean,
-        game: Boolean = false,
+        template: ProjectTemplate = ProjectTemplate.CONSOLE,
         onLine: (String) -> Unit = {},
     ): File =
         withContext(Dispatchers.IO) {
@@ -178,7 +177,7 @@ class ProjectRepository(
             // actual stderr instead of a bare exit code.
             val output = StringBuilder()
             val result = runner.run(
-                listOf(cargoPath(), "new", "--vcs", "none", if (isLib) "--lib" else "--bin", name),
+                listOf(cargoPath(), "new", "--vcs", "none", if (template.isLib) "--lib" else "--bin", name),
                 cwd = projectsRoot,
                 env = envProvider(),
                 onLine = { line ->
@@ -195,16 +194,15 @@ class ProjectRepository(
                     else "cargo new failed (exit ${result.exitCode}):\n$tail"
                 )
             }
-            // R4A: game template — macroquad (sound off: smaller and fewer
-            // native pieces) + fontdue pinned, and a small touch demo
-            if (game && !isLib) {
+            // R4A: template — extra crates in Cargo.toml + its example code
+            if (template.dependencies.isNotBlank()) {
                 val toml = File(dir, "Cargo.toml")
                 // cargo new ends the manifest with an empty [dependencies]
                 val base = toml.readText().trimEnd()
                 val deps = if (base.endsWith("[dependencies]")) "" else "\n[dependencies]"
-                Fs.writeAtomic(toml, base + deps + "\n" + GAME_DEPENDENCIES)
-                Fs.writeAtomic(File(dir, "src/main.rs"), GAME_MAIN_RS)
+                Fs.writeAtomic(toml, base + deps + "\n" + template.dependencies)
             }
+            template.code?.let { Fs.writeAtomic(File(dir, template.mainFile), it) }
             dir
         }
 

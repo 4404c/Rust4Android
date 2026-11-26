@@ -289,6 +289,7 @@ class ChatSession(
                             (tools as? ProjectTools)?.let { pt ->
                                 pt.approver = ::askApproval
                                 pt.planMode = _mode.value == Mode.PLAN
+                                pt.askBeforeDelete = dev.rustdroid.ide.util.AppSettings.aiAskBeforeDelete.value
                             }
                             tools.execute(call.name, call.arguments)
                         }
@@ -462,6 +463,19 @@ class ChatSession(
                         return@runCatching "Este cambio es de una carpeta que ya no es la del proyecto abierto; no se deshizo."
                     }
                     val f = Fs.resolveInside(change.projectDir, change.path)
+                    // R4A: carpeta que la IA borró — se vuelve a armar si no hay nada ahí
+                    change.removed?.let { removed ->
+                        if (f.exists()) return@runCatching "Ya hay algo en ${change.path}; no se deshizo."
+                        f.mkdirs()
+                        removed.forEach { (r, text) ->
+                            val t = Fs.resolveInside(change.projectDir, r.removeSuffix("/"))
+                            if (r.endsWith("/")) t.mkdirs() else { t.parentFile?.mkdirs(); Fs.writeAtomic(t, text) }
+                        }
+                        if (b != null && b.projectDir == change.projectDir) {
+                            removed.forEach { (r, text) -> if (!r.endsWith("/")) b.onExternalWrite(r, text) }
+                        }
+                        return@runCatching null
+                    }
                     if (change.isDir) {
                         if (f.isDirectory && (f.list()?.isEmpty() != false)) f.delete()
                         else return@runCatching "La carpeta ${change.path} ya tiene archivos; no se borró."
@@ -495,14 +509,14 @@ class ChatSession(
     // ---------------- R4A (auditoría M4): pedir permiso en el chat ----------------
 
     /** Un pedido de permiso pendiente (tarjeta con Permitir / No permitir). */
-    class Approval(val text: String, internal val answer: kotlinx.coroutines.CompletableDeferred<Boolean>)
+    class Approval(val ask: ProjectTools.Ask, internal val answer: kotlinx.coroutines.CompletableDeferred<Boolean>)
 
     private val _approval = MutableStateFlow<Approval?>(null)
     val approval: StateFlow<Approval?> = _approval.asStateFlow()
 
     /** La IA espera acá hasta que el usuario conteste (o toque Detener). */
-    private suspend fun askApproval(text: String): Boolean {
-        val a = Approval(text, kotlinx.coroutines.CompletableDeferred())
+    private suspend fun askApproval(what: ProjectTools.Ask): Boolean {
+        val a = Approval(what, kotlinx.coroutines.CompletableDeferred())
         _approval.value = a
         _messages.update { it + ChatMessage(Role.TOOL, "Esperando tu permiso…") }
         return try {
@@ -629,10 +643,12 @@ class ChatSession(
             // cambios: hasta ~2 MB por cambio (archivos enormes no se guardan)
             val cj = JSONObject()
             chg.forEach { (id, c) ->
-                if ((c.before?.length ?: 0) + (c.after?.length ?: 0) > 2_000_000) return@forEach
+                val removedSize = c.removed?.values?.sumOf { it.length } ?: 0
+                if ((c.before?.length ?: 0) + (c.after?.length ?: 0) + removedSize > 2_000_000) return@forEach
                 cj.put(id.toString(), JSONObject()
                     .put("dir", c.projectDir.absolutePath).put("path", c.path)
-                    .putOpt("before", c.before).putOpt("after", c.after).put("isDir", c.isDir))
+                    .putOpt("before", c.before).putOpt("after", c.after).put("isDir", c.isDir)
+                    .putOpt("removed", c.removed?.let { JSONObject(it) }))
             }
             if (cj.length() == 0) changesFile.delete() else Fs.writeAtomic(changesFile, cj.toString())
         }
@@ -652,6 +668,7 @@ class ChatSession(
                     if (o.isNull("before") || !o.has("before")) null else o.getString("before"),
                     if (o.isNull("after") || !o.has("after")) null else o.getString("after"),
                     o.optBoolean("isDir"),
+                    o.optJSONObject("removed")?.let { r -> r.keys().asSequence().associateWith { r.getString(it) } },
                 )
             }
             nextChangeId = (changes.keys.maxOrNull() ?: 0) + 1
@@ -753,7 +770,8 @@ class ChatSession(
 
         Herramientas para LEER: list_files, read_file, search_text, get_problems, get_editor_state.
         Herramientas para PROBAR: cargo_check, run_program.
-        Herramientas para CAMBIAR: write_file, edit_file, create_folder, delete_file.
+        Herramientas para CAMBIAR: write_file, edit_file, create_folder, delete_file (archivos o
+        carpetas; el usuario confirma antes de borrar).
         - Antes de cambiar un archivo, leelo. Para cambios chicos usá edit_file; para archivos
           nuevos o reescrituras completas, write_file.
         - Si el usuario pide algo concreto ("haceme...", "agregá...", "arreglá..."), hacelo con

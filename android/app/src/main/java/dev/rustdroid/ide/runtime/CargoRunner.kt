@@ -63,7 +63,11 @@ open class CargoRunner(
         stdin?.attach(BufferedOutputStream(process.outputStream))
 
         val pumps = listOf(
-            launch { pump(BufferedReader(InputStreamReader(process.inputStream, Charsets.UTF_8)), Stream.STDOUT, onLine) },
+            launch {
+                val out = BufferedReader(InputStreamReader(process.inputStream, Charsets.UTF_8))
+                // R4A: interactive run — show a prompt without newline right away
+                if (stdin != null) pumpPartial(out, onLine) else pump(out, Stream.STDOUT, onLine)
+            },
             launch { pump(BufferedReader(InputStreamReader(process.errorStream, Charsets.UTF_8)), Stream.STDERR, onLine) },
         )
 
@@ -101,6 +105,41 @@ open class CargoRunner(
                 val line = reader.readLine() ?: break
                 onLine(ConsoleLine(stream, line))
             }
+        } catch (_: IOException) {
+            // stream closed by destroy()
+        }
+    }
+
+    /**
+     * R4A: like [pump] for stdout, but text that arrives without a newline
+     * (`print!("Nombre: ")` + flush) is sent at once as a [ConsoleLine.partial]
+     * line; what comes after it is sent with [ConsoleLine.continues].
+     */
+    private fun pumpPartial(reader: BufferedReader, onLine: (ConsoleLine) -> Unit) {
+        val sb = StringBuilder()
+        var continuing = false
+        val buf = CharArray(4096)
+        try {
+            while (true) {
+                val n = reader.read(buf)
+                if (n < 0) break
+                for (i in 0 until n) {
+                    val c = buf[i]
+                    if (c == '\n') {
+                        onLine(ConsoleLine(Stream.STDOUT, sb.toString().removeSuffix("\r"), continues = continuing))
+                        sb.setLength(0)
+                        continuing = false
+                    } else {
+                        sb.append(c)
+                    }
+                }
+                if (sb.isNotEmpty() && !reader.ready()) {
+                    onLine(ConsoleLine(Stream.STDOUT, sb.toString(), partial = true, continues = continuing))
+                    sb.setLength(0)
+                    continuing = true
+                }
+            }
+            if (sb.isNotEmpty()) onLine(ConsoleLine(Stream.STDOUT, sb.toString(), continues = continuing))
         } catch (_: IOException) {
             // stream closed by destroy()
         }

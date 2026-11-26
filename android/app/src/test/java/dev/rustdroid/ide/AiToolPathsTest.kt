@@ -108,6 +108,7 @@ class AiToolPathsTest {
         assertTrue(png.contentEquals(img.readBytes()))
 
         // un archivo de texto se sigue pudiendo borrar (y deshacer)
+        tools.approver = { true }
         val d = tools.execute("delete_file", args("path" to "src/main.rs"))
         assertTrue(d.result, d.result.startsWith("Listo"))
         assertEquals("fn main() {}\n", d.change?.before)
@@ -130,5 +131,47 @@ class AiToolPathsTest {
         val w = tools.execute("write_file", args("path" to "link/new.txt", "content" to "x"))
         assertTrue(w.result, w.result.startsWith("Error"))
         assertFalse(File(outside, "new.txt").exists())
+    }
+
+    // R4A: la IA pregunta antes de borrar; si el usuario dice No, no se borra
+    @Test
+    fun `deleting asks first and No keeps the file`() = runBlocking {
+        val (project, tools) = setup()
+        val asked = mutableListOf<ProjectTools.Ask>()
+        tools.approver = { asked += it; false }
+        val d = tools.execute("delete_file", args("path" to "src/main.rs"))
+        assertEquals(ProjectTools.Ask.Delete("src/main.rs", isDir = false), asked.single())
+        assertTrue(d.result, d.result.contains("no quiso borrarlo"))
+        assertTrue(File(project, "src/main.rs").exists())
+
+        // con el interruptor apagado, un archivo se borra sin preguntar
+        tools.askBeforeDelete = false
+        asked.clear()
+        assertTrue(tools.execute("delete_file", args("path" to "src/main.rs")).result.startsWith("Listo"))
+        assertTrue(asked.isEmpty())
+    }
+
+    @Test
+    fun `a folder always asks and keeps its files for undo`() = runBlocking {
+        val (project, tools) = setup()
+        File(project, "src/juego/nivel").mkdirs()
+        File(project, "src/juego/a.rs").writeText("// a\n")
+        tools.askBeforeDelete = false
+        val asked = mutableListOf<ProjectTools.Ask>()
+        tools.approver = { asked += it; false }
+        tools.execute("delete_file", args("path" to "src/juego"))
+        assertEquals(ProjectTools.Ask.Delete("src/juego", isDir = true, fileCount = 1), asked.single())
+        assertTrue(File(project, "src/juego/a.rs").exists())
+
+        tools.approver = { true }
+        val d = tools.execute("delete_file", args("path" to "src/juego"))
+        assertTrue(d.result, d.result.startsWith("Listo"))
+        assertFalse(File(project, "src/juego").exists())
+        assertEquals(
+            mapOf("src/juego/" to "", "src/juego/a.rs" to "// a\n", "src/juego/nivel/" to ""),
+            d.change?.removed,
+        )
+        // src entero no
+        assertTrue(tools.execute("delete_file", args("path" to "src")).result.startsWith("Error"))
     }
 }

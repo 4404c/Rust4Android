@@ -78,6 +78,19 @@ class ConsoleBuffer(
     fun append(line: ConsoleLine) {
         _newLines.tryEmit(line)
         synchronized(lock) {
+            // R4A: the rest of an unfinished line joins it
+            if (line.continues) {
+                val last = deque.lastOrNull()
+                if (last != null && last.partial && last.stream == line.stream) {
+                    deque.removeLast()
+                    deque.addLast(last.copy(text = last.text + line.text, partial = line.partial))
+                    dirty = true
+                    return@synchronized
+                }
+                // the line was already closed (the user typed an answer on it):
+                // a bare newline has nothing left to show
+                if (line.text.isEmpty() && !line.partial) return@synchronized
+            }
             if (deque.size >= capacity) {
                 deque.removeFirst()
                 dropped.incrementAndGet()
@@ -86,6 +99,26 @@ class ConsoleBuffer(
             dirty = true
         }
         maybePublish()
+    }
+
+    /**
+     * R4A: what the user typed, like a terminal echo: on the same line as an
+     * unfinished prompt, or as a line of its own.
+     */
+    fun echoInput(text: String) {
+        val merged = synchronized(lock) {
+            val last = deque.lastOrNull()
+            if (last != null && last.partial) {
+                deque.removeLast()
+                deque.addLast(last.copy(text = last.text + text, partial = false))
+                dirty = true
+                true
+            } else {
+                false
+            }
+        }
+        if (!merged) append(ConsoleLine(Stream.STDOUT, text))
+        flush()
     }
 
     /** Status/system lines are rare and important — always visible at once. */

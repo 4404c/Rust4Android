@@ -485,7 +485,7 @@ fun ChatPanel(
 
         // R4A (auditoría M4): la IA pide permiso para correr código de afuera
         val approval by vm.approval.collectAsStateWithLifecycle()
-        approval?.let { ApprovalCard(it.text, onAnswer = vm::answerApproval) }
+        approval?.let { ApprovalCard(it.ask, onAnswer = vm::answerApproval) }
 
         // key: cada charla tiene su propio borrador
         androidx.compose.runtime.key(vm) {
@@ -503,7 +503,9 @@ fun ChatPanel(
 
 /** R4A (auditoría M4): "¿Lo permitís?" con dos botones, arriba del cuadro de texto. */
 @Composable
-private fun ApprovalCard(text: String, onAnswer: (Boolean) -> Unit) {
+private fun ApprovalCard(ask: dev.rustdroid.ide.ai.ProjectTools.Ask, onAnswer: (Boolean) -> Unit) {
+    val delete = ask is dev.rustdroid.ide.ai.ProjectTools.Ask.Delete
+    val text = approvalText(ask)
     Column(
         Modifier
             .fillMaxWidth()
@@ -514,10 +516,10 @@ private fun ApprovalCard(text: String, onAnswer: (Boolean) -> Unit) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             androidx.compose.material3.TextButton(onClick = { onAnswer(false) }) {
-                Text(stringResource(R.string.ai_approval_deny))
+                Text(stringResource(if (delete) R.string.ai_delete_no else R.string.ai_approval_deny))
             }
             androidx.compose.material3.TextButton(onClick = { onAnswer(true) }) {
-                Text(stringResource(R.string.ai_approval_allow))
+                Text(stringResource(if (delete) R.string.ai_delete_yes else R.string.ai_approval_allow))
             }
         }
     }
@@ -845,3 +847,28 @@ private fun complementary(c: Color): Color {
  * escriben como "Error 400…" (ver AiClient, ChatGptClient, AnthropicChat).
  */
 internal fun isBadRequest(error: String): Boolean = Regex("""^Error 400\b""").containsMatchIn(error.trimStart())
+
+/** R4A: el texto del permiso, en el idioma de la app. */
+@Composable
+private fun approvalText(ask: dev.rustdroid.ide.ai.ProjectTools.Ask): String = when (ask) {
+    is dev.rustdroid.ide.ai.ProjectTools.Ask.Delete ->
+        if (ask.isDir) androidx.compose.ui.res.pluralStringResource(R.plurals.ai_ask_delete_dir, ask.fileCount, ask.path, ask.fileCount)
+        else stringResource(R.string.ai_ask_delete_file, ask.path)
+    is dev.rustdroid.ide.ai.ProjectTools.Ask.Run -> stringResource(R.string.ai_ask_run, reachText())
+    is dev.rustdroid.ide.ai.ProjectTools.Ask.Build -> stringResource(
+        R.string.ai_ask_build,
+        ask.files.joinToString(", "),
+        if (ask.newCrates.isEmpty()) "" else stringResource(R.string.ai_ask_new_crates, ask.newCrates.joinToString(", ")) + " ",
+        reachText(),
+    )
+}
+
+/** R4A: qué puede tocar lo que corre: tus proyectos y, con permiso de almacenamiento, la memoria del celular. */
+@Composable
+private fun reachText(): String {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val storage = androidx.core.content.ContextCompat.checkSelfPermission(
+        context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    return stringResource(if (storage) R.string.ai_ask_reach_storage else R.string.ai_ask_reach_project)
+}

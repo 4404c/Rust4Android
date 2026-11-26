@@ -77,11 +77,14 @@ class AiApprovalTest {
     fun `a new dependency is not compiled without permission`() = runBlocking {
         val bridge = RecordingBridge(project())
         val tools = ProjectTools(bridge)
-        val questions = mutableListOf<String>()
+        val questions = mutableListOf<ProjectTools.Ask>()
         tools.approver = { questions += it; false }
         addDep(tools)
         val out = tools.execute("cargo_check", "{}")
-        assertTrue(questions.single().contains("Cargo.toml"))
+        val q = questions.single() as ProjectTools.Ask.Build
+        assertTrue("Cargo.toml" in q.files)
+        // R4A: dice qué crates nuevas se van a compilar (rand ya estaba)
+        assertEquals(listOf("evil"), q.newCrates)
         // ni siquiera sin internet: un build.rs correría igual
         assertEquals(emptyList<Boolean>(), bridge.checks)
         assertTrue(out.result, out.result.contains("NO permitió"))
@@ -188,12 +191,12 @@ class AiApprovalTest {
     fun `run_program asks about build changes first`() = runBlocking {
         val bridge = RecordingBridge(project())
         val tools = ProjectTools(bridge)
-        val questions = mutableListOf<String>()
+        val questions = mutableListOf<ProjectTools.Ask>()
         tools.approver = { questions += it; false }
         write(tools, "build.rs", "fn main() {}\n")
         tools.execute("run_program", "{}")
         assertEquals(0, bridge.runs)
-        assertTrue(questions.single().contains("build.rs"))
+        assertTrue("build.rs" in (questions.single() as ProjectTools.Ask.Build).files)
     }
 
     @Test

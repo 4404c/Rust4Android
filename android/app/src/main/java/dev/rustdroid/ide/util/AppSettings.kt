@@ -28,6 +28,15 @@ object AppSettings {
         _aiChatEnabled.value = on
     }
 
+    /** R4A: la IA pregunta antes de borrar un archivo (las carpetas preguntan siempre). */
+    private val _aiAskBeforeDelete = MutableStateFlow(true)
+    val aiAskBeforeDelete: StateFlow<Boolean> = _aiAskBeforeDelete.asStateFlow()
+
+    fun setAiAskBeforeDelete(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("ai_ask_before_delete", on).apply()
+        _aiAskBeforeDelete.value = on
+    }
+
     /** Ferrdroid (la mascota) en el inicio. */
     private val _ferrdroidVisible = MutableStateFlow(true)
     val ferrdroidVisible: StateFlow<Boolean> = _ferrdroidVisible.asStateFlow()
@@ -104,6 +113,7 @@ object AppSettings {
         _ferrdroidVisible.value = prefs(context).getBoolean("ferrdroid_visible", true)
         _tourSeen.value = prefs(context).getBoolean("tour_seen", false)
         _aiChatEnabled.value = prefs(context).getBoolean("ai_chat_enabled", true)
+        _aiAskBeforeDelete.value = prefs(context).getBoolean("ai_ask_before_delete", true)
         prefs(context).let { p ->
             _customColors.value = CustomColors(
                 p.getInt("custom_primary", DEFAULT_CUSTOM.primary),

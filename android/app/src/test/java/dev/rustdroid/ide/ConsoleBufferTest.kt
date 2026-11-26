@@ -152,4 +152,29 @@ class ConsoleBufferTest {
             assertEquals((0 until perThread).map { t * perThread + it }, own)
         }
     }
+
+    // R4A: a prompt without newline shows at once; the answer goes on its line
+    @Test
+    fun `partial prompt line joins its rest and the typed answer`() {
+        val buf = ConsoleBuffer()
+        fun out(text: String, partial: Boolean = false, continues: Boolean = false) =
+            buf.append(dev.rustdroid.ide.model.ConsoleLine(Stream.STDOUT, text, partial = partial, continues = continues))
+
+        out("Nom", partial = true)
+        out("bre: ", partial = true, continues = true)
+        buf.flush()
+        assertEquals(listOf("Nombre: "), buf.lines.value.map { it.text })
+
+        buf.echoInput("Naza")
+        // the program's newline after the prompt has nothing left to add
+        out("", continues = true)
+        out("Hola, Naza")
+        buf.flush()
+        assertEquals(listOf("Nombre: Naza", "Hola, Naza"), buf.lines.value.map { it.text })
+
+        // with no prompt waiting, the answer is a line of its own
+        buf.echoInput("12")
+        buf.flush()
+        assertEquals("12", buf.lines.value.last().text)
+    }
 }

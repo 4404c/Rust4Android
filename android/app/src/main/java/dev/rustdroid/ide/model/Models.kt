@@ -11,6 +11,10 @@ data class ConsoleLine(
     val stream: Stream,
     val text: String,
     val timestampMs: Long = System.currentTimeMillis(),
+    /** R4A: the line is not finished yet (a prompt printed with `print!`). */
+    val partial: Boolean = false,
+    /** R4A: this text continues the previous [partial] line of the same stream. */
+    val continues: Boolean = false,
 )
 
 /** Severity of a compiler diagnostic. */

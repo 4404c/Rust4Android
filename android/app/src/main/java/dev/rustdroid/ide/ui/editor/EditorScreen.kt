@@ -701,10 +701,14 @@ fun EditorScreen(
             // R4A: consume the scaffold insets first, otherwise imePadding adds the
             // navigation-bar height again (empty strip above the keyboard)
             Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+                // R4A: escribiendo en la consola con el teclado abierto, la
+                // consola ocupa todo; el código queda cargado (alto 0, no se
+                // pierde el deshacer) y vuelve al cerrar el teclado
+                val consoleFocus = imeVisible && stdinFocused
                 // ---- tabs row (compact 30dp strip — M3 Tab's 48dp minimum
                 // + padding ate a quarter of the screen; every dp counts on a
                 // phone with the keyboard open) ----
-                if (tabs.isNotEmpty()) {
+                if (tabs.isNotEmpty() && !consoleFocus) {
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -783,7 +787,7 @@ fun EditorScreen(
                 }
 
                 // ---- editor ----
-                Box(Modifier.weight(1f).fillMaxWidth()) {
+                Box((if (consoleFocus) Modifier.height(0.dp) else Modifier.weight(1f)).fillMaxWidth()) {
                     if (tabs.isEmpty()) {
                         Text(
                             stringResource(R.string.editor_open_from_drawer),
@@ -809,7 +813,7 @@ fun EditorScreen(
                 // Sits between the editor and the bottom panel: with the
                 // keyboard open the panel hides, so the bar ends up right above
                 // the keyboard; without it, the bar is above Console/Problems.
-                if (tabs.isNotEmpty()) {
+                if (tabs.isNotEmpty() && !consoleFocus) {
                     SymbolBar(
                         onTab = { codeEditor?.indentOrCommitTab() },
                         onSymbol = { codeEditor?.commitText(it) },
@@ -840,7 +844,7 @@ fun EditorScreen(
                 val errorCount = problems.count { it.severity == Severity.ERROR }
                 val warningCount = problems.count { it.severity == Severity.WARNING }
                 if (!hideBottom) {
-                    Surface(tonalElevation = 2.dp) {
+                    Surface(if (consoleFocus) Modifier.weight(1f) else Modifier, tonalElevation = 2.dp) {
                     Column(Modifier.fillMaxWidth()) {
                         // R4A: folded panel -> neither tab looks selected (no
                         // indicator, unselected colors) until one is tapped
@@ -898,7 +902,7 @@ fun EditorScreen(
                         if (!panelCollapsed) Box(
                             Modifier
                                 .fillMaxWidth()
-                                .height(if (imeVisible) 88.dp else 220.dp)
+                                .then(if (consoleFocus) Modifier.weight(1f) else Modifier.height(220.dp))
                                 .background(palette.consoleBg)
                         ) {
                             when (bottomTab) {
@@ -1364,13 +1368,31 @@ private fun ConsolePanel(
         }
         // Selectable: long-press any build/run output to copy it (error
         // messages, compiler output, backtraces).
-        SelectionContainer(Modifier.weight(1f)) {
+        // R4A: the Box takes exactly what is left, so the stdin bar below
+        // always fits (SelectionContainer with the weight pushed it out)
+        // R4A: como una consola: se escribe en la última línea, sin burbuja;
+        // tocar la consola abre el teclado ahí
+        val inputFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+        LaunchedEffect(running, lines.size) {
+            if (running) listState.scrollToItem(lines.size)
+        }
+        Box(
+            Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .pointerInput(running) {
+                    if (running) detectTapGestures(onTap = { runCatching { inputFocus.requestFocus() } })
+                },
+        ) {
+        SelectionContainer(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
             ) {
-                itemsIndexed(lines) { index, line ->
+                // R4A: an unfinished prompt is drawn together with the input
+                val prompt = lines.lastOrNull()?.takeIf { running && it.partial }
+                itemsIndexed(if (prompt != null) lines.dropLast(1) else lines) { index, line ->
                     // R4A: color by meaning, not just by stream — cargo prints
                     // all of its progress on stderr, which used to be all red.
                     val color = when (kinds.getOrNull(index)) {
@@ -1393,70 +1415,54 @@ private fun ConsolePanel(
                         color = color,
                     )
                 }
+                // stdin only while a program is running
+                if (running) item(key = "stdin") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (prompt != null) Text(prompt.text, style = MonoSmall, color = palette.stdout)
+                        Box(Modifier.weight(1f)) {
+                            ConsoleInput(onSend = onSend, focus = inputFocus, onFocusChanged = onStdinFocusChanged)
+                        }
+                    }
+                }
             }
         }
-        // stdin is only meaningful while a program is actually running —
-        // hiding it otherwise removes the dead send button confusion.
-        if (running) {
-            StdinBar(onSend = onSend, onFocusChanged = onStdinFocusChanged)
         }
     }
 }
 
+/**
+ * R4A: la línea donde se escribe, como en una terminal: sin marco ni botón.
+ * Enter (↵) manda la línea al programa; pegar varias líneas las manda todas.
+ */
 @Composable
-private fun StdinBar(onSend: (String) -> Unit, onFocusChanged: (Boolean) -> Unit = {}) {
+private fun ConsoleInput(
+    onSend: (String) -> Unit,
+    focus: androidx.compose.ui.focus.FocusRequester,
+    onFocusChanged: (Boolean) -> Unit = {},
+) {
     val palette = LocalEditorPalette.current
     var input by remember { mutableStateOf("") }
-    // the bar disappears when the program ends — never leave "focused" stuck
+    // the line disappears when the program ends — never leave "focused" stuck
     DisposableEffect(Unit) { onDispose { onFocusChanged(false) } }
-
-    fun submit() {
-        val text = input
-        if (text.isNotEmpty()) {
-            onSend(text)
-            input = ""
-        }
-    }
-
-    Row(
-        Modifier
+    BasicTextField(
+        value = input,
+        onValueChange = { v ->
+            if ('\n' in v) {
+                val parts = v.split('\n')
+                parts.dropLast(1).forEach { onSend(it.removeSuffix("\r")) }
+                input = parts.last()
+            } else {
+                input = v
+            }
+        },
+        textStyle = MonoSmall.copy(color = palette.stdout),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                RoundedCornerShape(8.dp),
-            )
-            .padding(horizontal = 10.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("> ", color = MaterialTheme.colorScheme.primary, style = MonoSmall)
-        BasicTextField(
-            value = input,
-            onValueChange = { input = it },
-            singleLine = true,
-            textStyle = MonoSmall.copy(color = palette.stdout),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-            keyboardActions = KeyboardActions(onSend = { submit() }),
-            modifier = Modifier
-                .weight(1f)
-                .onFocusChanged { onFocusChanged(it.isFocused) },
-        )
-        Spacer(Modifier.width(8.dp))
-        IconButton(
-            onClick = { submit() },
-            enabled = input.isNotEmpty(),
-            modifier = Modifier.size(32.dp),
-        ) {
-            Icon(
-                RdIcons.Send,
-                contentDescription = stringResource(R.string.editor_send_stdin),
-                tint = if (input.isNotEmpty()) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
+            .focusRequester(focus)
+            .onFocusChanged { onFocusChanged(it.isFocused) },
+    )
 }
 
 @Composable

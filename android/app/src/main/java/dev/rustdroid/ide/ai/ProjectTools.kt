@@ -78,6 +78,11 @@ class ProjectTools(
         val before: String?,
         val after: String?,
         val isDir: Boolean = false,
+        /**
+         * R4A: carpeta borrada — lo que tenía, para Deshacer. Rutas relativas al
+         * proyecto; las que terminan en "/" son carpetas (vacías o no).
+         */
+        val removed: Map<String, String>? = null,
     )
 
     /**
@@ -156,8 +161,8 @@ class ProjectTools(
         )
         tool(
             "delete_file",
-            "Borra UN archivo de texto del proyecto (no carpetas ni imágenes u otros binarios). El usuario puede deshacerlo.",
-            "path" to "Ruta relativa del archivo",
+            "Borra un archivo de texto o una carpeta del proyecto (no imágenes u otros binarios). Antes se le pregunta al usuario: si dice que no, no se borra. El usuario puede deshacerlo.",
+            "path" to "Ruta relativa del archivo o la carpeta",
         )
     }
 
@@ -304,14 +309,27 @@ class ProjectTools(
      * Le pregunta al usuario en el chat (Permitir / No). Lo pone [ChatSession];
      * null (por ejemplo en tests) = no se permite.
      */
-    var approver: (suspend (String) -> Boolean)? = null
+    var approver: (suspend (Ask) -> Boolean)? = null
+
+    /** R4A: Opciones → IA → «Preguntar antes de borrar archivos». Las carpetas preguntan siempre. */
+    var askBeforeDelete: Boolean = true
+
+    /** R4A: lo que la IA pide permiso para hacer; el chat arma el texto (en el idioma de la app). */
+    sealed interface Ask {
+        /** Compilar con cambios en [files] (Cargo.toml, build.rs…); [newCrates] = crates nuevas en Cargo.toml. */
+        data class Build(val files: List<String>, val newCrates: List<String>) : Ask
+        /** Correr el programa (cargo run). */
+        data object Run : Ask
+        /** Borrar [path]; si es carpeta, con [fileCount] archivos adentro. */
+        data class Delete(val path: String, val isDir: Boolean, val fileCount: Int = 0) : Ask
+    }
 
     /** Modo Plan: cargo_check sin internet (no baja ni compila crates nuevas). */
     var planMode: Boolean = false
 
     private var runApproved = false
 
-    private suspend fun ask(text: String): Boolean = approver?.invoke(text) ?: false
+    private suspend fun ask(what: Ask): Boolean = approver?.invoke(what) ?: false
 
     /**
      * R4A (auditoría 2, S1): si la IA cambió algo que decide qué código corre
@@ -322,7 +340,8 @@ class ProjectTools(
         val pending = withContext(Dispatchers.IO) { guard.pending() }
         if (pending.isEmpty()) return null
         val files = pending.joinToString(", ")
-        if (ask("La IA cambió archivos que deciden qué código corre al compilar: $files. Al compilar, cargo puede bajar crates de internet y ejecutar su código (y el de build.rs) en tu celular. ¿Lo permitís?")) {
+        val crates = withContext(Dispatchers.IO) { guard.newCrates() }
+        if (ask(Ask.Build(pending, crates))) {
             withContext(Dispatchers.IO) { guard.approve() }
             return null
         }
@@ -371,7 +390,7 @@ class ProjectTools(
         )
         buildApproval()?.let { return it }
         if (!runApproved) {
-            if (!ask("La IA quiere ejecutar el programa (cargo run) en tu celular. ¿Lo permitís? Vale mientras este proyecto siga abierto.")) {
+            if (!ask(Ask.Run)) {
                 return Outcome("El usuario no permitió ejecutar el programa. No lo vuelvas a pedir en este pedido.", "No le permitiste ejecutar el programa")
             }
             runApproved = true
@@ -472,12 +491,56 @@ class ProjectTools(
     private suspend fun deleteFile(path: String): Outcome {
         val (rel, f) = target(path)
         if (rel == "Cargo.toml") return Outcome("Error: no se puede borrar el Cargo.toml del proyecto.", "Quiso borrar Cargo.toml (no se permite)")
-        if (f.isDirectory) return Outcome("Error: '$rel' es una carpeta; solo se borran archivos.", "Quiso borrar la carpeta $rel (no se permite)")
+        if (f.isDirectory) return deleteFolder(rel, f)
         val before = current(rel, f) ?: return Outcome("Error: no existe '$rel'.", "Quiso borrar $rel (no existe)")
+        if (askBeforeDelete && !ask(Ask.Delete(rel, isDir = false))) return deleteRefused(rel)
         withContext(Dispatchers.IO) { guard.beforeAiWrite(rel); if (!f.delete()) throw java.io.IOException("no se pudo borrar '$rel'") }
         bridge.onExternalWrite(rel, null)
         return Outcome("Listo: '$rel' borrado.", "Borró $rel", Change(bridge.projectDir, rel, before, null))
     }
+
+    /** R4A: borrar una carpeta, siempre con permiso; guarda lo que tenía para Deshacer. */
+    private suspend fun deleteFolder(rel: String, dir: File): Outcome {
+        if (rel.isEmpty() || rel == "src") return Outcome(
+            "Error: no se puede borrar '${rel.ifEmpty { "." }}' entero. Borrá los archivos de a uno.",
+            "Quiso borrar ${rel.ifEmpty { "el proyecto" }} (no se permite)",
+        )
+        val removed = LinkedHashMap<String, String>()
+        var size = 0L
+        withContext(Dispatchers.IO) {
+            dir.walkTopDown().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach { f ->
+                if (java.nio.file.Files.isSymbolicLink(f.toPath())) throw java.io.IOException(
+                    "'$rel' tiene un acceso directo (symlink); pedile al usuario que la borre desde Files.",
+                )
+                val r = f.relativeTo(bridge.projectDir).invariantSeparatorsPath
+                if (f.isDirectory) { removed["$r/"] = ""; return@forEach }
+                val text = current(r, f) ?: ""
+                size += text.length
+                if (size > 1_500_000) throw java.io.IOException(
+                    "la carpeta '$rel' es muy grande para poder deshacerlo; pedile al usuario que la borre desde Files.",
+                )
+                removed[r] = text
+            }
+        }
+        val files = removed.keys.filterNot { it.endsWith("/") }
+        if (!ask(Ask.Delete(rel, isDir = true, fileCount = files.size))) return deleteRefused(rel)
+        withContext(Dispatchers.IO) {
+            files.forEach { guard.beforeAiWrite(it) }
+            if (!Fs.deleteRecursively(dir)) throw java.io.IOException("no se pudo borrar '$rel'")
+        }
+        files.forEach { bridge.onExternalWrite(it, null) }
+        val n = "${files.size} archivo${if (files.size == 1) "" else "s"}"
+        return Outcome(
+            "Listo: carpeta '$rel' borrada ($n).",
+            "Borró la carpeta $rel/ ($n)",
+            Change(bridge.projectDir, rel, null, null, isDir = true, removed = removed),
+        )
+    }
+
+    private fun deleteRefused(rel: String) = Outcome(
+        "El usuario no quiso borrarlo: '$rel' sigue ahí. No lo vuelvas a intentar salvo que te lo pida.",
+        "No borró $rel: no quisiste",
+    )
 
     // ---------------- ayudas ----------------
 
