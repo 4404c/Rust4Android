@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.filled.MoreVert
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.rustdroid.ide.di.AppContainer
 import dev.rustdroid.ide.model.ProjectSummary
@@ -88,6 +89,7 @@ fun HomeScreen(
     val aiActivity by container.chatStore.activity.collectAsStateWithLifecycle()
     val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(container))
     val projects by vm.projects.collectAsStateWithLifecycle()
+    val loaded by vm.loaded.collectAsStateWithLifecycle()
     val creating by vm.creating.collectAsStateWithLifecycle()
     val createLog by vm.createLog.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
@@ -254,8 +256,9 @@ fun HomeScreen(
         )
     }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    androidx.compose.runtime.LaunchedEffect(loaded) {
         // saluda una vez por sesión de la app; sin proyectos, explica cómo empezar
+        if (!loaded) return@LaunchedEffect // todavía no se sabe si hay proyectos
         kotlinx.coroutines.delay(400)
         if (!dev.rustdroid.ide.util.AppSettings.tourSeen.value || tourOpen) {
             // el tour habla primero
@@ -326,12 +329,23 @@ fun HomeScreen(
 
     // R4A: chat de Inicio (crear proyectos con la IA), en un cajón desde la derecha
     // el chat de Inicio está siempre: la casilla "Chat IA" del editor solo esconde el del editor
-    val homeChats = remember { container.chatStore.home }
+    // R4A: las charlas se leen del disco en segundo plano (antes trababan el arranque)
+    val homeChats by androidx.compose.runtime.produceState(container.chatStore.homeIfLoaded) {
+        if (value != null) return@produceState
+        // al abrir la app, después de que Inicio esté listo (no le compite a la pantalla de carga)
+        dev.rustdroid.ide.ui.components.StartupProgress.done.first {
+            it.size == dev.rustdroid.ide.ui.components.StartupProgress.Step.entries.size
+        }
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            container.chatStore.home
+        }
+    }
     val homeTools = remember { dev.rustdroid.ide.ai.HomeTools(container.projectRepository) }
     androidx.compose.runtime.DisposableEffect(homeChats) {
-        homeChats.attach(homeTools)
-        homeChats.markVisitStart()
-        onDispose { homeChats.detach(homeTools) }
+        val chats = homeChats ?: return@DisposableEffect onDispose { }
+        chats.attach(homeTools)
+        chats.markVisitStart()
+        onDispose { chats.detach(homeTools) }
     }
     val chatDrawerState = dev.rustdroid.ide.ui.components.rememberEdgeDrawerState()
     val chatScope = androidx.compose.runtime.rememberCoroutineScope()
@@ -345,6 +359,7 @@ fun HomeScreen(
         maxSheetWidth = 460.dp,
         edgeEnabled = true,
         drawerContent = {
+            val homeChats = homeChats ?: return@EdgeDrawer
             dev.rustdroid.ide.ui.chat.ChatDrawerSheet(
                 chat = homeChats,
                 onClose = { chatScope.launch { chatDrawerState.close() } },
@@ -413,7 +428,8 @@ fun HomeScreen(
         if (projects.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(padding)) {
             Box(Modifier.padding(horizontal = 16.dp)) { ferrdroidHeader() }
-            Box(Modifier.fillMaxWidth().weight(1f)) {
+            // R4A: mientras se lee la lista no mostrar "no hay proyectos" (parpadeaba)
+            if (loaded) Box(Modifier.fillMaxWidth().weight(1f)) {
                 Column(
                     Modifier.align(Alignment.Center).padding(horizontal = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,

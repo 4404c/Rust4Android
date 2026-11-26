@@ -106,10 +106,17 @@ fun ChatPanel(
     // (antes cada mensaje nuevo entraba con fundido: eso era el parpadeo)
     var revealAnim by remember(vm) { mutableStateOf(false) }
 
+    // R4A: el diff de cada tarjeta se calcula una sola vez por charla (al volver
+    // a la vista con el scroll ya está, y la tarjeta no cambia de alto de golpe)
+    val diffCache = remember(vm) { java.util.concurrent.ConcurrentHashMap<Long, LineDiff.Result>() }
+
     // seguir el final mientras llega texto, salvo que el usuario haya subido a leer
     var follow by remember(vm) { mutableStateOf(true) }
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (!listState.isScrollInProgress) follow = !listState.canScrollForward
+    // R4A: escuchado con snapshotFlow (leerlo acá rearmaba el panel al empezar y terminar cada scroll)
+    LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling) follow = !listState.canScrollForward
+        }
     }
     val lastLen = messages.lastOrNull()?.text?.length ?: 0
     // (no depende de hiddenBefore: al revelar lo anterior la vista se queda en lo último)
@@ -324,7 +331,10 @@ fun ChatPanel(
         // aparece un círculo con una flecha que sigue al dedo, al soltar gira
         // una ruedita y los mensajes viejos entran por arriba con un fundido
         val pullState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-        val pulledEnough = pullState.distanceFraction >= 1f
+        // R4A: derivado → el panel se rearma sólo al cruzar el umbral, no en cada cuadro del tirón
+        val pulledEnough by remember(pullState) {
+            androidx.compose.runtime.derivedStateOf { pullState.distanceFraction >= 1f }
+        }
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(
             isRefreshing = loadingOlder,
             onRefresh = {
@@ -344,7 +354,7 @@ fun ChatPanel(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             indicator = {
                 if (hiddenBefore > 0 || loadingOlder) {
-                    val frac = if (loadingOlder) 1f else pullState.distanceFraction.coerceIn(0f, 1.4f)
+                    fun frac() = if (loadingOlder) 1f else pullState.distanceFraction.coerceIn(0f, 1.4f)
                     val arrow by androidx.compose.animation.core.animateFloatAsState(
                         if (pulledEnough) 180f else 0f, label = "arrow",
                     )
@@ -356,6 +366,7 @@ fun ChatPanel(
                             .align(Alignment.TopCenter)
                             .size(36.dp)
                             .graphicsLayer {
+                                val frac = frac()
                                 translationY = (frac * 56.dp.toPx()) - 44.dp.toPx()
                                 alpha = frac.coerceAtMost(1f)
                                 scaleX = 0.6f + 0.4f * frac.coerceAtMost(1f)
@@ -424,7 +435,7 @@ fun ChatPanel(
                         if (dividerAt != null && abs == dividerAt) {
                             item(key = "divider") { OlderDivider() }
                         }
-                        item(key = m.id) {
+                        item(key = m.id, contentType = m.role) {
                             Box(
                                 Modifier.animateItem(
                                     fadeInSpec = if (revealAnim) androidx.compose.animation.core.tween(350) else null,
@@ -435,6 +446,7 @@ fun ChatPanel(
                                 if (m.role == ChatSession.Role.CHANGE) {
                                     ChangeCard(
                                         m,
+                                        diffCache = diffCache,
                                         busy = busy,
                                         change = m.changeId?.let { vm.change(it) },
                                         onOpenAt = { line -> m.path?.let { onOpenFile(it, line) } },
@@ -665,6 +677,7 @@ private fun OlderDivider(modifier: Modifier = Modifier) {
 @Composable
 private fun ChangeCard(
     m: ChatSession.ChatMessage,
+    diffCache: MutableMap<Long, LineDiff.Result>,
     busy: Boolean,
     change: dev.rustdroid.ide.ai.ProjectTools.Change?,
     onOpenAt: (Int?) -> Unit,
@@ -675,9 +688,11 @@ private fun ChangeCard(
     // el diff se calcula una vez; la tarjeta aparece abierta para ver el cambio enseguida
     // R4A (auditoría B11): el diff se calcula en un hilo de fondo (con
     // archivos grandes trababa el chat); aparece apenas está listo
-    val diffState = androidx.compose.runtime.produceState<LineDiff.Result?>(null, m.id, change) {
+    val diffState = androidx.compose.runtime.produceState(diffCache[m.id], m.id, change) {
+        if (value != null) return@produceState
         value = change?.takeIf { !it.isDir }?.let { c ->
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { LineDiff.compute(c.before, c.after) }
+                .also { diffCache[m.id] = it }
         }
     }
     val diff = diffState.value

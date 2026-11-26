@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Path
@@ -162,14 +163,23 @@ fun Ferrdroid(
     var blink by remember { mutableStateOf(false) }
     var breath by remember { mutableStateOf(false) }
     var look by remember { mutableStateOf(Look.CENTER) }
-    var now by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
+    // R4A: la cara de contento con su propio temporizador (antes un reloj de 500 ms
+    // rearmaba a Ferrdroid todo el tiempo, aunque no pasara nada)
+    var happy by remember { mutableStateOf(false) }
+    LaunchedEffect(state.happyUntil) {
+        val left = state.happyUntil - SystemClock.uptimeMillis()
+        if (left <= 0) { happy = false; return@LaunchedEffect }
+        happy = true
+        delay(left)
+        happy = false
+    }
     state.wakeText = remember(wakeLines) { wakeLines.randomOrNull().orEmpty() }
 
     // reloj: se duerme tras un rato sin actividad; el globo se esconde solo
     LaunchedEffect(Unit) {
         while (true) {
             delay(500)
-            now = SystemClock.uptimeMillis()
+            val now = SystemClock.uptimeMillis()
             if (tourNow == null && !state.sleeping && !talking && now - state.lastActivity > SLEEP_AFTER_MS) {
                 state.sleeping = true
                 state.wakeText = wakeLines.randomOrNull().orEmpty()
@@ -234,7 +244,7 @@ fun Ferrdroid(
 
     val pose = when {
         state.sleeping -> R.drawable.ferrdroid_durmiendo
-        now < state.happyUntil -> R.drawable.ferrdroid_contento
+        happy -> R.drawable.ferrdroid_contento
         blink -> R.drawable.ferrdroid_parpadeo
         talking -> R.drawable.ferrdroid_derecha
         look == Look.LEFT -> R.drawable.ferrdroid_izquierda
@@ -373,7 +383,7 @@ private fun SpeechBubble(text: String, revealed: Int) {
 @Composable
 private fun Zzz(still: Boolean, modifier: Modifier) {
     val t = rememberInfiniteTransition(label = "zzz")
-    val phase by t.animateFloat(
+    val phaseState = t.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
@@ -382,15 +392,20 @@ private fun Zzz(still: Boolean, modifier: Modifier) {
     val color = MaterialTheme.colorScheme.primary
     Box(modifier.width(36.dp).heightIn(min = 30.dp)) {
         listOf(0f, 0.33f, 0.66f).forEachIndexed { i, delayFrac ->
-            val p = if (still) 0.5f else (phase + 1f - delayFrac) % 1f
+            // R4A: la fase se lee al dibujar (antes rearmaba los textos en cada cuadro mientras dormía)
+            fun p() = if (still) 0.5f else (phaseState.value + 1f - delayFrac) % 1f
             Text(
                 if (i == 1) "Z" else "z",
                 color = color,
                 fontFamily = dev.rustdroid.ide.ui.theme.PixelFamily,
                 fontSize = (8 + i * 3).sp,
                 modifier = Modifier
-                    .offset(x = (i * 10).dp, y = (18 - p * 22).dp)
-                    .alpha(if (still) 1f else (1f - p) * minOf(1f, p * 4f)),
+                    .offset(x = (i * 10).dp)
+                    .graphicsLayer {
+                        val p = p()
+                        translationY = (18 - p * 22).dp.toPx()
+                        alpha = if (still) 1f else (1f - p) * minOf(1f, p * 4f)
+                    },
             )
         }
     }

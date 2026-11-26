@@ -37,11 +37,19 @@ class HomeViewModel(val container: AppContainer) : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    /** R4A: la lista ya se leyó al menos una vez (antes, "vacía" no quiere decir "sin proyectos"). */
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
     fun refresh() {
         viewModelScope.launch {
             _projects.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 repo.list()
             }
+            _loaded.value = true
+            dev.rustdroid.ide.ui.components.StartupProgress.mark(
+                dev.rustdroid.ide.ui.components.StartupProgress.Step.PROJECTS
+            )
         }
     }
 

@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
         captureRsIntent(intent)
         captureChatIntent(intent)
         val container = (application as RustDroidApp).container
+        dev.rustdroid.ide.ui.components.StartupProgress.mark(dev.rustdroid.ide.ui.components.StartupProgress.Step.APP)
         setContent {
             RustDroidTheme {
                 AppRoot(

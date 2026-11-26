@@ -55,6 +55,12 @@ class ChatStore(
     }
 
     /** Las charlas del proyecto en [projectDir] (las carga del disco la primera vez). */
+    /** R4A: las charlas de este proyecto si ya se leyeron del disco (si no, null: no las lee). */
+    @Synchronized
+    fun projectIfLoaded(projectDir: File): ProjectChats? = projects[key(projectDir)]
+
+    /** Lee las charlas del disco la primera vez: llamarlo fuera del hilo principal. */
+    @Synchronized
     fun project(projectDir: File, projectName: String): ProjectChats =
         projects.getOrPut(key(projectDir)) {
             val hash = MessageDigest.getInstance("SHA-1").digest(key(projectDir).toByteArray())
@@ -81,9 +87,13 @@ class ChatStore(
     }
 
     /** Las charlas del chat de Inicio (crear proyectos). */
-    val home: ProjectChats by lazy {
+    private val homeLazy = lazy {
         ProjectChats(context, http, repo, "Inicio", File(root, "home"), home = true, store = this, key = "home")
     }
+    /** Lee las charlas del disco la primera vez: llamarlo fuera del hilo principal. */
+    val home: ProjectChats by homeLazy
+    /** R4A: el chat de Inicio si ya se leyó (si no, null: no lo lee). */
+    val homeIfLoaded: ProjectChats? get() = if (homeLazy.isInitialized()) home else null
 
     /** La IA creó un proyecto y el usuario lo abre: la charla sigue allá (como charla nueva). */
     fun copyTo(from: ChatSession, projectDir: File, projectName: String) {

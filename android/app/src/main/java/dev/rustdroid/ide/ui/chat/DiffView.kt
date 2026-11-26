@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -139,29 +140,25 @@ private fun DiffRow(l: LineDiff.Line, textColor: Color) {
     }
     val sign = when (l.kind) { LineDiff.Kind.ADD -> "+"; LineDiff.Kind.DEL -> "−"; else -> " " }
     val signColor = when (l.kind) { LineDiff.Kind.ADD -> AddBg; LineDiff.Kind.DEL -> DelBg; else -> textColor }
-    Row(Modifier.background(bg)) {
-        Text(
-            (l.oldNo?.toString() ?: "").padStart(4) + " " + (l.newNo?.toString() ?: "").padStart(4),
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
-            color = textColor.copy(alpha = 0.45f),
-            maxLines = 1,
-        )
-        Text(
-            " $sign ",
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
-            color = signColor,
-        )
-        Text(
-            l.text.ifEmpty { " " },
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
-            color = textColor,
-            softWrap = false,
-            maxLines = 1,
-        )
+    // R4A: un solo Text por línea (antes eran tres): menos trabajo al entrar en pantalla
+    val line = androidx.compose.runtime.remember(l, textColor) {
+        androidx.compose.ui.text.buildAnnotatedString {
+            withStyle(androidx.compose.ui.text.SpanStyle(color = textColor.copy(alpha = 0.45f))) {
+                append((l.oldNo?.toString() ?: "").padStart(4) + " " + (l.newNo?.toString() ?: "").padStart(4))
+            }
+            withStyle(androidx.compose.ui.text.SpanStyle(color = signColor)) { append(" $sign ") }
+            append(l.text.ifEmpty { " " })
+        }
     }
+    Text(
+        line,
+        fontFamily = FontFamily.Monospace,
+        fontSize = 11.sp,
+        color = textColor,
+        softWrap = false,
+        maxLines = 1,
+        modifier = Modifier.background(bg),
+    )
 }
 
 /** El diff dentro de la tarjeta (hasta [maxLines] líneas, con scroll horizontal). */

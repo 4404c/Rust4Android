@@ -664,16 +664,22 @@ class EditorViewModel(
         dev.rustdroid.ide.ai.BuildGuard(projectDir, File(chats, "build-guard.txt"))
     }
 
-    val chat: dev.rustdroid.ide.ai.ProjectChats by lazy {
+    /** R4A: la charla si ya está lista (si no, null: no la lee del disco). */
+    fun chatIfLoaded(): dev.rustdroid.ide.ai.ProjectChats? = if (chatLazy.isInitialized()) chat else null
+
+    private val chatLazy = lazy {
         container.chatStore.project(projectDir, projectName.substringAfterLast('/')).also {
             it.attach(aiTools)
             it.markVisitStart()
         }
     }
 
+    /** Lee las charlas del disco la primera vez: llamarlo fuera del hilo principal. */
+    val chat: dev.rustdroid.ide.ai.ProjectChats by chatLazy
+
     override fun onCleared() {
         closedForAi = true
-        chat.detach(aiTools)
+        chatIfLoaded()?.detach(aiTools)
         super.onCleared()
     }
 

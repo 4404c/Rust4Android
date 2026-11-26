@@ -151,7 +151,10 @@ fun EditorScreen(
     // R4A: la charla con la IA de ESTE proyecto (se guarda en el teléfono).
     // Mientras el editor está abierto, sus herramientas trabajan sobre él.
     // (attach/detach los hace el VM: ver EditorViewModel.chat)
-    val chat = vm.chat
+    // R4A: las charlas se leen del disco en segundo plano (antes trababan al abrir el proyecto)
+    val chat by androidx.compose.runtime.produceState(vm.chatIfLoaded(), vm) {
+        if (value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { vm.chat }
+    }
     val chatEnabled by dev.rustdroid.ide.util.AppSettings.aiChatEnabled.collectAsStateWithLifecycle()
     val chatDrawerState = rememberEdgeDrawerState()
     var moreMenuOpen by remember { mutableStateOf(false) }
@@ -406,6 +409,7 @@ fun EditorScreen(
         maxSheetWidth = 460.dp,
         edgeEnabled = chatEnabled,
         drawerContent = {
+            val chat = chat ?: return@EdgeDrawer
             ChatDrawerSheet(
                 chat = chat,
                 onClose = { drawerScope.launch { chatDrawerState.close() } },

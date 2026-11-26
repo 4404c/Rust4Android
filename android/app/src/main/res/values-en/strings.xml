@@ -313,6 +313,7 @@
     <string name="folders_use_this">Use this folder</string>
     <!-- R4A: Ferrdroid, the mascot -->
     <string name="ferrdroid_cd">Ferrdroid</string>
+    <string name="startup_loading">Loading…</string>
     <string name="settings_ferrdroid">Show Ferrdroid</string>
     <string name="settings_ferrdroid_desc">The home screen mascot: talks, looks around and falls asleep if you don\'t touch anything.</string>
     <string name="ferrdroid_morning">Good morning! What are we coding today?</string>

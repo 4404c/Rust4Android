@@ -33,6 +33,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dev.rustdroid.ide.di.AppContainer
 import dev.rustdroid.ide.model.ToolchainState
+import androidx.compose.foundation.layout.fillMaxSize
+import dev.rustdroid.ide.ui.components.StartupProgress
+import dev.rustdroid.ide.ui.components.StartupSplash
 import dev.rustdroid.ide.ui.deps.DepsScreen
 import dev.rustdroid.ide.ui.editor.EditorScreen
 import dev.rustdroid.ide.ui.gate.GateScreen
@@ -97,6 +100,33 @@ fun AppRoot(
 
     val startDest = if (state is ToolchainState.Ready) Routes.HOME else Routes.GATE
 
+    // ---- R4A: pantalla de carga con Ferrdroid (sólo al abrir la app) ----
+    var splash by remember { mutableStateOf(!StartupProgress.finished) }
+    // Inicio se arma un cuadro DESPUÉS de la pantalla de carga: así el primer
+    // cuadro es liviano, el ícono del sistema se va antes y Ferrdroid se ve
+    // mientras se arma todo lo demás
+    var contentReady by remember { mutableStateOf(!splash) }
+    if (splash) {
+        LaunchedEffect(Unit) {
+            androidx.compose.runtime.withFrameNanos { }
+            contentReady = true
+        }
+        LaunchedEffect(Unit) {
+            StartupProgress.mark(StartupProgress.Step.TOOLCHAIN)
+            // sin toolchain se va a la pantalla de instalación: no hay lista que leer
+            if (startDest != Routes.HOME) StartupProgress.mark(StartupProgress.Step.PROJECTS)
+        }
+        val steps by StartupProgress.done.collectAsStateWithLifecycle()
+        val projectsRead = StartupProgress.Step.PROJECTS in steps
+        LaunchedEffect(projectsRead) {
+            if (!projectsRead) return@LaunchedEffect
+            // dos frames: el de la lista nueva y el siguiente, ya dibujado abajo
+            androidx.compose.runtime.withFrameNanos { }
+            androidx.compose.runtime.withFrameNanos { }
+            StartupProgress.mark(StartupProgress.Step.FIRST_FRAME)
+        }
+    }
+
     // If the toolchain is removed or fails health mid-session (e.g. a
     // re-verify fails in Settings), take the user back to the Gate where
     // the failure is explained and retry is offered. Guarded by the
@@ -151,7 +181,8 @@ fun AppRoot(
         }
     }
 
-    NavHost(navController = nav, startDestination = startDest) {
+    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
+    if (contentReady) NavHost(navController = nav, startDestination = startDest) {
         composable(Routes.GATE) {
             GateScreen(
                 container,
@@ -271,13 +302,21 @@ fun AppRoot(
             dev.rustdroid.ide.ui.settings.LicensesScreen(onBack = { nav.popBackStack() })
         }
     }
+    androidx.compose.animation.AnimatedVisibility(
+        visible = splash,
+        enter = androidx.compose.animation.EnterTransition.None,
+        exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(220)),
+    ) {
+        StartupSplash(onFinished = { splash = false })
+    }
+    }
 
     // R4A: se tocó la notificación "La IA terminó en…": ese proyecto con el chat.
     // Reemplaza cualquier editor abierto; Atrás vuelve a Inicio.
     val openChatRef = pendingOpenChat?.value
-    LaunchedEffect(openChatRef, state) {
+    LaunchedEffect(openChatRef, state, contentReady) {
         val ref = openChatRef ?: return@LaunchedEffect
-        if (state !is ToolchainState.Ready) return@LaunchedEffect
+        if (state !is ToolchainState.Ready || !contentReady) return@LaunchedEffect
         pendingOpenChat.value = null
         if (!container.projectRepository.resolve(ref).isDirectory) return@LaunchedEffect
         nav.navigate(Routes.editor(ref, chat = true)) {

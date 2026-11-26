@@ -317,6 +317,7 @@
     <string name="folders_use_this">Usar esta carpeta</string>
     <!-- R4A: Ferrdroid, la mascota -->
     <string name="ferrdroid_cd">Ferrdroid</string>
+    <string name="startup_loading">Cargando…</string>
     <string name="settings_ferrdroid">Mostrar a Ferrdroid</string>
     <string name="settings_ferrdroid_desc">La mascota del inicio: habla, mira a los lados y se duerme si no tocás nada.</string>
     <string name="ferrdroid_morning">¡Buen día! ¿Qué programamos hoy?</string>
