@@ -8,10 +8,11 @@ object ToolchainDistro {
 
     const val RUST_VERSION = "1.85.0"
 
-    // Release tag and asset on github.com/majnoon40/RustDroid.
+    // Release tag and asset on github.com/4404c/Rust4Android (R4A, B13:
+    // mirrored unchanged from majnoon40/RustDroid, same SHA-256).
     // The app bundle is the ~118 MB subset the device actually needs
     // (rustc + cargo + rust-std + link kit + libc++_shared.so + busybox);
-    // the full dist zip is a separate asset on the same release.
+    // the full dist zip stays only on the upstream release.
     //
     // Phase 4 (plan §7.3): the tag gained the self-describing
     // "-bb1.36.1" suffix — the bundle now carries BusyBox 1.36.1
@@ -20,7 +21,7 @@ object ToolchainDistro {
     const val ASSET_NAME = "rustdroid-app-bundle-aarch64.zip"
 
     val url: String =
-        "https://github.com/majnoon40/RustDroid/releases/download/$RELEASE_TAG/$ASSET_NAME"
+        "https://github.com/4404c/Rust4Android/releases/download/$RELEASE_TAG/$ASSET_NAME"
 
     /**
      * SHA-256 of the app bundle zip, recorded by the publish workflow

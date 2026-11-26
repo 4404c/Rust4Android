@@ -16,3 +16,6 @@ local.properties
 # Logs / captures
 *.log
 captures/
+
+# Release signing (never commit)
+keystore.properties

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,9 +7,39 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// R4A: the release key lives outside git. Either android/keystore.properties
+// (gitignored; see keystore.properties.example) or the environment variables
+// R4A_KEYSTORE, R4A_KEYSTORE_PASSWORD, R4A_KEY_ALIAS, R4A_KEY_PASSWORD.
+// Without either, release builds fall back to the debug key (CI, contributors).
+val releaseKey: Map<String, String>? = run {
+    val file = rootProject.file("keystore.properties")
+    val props = Properties()
+    if (file.isFile) file.inputStream().use { props.load(it) }
+    fun pick(prop: String, env: String) =
+        props.getProperty(prop)?.takeIf { it.isNotBlank() } ?: System.getenv(env)?.takeIf { it.isNotBlank() }
+    val values = mapOf(
+        "storeFile" to pick("storeFile", "R4A_KEYSTORE"),
+        "storePassword" to pick("storePassword", "R4A_KEYSTORE_PASSWORD"),
+        "keyAlias" to pick("keyAlias", "R4A_KEY_ALIAS"),
+        "keyPassword" to pick("keyPassword", "R4A_KEY_PASSWORD"),
+    )
+    if (values.values.all { it != null }) values.mapValues { it.value!! } else null
+}
+
 android {
     namespace = "dev.rustdroid.ide"
     compileSdk = 35
+
+    signingConfigs {
+        if (releaseKey != null) {
+            create("release") {
+                storeFile = file(releaseKey.getValue("storeFile"))
+                storePassword = releaseKey.getValue("storePassword")
+                keyAlias = releaseKey.getValue("keyAlias")
+                keyPassword = releaseKey.getValue("keyPassword")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "dev.rustdroid.ide"
@@ -20,8 +52,8 @@ android {
         // files and run cargo; on Android 7 those crash.
         minSdk = 26
         targetSdk = 28
-        versionCode = 11
-        versionName = "0.2.0"
+        versionCode = 12
+        versionName = "0.3.0"
 
         // arm64-v8a only, everywhere (Phase 4 plan §4.1): the vendored
         // terminal modules build arm64-v8a only, and this filters the
@@ -35,12 +67,14 @@ android {
 
     buildTypes {
         release {
-            // R4A: signed with the local debug key for now, so a release
-            // build installs over the debug one (same signature: the
-            // toolchain in app data survives). Release builds are much
-            // smoother than debug ones (Compose runs unoptimized in debug).
-            // TODO: a real release key before publishing anywhere.
-            signingConfig = signingConfigs.getByName("debug")
+            // R4A: the real release key when configured (see top of file),
+            // otherwise the debug key so CI and contributors can still build.
+            signingConfig = if (releaseKey != null) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn("R4A: no release key configured; release APK is signed with the DEBUG key")
+                signingConfigs.getByName("debug")
+            }
             // R4A (auditoría M10): R8 achica la APK de ~24 MB a ~7 MB (sobre
             // todo el SDK de Anthropic). Reglas en proguard-rules.pro.
             isMinifyEnabled = true

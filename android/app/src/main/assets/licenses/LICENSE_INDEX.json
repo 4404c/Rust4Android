@@ -48,7 +48,7 @@
     "file": "busybox-GPL-2.0.txt",
     "url": "https://busybox.net",
     "pin": "1.36.1 (SHA-256 b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314)",
-    "sourceAssetUrl": "https://github.com/majnoon40/RustDroid/releases/download/toolchain-1.85.0-aarch64-bb1.36.1/busybox-1.36.1-src.zip"
+    "sourceAssetUrl": "https://github.com/4404c/Rust4Android/releases/download/toolchain-1.85.0-aarch64-bb1.36.1/busybox-1.36.1-src.zip"
   },
   {
     "component": "Kotlin / Compose / AndroidX / OkHttp / commons-compress / XZ / tomlj",
