@@ -169,7 +169,7 @@ class EditorViewModel(
     private val parser = DiagnosticsParser()
 
     /** R4A: a game library is built — the screen opens it in GameActivity. */
-    data class GameLaunch(val library: String, val log: String)
+    data class GameLaunch(val library: String, val log: String, val assets: String? = null)
     private val _launchGame = kotlinx.coroutines.flow.MutableSharedFlow<GameLaunch>(extraBufferCapacity = 1)
     val launchGame: kotlinx.coroutines.flow.SharedFlow<GameLaunch> = _launchGame
 
@@ -882,6 +882,7 @@ class EditorViewModel(
                 private.parentFile?.mkdirs()
                 dev.rustdroid.ide.export.ApkExporter.export(
                     template, lib, options, key, File(ctx.cacheDir, "export"), private, icon,
+                    dev.rustdroid.ide.export.GameAssets.collect(projectDir),
                 )
                 private.copyTo(out, overwrite = true)
                 exportPrefs.edit()
@@ -1006,7 +1007,15 @@ class EditorViewModel(
                         val log = File(container.context.filesDir, "games/run.log")
                         log.delete()
                         File(log.path + dev.rustdroid.ide.game.GameActivity.CLOSED_SUFFIX).delete()
-                        _launchGame.tryEmit(GameLaunch(gameLib.absolutePath, log.absolutePath))
+                        val assetsZip = File(container.context.filesDir, "games/assets.zip")
+                        val hasAssets = withContext(Dispatchers.IO) {
+                            dev.rustdroid.ide.export.GameAssets.writeZip(
+                                dev.rustdroid.ide.export.GameAssets.collect(projectDir), assetsZip,
+                            )
+                        }
+                        _launchGame.tryEmit(
+                            GameLaunch(gameLib.absolutePath, log.absolutePath, assetsZip.absolutePath.takeIf { hasAssets }),
+                        )
                         watchGame(log)
                     } else {
                         console.system(str(R.string.vm_game_cannot_build, gameLib.name))

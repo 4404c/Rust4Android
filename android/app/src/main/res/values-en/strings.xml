@@ -289,6 +289,17 @@
     <string name="search_close">Close search</string>
     <string name="search_replace_one">Replace</string>
     <string name="search_replace_all">All</string>
+    <string name="search_in_project">Search the whole project</string>
+    <string name="search_project_none">Not found in any project file</string>
+    <string name="search_project_more">(there are more: type something more specific)</string>
+    <plurals name="search_project_lines">
+        <item quantity="one">%d line</item>
+        <item quantity="other">%d lines</item>
+    </plurals>
+    <plurals name="search_project_files">
+        <item quantity="one">in %d file</item>
+        <item quantity="other">in %d files</item>
+    </plurals>
     <string name="files_rename_move">Rename or move</string>
     <string name="files_move_hint">Change the name to rename, or the folder to move it (e.g. src/game/main.rs). Missing folders are created.</string>
     <string name="files_path">Path in the project</string>

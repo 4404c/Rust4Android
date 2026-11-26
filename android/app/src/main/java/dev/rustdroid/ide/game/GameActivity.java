@@ -259,7 +259,35 @@ public class GameActivity extends Activity {
     /** R4A: created next to the log when the game closes normally. */
     public static final String CLOSED_SUFFIX = ".closed";
 
+    /**
+     * R4A: zip with the project's assets/ (as assets/<name>). macroquad on
+     * Android reads files only through Activity.getAssets(), which would be
+     * R4A's own APK — so the game gets an AssetManager over this zip.
+     */
+    public static final String EXTRA_ASSETS = "assets";
+
     private String logPath = null;
+    private android.content.res.AssetManager gameAssets = null;
+
+    @Override
+    public android.content.res.AssetManager getAssets() {
+        return gameAssets != null ? gameAssets : super.getAssets();
+    }
+
+    /** AssetManager.addAssetPath is hidden but allowed at targetSdk 28. */
+    private void openGameAssets(String zip) {
+        try {
+            android.content.res.AssetManager am =
+                android.content.res.AssetManager.class.getDeclaredConstructor().newInstance();
+            java.lang.reflect.Method add = android.content.res.AssetManager.class
+                .getDeclaredMethod("addAssetPath", String.class);
+            Object cookie = add.invoke(am, insideFilesDir(zip));
+            if (cookie instanceof Integer && (Integer) cookie != 0) gameAssets = am;
+            else Log.e("R4A", "could not open game assets " + zip);
+        } catch (Throwable t) {
+            Log.e("R4A", "could not open game assets " + zip, t);
+        }
+    }
 
     /** Only files R4A itself put in its private storage. */
     private String insideFilesDir(String p) throws java.io.IOException {
@@ -317,6 +345,8 @@ public class GameActivity extends Activity {
             return;
         }
         loaded = true;
+        String assets = getIntent().getStringExtra(EXTRA_ASSETS);
+        if (assets != null) openGameAssets(assets);
         QuadNative.activityOnCreate(this);
 
     }

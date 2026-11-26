@@ -779,6 +779,9 @@ fun EditorScreen(
                     EditorSearchBar(
                         editor = editorForSearch,
                         fileKey = activeRel,
+                        projectDir = vm.projectDir,
+                        unsaved = { vm.tabs.value.filter { it.dirty }.associate { it.relativePath to it.cachedText } },
+                        onOpenHit = { path, line -> vm.revealLine(path, line) },
                         onClose = {
                             searchOpen = false
                             editorForSearch.searcher.stopSearch()
@@ -1589,6 +1592,7 @@ private fun showGame(context: android.content.Context, launch: EditorViewModel.G
     if (launch != null) {
         intent.putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_LIBRARY, launch.library)
             .putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_LOG, launch.log)
+            .putExtra(dev.rustdroid.ide.game.GameActivity.EXTRA_ASSETS, launch.assets)
     }
     val slide = android.app.ActivityOptions.makeCustomAnimation(
         context, R.anim.r4a_slide_in_right, R.anim.r4a_slide_out_left,

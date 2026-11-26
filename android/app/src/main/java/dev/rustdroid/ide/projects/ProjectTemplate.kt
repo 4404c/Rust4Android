@@ -7,7 +7,7 @@ import dev.rustdroid.ide.R
  * R4A: what `Nuevo proyecto` can start from. Every template is built with
  * `cargo new` first; then [mainFile] gets [code] and [dependencies] are
  * appended to Cargo.toml. [needsInternet] = it pulls crates, so the first
- * build downloads them.
+ * build downloads them. [files] are written as they are (images in `assets/`).
  */
 enum class ProjectTemplate(
     val id: String,
@@ -16,6 +16,8 @@ enum class ProjectTemplate(
     val isLib: Boolean = false,
     val dependencies: String = "",
     val code: String? = null,
+    /** Extra files (project-relative path → bytes), e.g. the game's image. */
+    val files: Map<String, ByteArray> = emptyMap(),
 ) {
     CONSOLE("consola", R.string.tpl_console, R.string.tpl_console_desc),
     INTERACTIVE("interactivo", R.string.tpl_interactive, R.string.tpl_interactive_desc, code = INTERACTIVE_MAIN_RS),
@@ -23,6 +25,7 @@ enum class ProjectTemplate(
         "juego", R.string.tpl_game, R.string.tpl_game_desc,
         dependencies = ProjectRepository.GAME_DEPENDENCIES,
         code = ProjectRepository.GAME_MAIN_RS,
+        files = mapOf("assets/pelota.png" to ProjectRepository.GAME_BALL_PNG),
     ),
     STRUCTS("structs", R.string.tpl_structs, R.string.tpl_structs_desc, code = STRUCTS_MAIN_RS),
     LIBRARY("biblioteca", R.string.tpl_library, R.string.tpl_library_desc, isLib = true, code = LIBRARY_LIB_RS);

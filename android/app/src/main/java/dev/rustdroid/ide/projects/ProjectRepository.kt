@@ -203,6 +203,9 @@ class ProjectRepository(
                 Fs.writeAtomic(toml, base + deps + "\n" + template.dependencies)
             }
             template.code?.let { Fs.writeAtomic(File(dir, template.mainFile), it) }
+            for ((path, bytes) in template.files) {
+                File(dir, path).apply { parentFile?.mkdirs() }.writeBytes(bytes)
+            }
             dir
         }
 
@@ -472,6 +475,11 @@ class ProjectRepository(
                 "fontdue = \"=0.9.3\"\n"
 
         /** R4A: game template — a ball that bounces and follows your finger. */
+        /** R4A: the game template's 16x16 pixel-art ball (assets/pelota.png). */
+        val GAME_BALL_PNG: ByteArray = java.util.Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAgUlEQVR42mNkwAL+92j8xybOWHKDEUOMGI34DGLEqjkqD0Ivm0TQIBYUzTCNJAAmnDIEbIcbgNXfRGo+ESD3n4UcjcR5gQA4eeQbZQZQ5AKY7dRxAbbkSaztFhseMbKQoxFrXsCVD3BptNjwiBEjM50IkCMqM8E0YxhAyCBkjTAAAOZmNk8qdU26AAAAAElFTkSuQmCC",
+        )
+
         val GAME_MAIN_RS = """
             |use macroquad::prelude::*;
             |
@@ -479,9 +487,16 @@ class ProjectRepository(
             |// ▶ lo compila y lo abre como app. Atrás vuelve al editor.
             |#[macroquad::main("Mi juego")]
             |async fn main() {
+            |    // Imágenes: ponelas en la carpeta assets/ del proyecto y cargalas
+            |    // por su nombre. Van solas dentro de la APK al exportar.
+            |    // set_pc_assets_folder hace que el mismo código ande en una PC.
+            |    set_pc_assets_folder("assets");
+            |    let pelota = load_texture("pelota.png").await.expect("falta assets/pelota.png");
+            |    pelota.set_filter(FilterMode::Nearest); // pixel art nítido, sin borronear
+            |
             |    let mut pos = vec2(200.0, 300.0);
             |    let mut vel = vec2(400.0, 500.0);
-            |    let radio = 50.0;
+            |    let radio = 60.0;
             |
             |    loop {
             |        // tiempo desde el cuadro anterior, con un tope: si el juego
@@ -505,7 +520,14 @@ class ProjectRepository(
             |        }
             |
             |        clear_background(Color::from_rgba(30, 28, 40, 255));
-            |        draw_circle(pos.x, pos.y, radio, ORANGE);
+            |        // la imagen, del tamaño de la pelota y centrada en pos
+            |        draw_texture_ex(
+            |            &pelota,
+            |            pos.x - radio,
+            |            pos.y - radio,
+            |            WHITE,
+            |            DrawTextureParams { dest_size: Some(vec2(radio * 2.0, radio * 2.0)), ..Default::default() },
+            |        );
             |        draw_text("Hola desde R4A", 40.0, 120.0, 80.0, WHITE);
             |        next_frame().await
             |    }

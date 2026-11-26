@@ -66,6 +66,7 @@ object ApkExporter {
         workDir: File,
         out: File,
         icon: ByteArray? = null,
+        assets: Map<String, File> = emptyMap(),
     ) {
         require(isValidPackage(options.packageName)) { "package: ${options.packageName}" }
         require(options.appName.isNotBlank()) { "name" }
@@ -97,6 +98,10 @@ object ApkExporter {
                     zout.putEntry(e.name, data, stored = e.method == ZipEntry.STORED)
                 }
                 zout.putEntry("lib/arm64-v8a/libgame.so", gameLibrary.readBytes(), stored = false)
+                // the game's images/sounds: macroquad reads them from here
+                for ((name, file) in assets) {
+                    zout.putEntry("assets/$name", file.readBytes(), stored = false)
+                }
             }
         }
 

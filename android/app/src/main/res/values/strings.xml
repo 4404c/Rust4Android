@@ -293,6 +293,17 @@
     <string name="search_close">Cerrar búsqueda</string>
     <string name="search_replace_one">Reemplazar</string>
     <string name="search_replace_all">Todos</string>
+    <string name="search_in_project">Buscar en todo el proyecto</string>
+    <string name="search_project_none">No está en ningún archivo del proyecto</string>
+    <string name="search_project_more">(hay más: escribí algo más preciso)</string>
+    <plurals name="search_project_lines">
+        <item quantity="one">%d línea</item>
+        <item quantity="other">%d líneas</item>
+    </plurals>
+    <plurals name="search_project_files">
+        <item quantity="one">en %d archivo</item>
+        <item quantity="other">en %d archivos</item>
+    </plurals>
     <string name="files_rename_move">Renombrar o mover</string>
     <string name="files_move_hint">Cambiá el nombre para renombrar, o la carpeta para moverlo (ej. src/juego/main.rs). Las carpetas que no existen se crean.</string>
     <string name="files_path">Ruta en el proyecto</string>
